@@ -1,4 +1,4 @@
-module utils
+module github.com/sunshine69/golang-tools/utils
 
 go 1.16
 
