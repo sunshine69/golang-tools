@@ -47,8 +47,9 @@ func main() {
 		diff := tnow.Sub(tDeploy)
 		if diff.Hours()/24 > 7 { //older than 7 days and then to be rm
 			if !strings.Contains(val["name"], "nginx") {
-				depDate := tDeploy.String()
-				cmdList = append(cmdList, fmt.Sprintf("kubectl -n review delete deployment %s - %s", val["name"], depDate))
+				//depDate := tDeploy.String()
+				//cmdList = append(cmdList, fmt.Sprintf("kubectl -n review delete deployment %s - %s", val["name"], depDate))
+				cmdList = append(cmdList, fmt.Sprintf("kubectl -n review delete deployment %s", val["name"]))
 			}
 		}
 	}
