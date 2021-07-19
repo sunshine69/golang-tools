@@ -23,6 +23,7 @@ import (
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
+	"github.com/hashicorp/logutils"
 )
 
 //TimeISO8601LayOut
@@ -34,7 +35,21 @@ const (
 var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
-
+func ConfigureLogging(w *os.File) {
+	if w == nil {
+		w = os.Stderr
+	}
+	defaultLogLevel := os.Getenv("LOG_LEVEL")
+	if defaultLogLevel == "" {
+		defaultLogLevel = "ERROR"
+	}
+	logFilter := &logutils.LevelFilter{
+		Levels: []logutils.LogLevel{"DEBUG", "INFO", "WARN", "ERROR"},
+		MinLevel: logutils.LogLevel(defaultLogLevel),
+		Writer: w,
+	}
+	log.SetOutput(logFilter)
+}
 func RunSystemCommand(cmd string, verbose bool) string {
 	if verbose {
 		log.Printf("command: %s\n", cmd)
@@ -155,18 +170,18 @@ func ParseTimeRange(durationStr, tz string) (time.Time, time.Time) {
 }
 func CheckErr(err error, location string) bool {
 	if err != nil {
-		log.Fatalf("ERROR at %s - %v\n", location, err)
+		log.Fatalf("[ERROR] at %s - %v\n", location, err)
 		return false
 	} else {
 		return true
 	}
 }
-func CheckErrNonFatal(err error, location string) bool {
+func CheckErrNonFatal(err error, location string) error {
 	if err != nil {
-		log.Printf("ERROR at %s - %v. IGNORED\n", location, err)
-		return false
+		log.Printf("[ERROR] at %s - %v. IGNORED\n", location, err)
+		return err
 	} else {
-		return true
+		return nil
 	}
 }
 
