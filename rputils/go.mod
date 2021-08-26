@@ -1,4 +1,4 @@
-module rputils
+module github.com/sunshine69/golang-tools/rputils
 
 go 1.16
 
