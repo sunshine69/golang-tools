@@ -15,6 +15,8 @@ github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZN
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.3.0 h1:TivCn/peBQ7UY8ooIcPgZFpTNSz0Q2U6UrFlUfqbe0Q=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
+github.com/sunshine69/golang-tools/utils v0.0.0-20210719003147-9300f660da52 h1:Bhlmad+Xg3yk9yfQ1iCQMMwD560aSlOscpyqd8LCWfY=
+github.com/sunshine69/golang-tools/utils v0.0.0-20210719003147-9300f660da52/go.mod h1:zP4OJhrBEZqhdOVpU11mEGM9WlFnarZ24cNEIT0uaew=
 github.com/sunshine69/golang-tools/utils v0.0.0-20210826001251-ddeb1ff1d30b h1:G8dthFUu9x5YFKrW89qsXAHNN9oR4G5oPWqk3+L6K3s=
 github.com/sunshine69/golang-tools/utils v0.0.0-20210826001251-ddeb1ff1d30b/go.mod h1:PCd0+zvR/imMy+5FL240G9N2mDWhQDKnIirZtBdHvRs=
 golang.org/x/net v0.0.0-20210825183410-e898025ed96a h1:bRuuGXV8wwSdGTB+CtJf+FjgO1APK1CoO39T4BN/XBw=
