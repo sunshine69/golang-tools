@@ -18,17 +18,17 @@ func main() {
 		log.Fatalf("Failed to create client: %v", err)
 	}
 	opt := &gitlab.ListProjectsOptions{
-		Search: gitlab.String("DevOps"),
+		//Search: gitlab.String("DevOps"),
 		ListOptions: gitlab.ListOptions{
-			PerPage: 10,
+			PerPage: 50,
 			Page:    1,
 		},
 	}
 	Cadence := "1month"
 	Enabled := true
 	NameRegexDelete := ".*"
-	NameRegexKeep := ".*(main|master)$"
-	KeepN := 50
+	NameRegexKeep := ""
+	KeepN := 100
 	OlderThan := "90d"
 
 	containerExpirationPolicyAttributes := gitlab.ContainerExpirationPolicyAttributes{
