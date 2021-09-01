@@ -27,8 +27,8 @@ func main() {
 	Cadence := "1month"
 	Enabled := true
 	NameRegexDelete := ".*"
-	NameRegexKeep := ".*(main|master)$"
-	KeepN := 50
+	NameRegexKeep := ""
+	KeepN := 100
 	OlderThan := "90d"
 
 	containerExpirationPolicyAttributes := gitlab.ContainerExpirationPolicyAttributes{
