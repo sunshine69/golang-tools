@@ -61,6 +61,7 @@ func main() {
 		if resp.CurrentPage >= resp.TotalPages {
 			break
 		}
+		u.Sleep("10s")
 		// Update the page number to get the next page.
 		opt.Page = resp.NextPage
 	}

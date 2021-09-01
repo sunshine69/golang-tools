@@ -114,6 +114,13 @@ func ParseTimeRange(durationStr, tz string) (time.Time, time.Time) {
 	// log.Printf("Time range: %s - %s\n",start.Format(AUTimeLayout), end.Format(AUTimeLayout))
 	return start, end
 }
+
+func Sleep(duration string) {
+	d, err := time.ParseDuration(duration)
+	CheckErr(err, "ParseDuration")
+	time.Sleep(d)
+}
+
 func CheckErr(err error, location string) {
 	if err != nil {
 		log.Fatalf("[ERROR] at %s - %v\n", location, err)
