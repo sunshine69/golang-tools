@@ -43,8 +43,8 @@ func main() {
 		ContainerExpirationPolicyAttributes: &containerExpirationPolicyAttributes,
 	}
 
+	projectService := git.Projects
 	for{
-		projectService := git.Projects
 		projects, resp, err := projectService.ListProjects(opt)
 		u.CheckErr(err, "Projects.ListProjects")
 
