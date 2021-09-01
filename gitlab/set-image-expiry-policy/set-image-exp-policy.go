@@ -18,9 +18,9 @@ func main() {
 		log.Fatalf("Failed to create client: %v", err)
 	}
 	opt := &gitlab.ListProjectsOptions{
-		Search: gitlab.String("DevOps"),
+		//Search: gitlab.String("DevOps"),
 		ListOptions: gitlab.ListOptions{
-			PerPage: 10,
+			PerPage: 50,
 			Page:    1,
 		},
 	}
@@ -43,8 +43,8 @@ func main() {
 		ContainerExpirationPolicyAttributes: &containerExpirationPolicyAttributes,
 	}
 
+	projectService := git.Projects
 	for{
-		projectService := git.Projects
 		projects, resp, err := projectService.ListProjects(opt)
 		u.CheckErr(err, "Projects.ListProjects")
 
