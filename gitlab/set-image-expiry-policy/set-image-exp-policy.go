@@ -2,15 +2,17 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"log"
-	"github.com/xanzy/go-gitlab"
+	"os"
+
 	u "github.com/sunshine69/golang-tools/utils"
+	"github.com/xanzy/go-gitlab"
 )
 
 var (
 	GitLabToken string
 )
+
 func main() {
 	GitLabToken = os.Getenv("GITLAB_TOKEN")
 	git, err := gitlab.NewClient(GitLabToken, gitlab.WithBaseURL("https://code.go1.com.au/api/v4"))
@@ -20,7 +22,7 @@ func main() {
 	opt := &gitlab.ListProjectsOptions{
 		//Search: gitlab.String("DevOps"),
 		ListOptions: gitlab.ListOptions{
-			PerPage: 50,
+			PerPage: 25,
 			Page:    1,
 		},
 	}
@@ -32,30 +34,29 @@ func main() {
 	OlderThan := "90d"
 
 	containerExpirationPolicyAttributes := gitlab.ContainerExpirationPolicyAttributes{
-		Cadence: &Cadence,
-		Enabled: &Enabled,
+		Cadence:         &Cadence,
+		Enabled:         &Enabled,
 		NameRegexDelete: &NameRegexDelete,
-		NameRegexKeep: &NameRegexKeep,
-		KeepN: &KeepN,
-		OlderThan: &OlderThan,
+		NameRegexKeep:   &NameRegexKeep,
+		KeepN:           &KeepN,
+		OlderThan:       &OlderThan,
 	}
 	editPrjOpt := gitlab.EditProjectOptions{
 		ContainerExpirationPolicyAttributes: &containerExpirationPolicyAttributes,
 	}
 
 	projectService := git.Projects
-	for{
+	for {
 		projects, resp, err := projectService.ListProjects(opt)
 		u.CheckErr(err, "Projects.ListProjects")
 
 		projectIDList := []int{}
 		for _, row := range projects {
-			projectIDList = append(projectIDList, row.ID )
+			projectIDList = append(projectIDList, row.ID)
 			_, _, err := projectService.EditProject(row.ID, &editPrjOpt)
 			u.CheckErr(err, "projectService.EditProject")
 		}
 		fmt.Printf("%v\n", projectIDList)
-
 
 		// Exit the loop when we've seen all pages.
 		if resp.CurrentPage >= resp.TotalPages {

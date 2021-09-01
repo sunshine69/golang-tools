@@ -3,7 +3,7 @@ module gitlab-set-image-expirey-policy
 go 1.17
 
 require (
-	github.com/sunshine69/golang-tools/utils v0.0.0-20210901065245-1c04cfd6e750
+	github.com/sunshine69/golang-tools/utils v0.0.0-20210901082443-18a3d4fb335f
 	github.com/xanzy/go-gitlab v0.50.3
 )
 
