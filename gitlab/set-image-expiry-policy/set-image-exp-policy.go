@@ -20,13 +20,13 @@ func main() {
 		log.Fatalf("Failed to create client: %v", err)
 	}
 	opt := &gitlab.ListProjectsOptions{
-		//Search: gitlab.String("DevOps"),
+		//Search: gitlab.String(""),
 		ListOptions: gitlab.ListOptions{
 			PerPage: 25,
 			Page:    1,
 		},
 	}
-	Cadence := "1month"
+	Cadence := "7d"
 	Enabled := true
 	NameRegexDelete := ".*"
 	NameRegexKeep := ""
@@ -53,8 +53,9 @@ func main() {
 		projectIDList := []int{}
 		for _, row := range projects {
 			projectIDList = append(projectIDList, row.ID)
-			_, _, err := projectService.EditProject(row.ID, &editPrjOpt)
+			_, resp, err := projectService.EditProject(row.ID, &editPrjOpt)
 			u.CheckErr(err, "projectService.EditProject")
+            fmt.Printf("%s\n",resp)
 		}
 		fmt.Printf("%v\n", projectIDList)
 
