@@ -58,7 +58,7 @@ func main() {
 			Page:    1,
 		},
 	}
-	Cadence := "7d"
+	Cadence := u.( "7d" )
 	Enabled := true
 	NameRegexDelete := ".*"
 	NameRegexKeep := ""
