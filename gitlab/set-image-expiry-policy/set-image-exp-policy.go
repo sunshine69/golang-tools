@@ -20,7 +20,7 @@ func main() {
 		log.Fatalf("Failed to create client: %v", err)
 	}
 	opt := &gitlab.ListProjectsOptions{
-		//Search: gitlab.String(""),
+		//Search: gitlab.String("DevOps"),
 		ListOptions: gitlab.ListOptions{
 			PerPage: 25,
 			Page:    1,
@@ -56,9 +56,9 @@ func main() {
 				fmt.Printf("Project ID %d - Already equal, no action\n", row.ID)
 			} else {
 				projectIDList = append(projectIDList, row.ID)
-				_, resp, err := projectService.EditProject(row.ID, &editPrjOpt)
+				_, _, err := projectService.EditProject(row.ID, &editPrjOpt)
 				u.CheckErr(err, "projectService.EditProject")
-				fmt.Printf("%s\n",resp)
+				fmt.Printf("Updated %d\n",row.ID)
 			}
 		}
 		fmt.Printf("%v\n", projectIDList)
@@ -74,6 +74,9 @@ func main() {
 }
 
 func Equal_ContainerExpirationPolicyAttributes (a *gitlab.ContainerExpirationPolicyAttributes, b *gitlab.ContainerExpirationPolicy) bool {
-	return *a.Enabled == b.Enabled && *a.Cadence == b.Cadence && *a.KeepN == b.KeepN &&
-		*a.NameRegexDelete == b.NameRegexDelete && *a.NameRegexKeep == b.NameRegexKeep
+    //fmt.Printf("%t = %t - %s = %s - %d = %d - '%s' = '%s' - '%s' = '%s'\n", *(a.Enabled), b.Enabled, *(a.Cadence), b.Cadence, *(a.KeepN), b.KeepN, *(a.NameRegexDelete), b.NameRegexDelete, *(a.NameRegexKeep), b.NameRegexKeep)
+
+	return *(a.Enabled) == b.Enabled && *(a.Cadence) == b.Cadence && *(a.KeepN) == b.KeepN
+		//*(a.NameRegexDelete) == b.NameRegexDelete && *(a.NameRegexKeep) == b.NameRegexKeep
+        //Buggy The GUI shows the prj has NameRegexDelete but in here b.NameRegexDelete always empty!
 }
