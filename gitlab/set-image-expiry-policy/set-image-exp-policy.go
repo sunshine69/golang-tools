@@ -16,6 +16,7 @@ var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 func ParseConfig() map[string]interface{} {
+	if configFile == "" { log.Fatalf("Config file required. Run with -h for help") }
 	configDataBytes, err := ioutil.ReadFile(configFile)
 	u.CheckErr(err, "ParseConfig")
 	config := map[string]interface{}{}
@@ -58,12 +59,12 @@ func main() {
 			Page:    1,
 		},
 	}
-	Cadence := u.( "7d" )
-	Enabled := true
-	NameRegexDelete := ".*"
-	NameRegexKeep := ""
-	KeepN := 100
-	OlderThan := "90d"
+	Cadence := config["Cadence"].(string)
+	Enabled := config["Enabled"].(bool)
+	NameRegexDelete := config["NameRegexDelete"].(string)
+	NameRegexKeep := config["NameRegexKeep"].(string)
+	KeepN := int(config["KeepN"].(float64))
+	OlderThan := config["OlderThan"].(string)
 
 	containerExpirationPolicyAttributes := gitlab.ContainerExpirationPolicyAttributes{
 		Cadence:         &Cadence,
@@ -148,7 +149,7 @@ func main() {
 		opt.Page = resp.NextPage
 	}
 	fmt.Println("Writting log ...")
-	file_name := fmt.Sprintf("set-image-expiry-%s.json", time.Now().Format(u.CleanStringDateLayout))
+	file_name := fmt.Sprintf("set-image-expiry-%s.json.log", time.Now().Format(u.CleanStringDateLayout))
 	err = ioutil.WriteFile(file_name, []byte(u.JsonDump(output, "    ")), 0777)
 	u.CheckErr(err, "WriteFile set-image-expiry")
 	fmt.Printf("Wrote report file %s\n", file_name)
