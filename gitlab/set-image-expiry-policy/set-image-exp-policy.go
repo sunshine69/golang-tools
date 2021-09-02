@@ -52,10 +52,14 @@ func main() {
 
 		projectIDList := []int{}
 		for _, row := range projects {
-			projectIDList = append(projectIDList, row.ID)
-			_, resp, err := projectService.EditProject(row.ID, &editPrjOpt)
-			u.CheckErr(err, "projectService.EditProject")
-            fmt.Printf("%s\n",resp)
+			if (Equal_ContainerExpirationPolicyAttributes(&containerExpirationPolicyAttributes, row.ContainerExpirationPolicy) ) {
+				fmt.Printf("Project ID %d - Already equal, no action\n", row.ID)
+			} else {
+				projectIDList = append(projectIDList, row.ID)
+				_, resp, err := projectService.EditProject(row.ID, &editPrjOpt)
+				u.CheckErr(err, "projectService.EditProject")
+				fmt.Printf("%s\n",resp)
+			}
 		}
 		fmt.Printf("%v\n", projectIDList)
 
@@ -67,4 +71,9 @@ func main() {
 		// Update the page number to get the next page.
 		opt.Page = resp.NextPage
 	}
+}
+
+func Equal_ContainerExpirationPolicyAttributes (a *gitlab.ContainerExpirationPolicyAttributes, b *gitlab.ContainerExpirationPolicy) bool {
+	return *a.Enabled == b.Enabled && *a.Cadence == b.Cadence && *a.KeepN == b.KeepN &&
+		*a.NameRegexDelete == b.NameRegexDelete && *a.NameRegexKeep == b.NameRegexKeep
 }
