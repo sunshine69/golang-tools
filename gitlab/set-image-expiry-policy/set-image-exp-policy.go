@@ -17,7 +17,7 @@ var (
 )
 
 func main() {
-	flag.StringVar(&projectSearchStr, "project-search-string", "DevOps", "Project search Str. Empty means everything. Default DevOps")
+	flag.StringVar(&projectSearchStr, "project-search-string", "DevOps", "Project search Str. Empty means everything")
 	flag.Parse()
 
 	GitLabToken = os.Getenv("GITLAB_TOKEN")
