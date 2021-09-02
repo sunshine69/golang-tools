@@ -1,11 +1,11 @@
 package main
 
 import (
-	"time"
-	"io/ioutil"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
+	"time"
 
 	u "github.com/sunshine69/golang-tools/utils"
 	"github.com/xanzy/go-gitlab"
@@ -22,7 +22,7 @@ func main() {
 		log.Fatalf("Failed to create client: %v", err)
 	}
 	opt := &gitlab.ListProjectsOptions{
-		//Search: gitlab.String("DevOps"),
+		Search: gitlab.String("DevOps"),
 		ListOptions: gitlab.ListOptions{
 			PerPage: 25,
 			Page:    1,
@@ -46,9 +46,9 @@ func main() {
 	editPrjOpt := gitlab.EditProjectOptions{
 		ContainerExpirationPolicyAttributes: &containerExpirationPolicyAttributes,
 	}
-	output := map[string]interface{} {
+	output := map[string]interface{}{
 		"nochange": []map[string]interface{}{},
-		"changed": []map[string]interface{}{},
+		"changed":  []map[string]interface{}{},
 	}
 	projectService := git.Projects
 	for {
@@ -56,34 +56,34 @@ func main() {
 		u.CheckErr(err, "Projects.ListProjects")
 
 		for _, row := range projects {
-			if (Equal_ContainerExpirationPolicyAttributes(&containerExpirationPolicyAttributes, row.ContainerExpirationPolicy) ) {
+			if row.ContainerRegistryEnabled && row.RepositoryAccessLevel == "enabled" && Equal_ContainerExpirationPolicyAttributes(&containerExpirationPolicyAttributes, row.ContainerExpirationPolicy) {
 				fmt.Printf("Project ID %d - Already equal, no action\n", row.ID)
-				output["nochange"] = append(output["nochange"].([]interface{}), map[string]interface{} {
-					"name": row.Name,
-					"url": row.WebURL,
-					"cadence": "7d",
-					"enabled": row.ContainerExpirationPolicy.Enabled,
-					"keep_n": row.ContainerExpirationPolicy.KeepN,
-					"older_than": row.ContainerExpirationPolicy.OlderThan,
+				output["nochange"] = append(output["nochange"].([]interface{}), map[string]interface{}{
+					"name":              row.Name,
+					"url":               row.WebURL,
+					"cadence":           "7d",
+					"enabled":           row.ContainerExpirationPolicy.Enabled,
+					"keep_n":            row.ContainerExpirationPolicy.KeepN,
+					"older_than":        row.ContainerExpirationPolicy.OlderThan,
 					"name_regex_delete": row.ContainerExpirationPolicy.NameRegexDelete,
-					"name_regex_keep": row.ContainerExpirationPolicy.NameRegexKeep,
-					"next_run_at": row.ContainerExpirationPolicy.NextRunAt.Format(u.AUTimeLayout),
-				} )
+					"name_regex_keep":   row.ContainerExpirationPolicy.NameRegexKeep,
+					"next_run_at":       row.ContainerExpirationPolicy.NextRunAt.Format(u.AUTimeLayout),
+				})
 			} else {
 				_, _, err := projectService.EditProject(row.ID, &editPrjOpt)
 				u.CheckErr(err, "projectService.EditProject")
-				output["changed"] = append(output["nochange"].([]interface{}), map[string]interface{} {
-					"name": row.Name,
-					"url": row.WebURL,
-					"cadence": "7d",
-					"enabled": row.ContainerExpirationPolicy.Enabled,
-					"keep_n": row.ContainerExpirationPolicy.KeepN,
-					"older_than": row.ContainerExpirationPolicy.OlderThan,
+				output["changed"] = append(output["nochange"].([]interface{}), map[string]interface{}{
+					"name":              row.Name,
+					"url":               row.WebURL,
+					"cadence":           "7d",
+					"enabled":           row.ContainerExpirationPolicy.Enabled,
+					"keep_n":            row.ContainerExpirationPolicy.KeepN,
+					"older_than":        row.ContainerExpirationPolicy.OlderThan,
 					"name_regex_delete": row.ContainerExpirationPolicy.NameRegexDelete,
-					"name_regex_keep": row.ContainerExpirationPolicy.NameRegexKeep,
-					"next_run_at": row.ContainerExpirationPolicy.NextRunAt.Format(u.AUTimeLayout),
-				} )
-				fmt.Printf("Updated %d\n",row.ID)
+					"name_regex_keep":   row.ContainerExpirationPolicy.NameRegexKeep,
+					"next_run_at":       row.ContainerExpirationPolicy.NextRunAt.Format(u.AUTimeLayout),
+				})
+				fmt.Printf("Updated %d\n", row.ID)
 			}
 		}
 
@@ -95,13 +95,13 @@ func main() {
 		// Update the page number to get the next page.
 		opt.Page = resp.NextPage
 	}
-	ioutil.WriteFile(fmt.Sprintf("set-image-expiry-%s.log", time.Now().Format(u.AUTimeLayout)), []byte( u.JsonDump(output, "    ") ), 0777 )
+	ioutil.WriteFile(fmt.Sprintf("set-image-expiry-%s.log", time.Now().Format(u.AUTimeLayout)), []byte(u.JsonDump(output, "    ")), 0777)
 }
 
-func Equal_ContainerExpirationPolicyAttributes (a *gitlab.ContainerExpirationPolicyAttributes, b *gitlab.ContainerExpirationPolicy) bool {
-    //fmt.Printf("%t = %t - %s = %s - %d = %d - '%s' = '%s' - '%s' = '%s'\n", *(a.Enabled), b.Enabled, *(a.Cadence), b.Cadence, *(a.KeepN), b.KeepN, *(a.NameRegexDelete), b.NameRegexDelete, *(a.NameRegexKeep), b.NameRegexKeep)
+func Equal_ContainerExpirationPolicyAttributes(a *gitlab.ContainerExpirationPolicyAttributes, b *gitlab.ContainerExpirationPolicy) bool {
+	//fmt.Printf("%t = %t - %s = %s - %d = %d - '%s' = '%s' - '%s' = '%s'\n", *(a.Enabled), b.Enabled, *(a.Cadence), b.Cadence, *(a.KeepN), b.KeepN, *(a.NameRegexDelete), b.NameRegexDelete, *(a.NameRegexKeep), b.NameRegexKeep)
 	// Change to false to update all of them :)
 	return *(a.Enabled) == b.Enabled && *(a.Cadence) == b.Cadence && *(a.KeepN) == b.KeepN
-		//*(a.NameRegexDelete) == b.NameRegexDelete && *(a.NameRegexKeep) == b.NameRegexKeep
-        //Buggy The GUI shows the prj has NameRegexDelete but in here b.NameRegexDelete always empty!
+	//*(a.NameRegexDelete) == b.NameRegexDelete && *(a.NameRegexKeep) == b.NameRegexKeep
+	//Buggy The GUI shows the prj has NameRegexDelete but in here b.NameRegexDelete always empty!
 }
