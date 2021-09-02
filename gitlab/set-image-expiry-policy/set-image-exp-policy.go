@@ -122,8 +122,10 @@ func main() {
 		opt.Page = resp.NextPage
 	}
 	fmt.Println("Writting log ...")
-	err = ioutil.WriteFile(fmt.Sprintf("set-image-expiry-%s.log", time.Now().Format(u.CleanStringDateLayout)), []byte(u.JsonDump(output, "    ")), 0777)
+	file_name := fmt.Sprintf("set-image-expiry-%s.json", time.Now().Format(u.CleanStringDateLayout))
+	err = ioutil.WriteFile(file_name, []byte(u.JsonDump(output, "    ")), 0777)
 	u.CheckErr(err, "WriteFile set-image-expiry")
+	fmt.Printf("Wrote report file %s\n", file_name)
 }
 
 func Equal_ContainerExpirationPolicyAttributes(a *gitlab.ContainerExpirationPolicyAttributes, b *gitlab.ContainerExpirationPolicy) bool {
