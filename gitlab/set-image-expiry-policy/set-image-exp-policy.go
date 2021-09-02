@@ -70,6 +70,7 @@ func main() {
 					"next_run_at":       row.ContainerExpirationPolicy.NextRunAt.Format(u.AUTimeLayout),
 				})
 			} else {
+				fmt.Printf("Project ID %d - Action Update\n", row.ID)
 				_, _, err := projectService.EditProject(row.ID, &editPrjOpt)
 				u.CheckErr(err, "projectService.EditProject")
 				output["changed"] = append(output["nochange"], map[string]interface{}{
