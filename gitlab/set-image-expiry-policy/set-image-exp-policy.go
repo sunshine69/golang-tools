@@ -46,9 +46,9 @@ func main() {
 	editPrjOpt := gitlab.EditProjectOptions{
 		ContainerExpirationPolicyAttributes: &containerExpirationPolicyAttributes,
 	}
-	output := map[string]interface{}{
-		"nochange": []map[string]interface{}{},
-		"changed":  []map[string]interface{}{},
+	output := map[string][]interface{}{
+		"nochange": []interface{}{},
+		"changed": []interface{}{},
 	}
 	projectService := git.Projects
 	for {
@@ -58,7 +58,7 @@ func main() {
 		for _, row := range projects {
 			if row.ContainerRegistryEnabled && row.RepositoryAccessLevel == "enabled" && Equal_ContainerExpirationPolicyAttributes(&containerExpirationPolicyAttributes, row.ContainerExpirationPolicy) {
 				fmt.Printf("Project ID %d - Already equal, no action\n", row.ID)
-				output["nochange"] = append(output["nochange"].([]interface{}), map[string]interface{}{
+				output["nochange"] = append(output["nochange"], map[string]interface{}{
 					"name":              row.Name,
 					"url":               row.WebURL,
 					"cadence":           "7d",
@@ -72,7 +72,7 @@ func main() {
 			} else {
 				_, _, err := projectService.EditProject(row.ID, &editPrjOpt)
 				u.CheckErr(err, "projectService.EditProject")
-				output["changed"] = append(output["nochange"].([]interface{}), map[string]interface{}{
+				output["changed"] = append(output["nochange"], map[string]interface{}{
 					"name":              row.Name,
 					"url":               row.WebURL,
 					"cadence":           "7d",
@@ -95,7 +95,9 @@ func main() {
 		// Update the page number to get the next page.
 		opt.Page = resp.NextPage
 	}
-	ioutil.WriteFile(fmt.Sprintf("set-image-expiry-%s.log", time.Now().Format(u.AUTimeLayout)), []byte(u.JsonDump(output, "    ")), 0777)
+	fmt.Println("Writting log ...")
+	err = ioutil.WriteFile(fmt.Sprintf("set-image-expiry-%s.log", time.Now().Format(u.CleanStringDateLayout)), []byte(u.JsonDump(output, "    ")), 0777)
+	u.CheckErr(err, "WriteFile set-image-expiry")
 }
 
 func Equal_ContainerExpirationPolicyAttributes(a *gitlab.ContainerExpirationPolicyAttributes, b *gitlab.ContainerExpirationPolicy) bool {

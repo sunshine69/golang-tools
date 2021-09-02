@@ -2,10 +2,7 @@ module gitlab-set-image-expirey-policy
 
 go 1.17
 
-require (
-	github.com/sunshine69/golang-tools/utils v0.0.0-20210901082443-18a3d4fb335f
-	github.com/xanzy/go-gitlab v0.50.3
-)
+require github.com/xanzy/go-gitlab v0.50.3
 
 require (
 	github.com/golang/protobuf v1.2.0 // indirect
@@ -16,6 +13,7 @@ require (
 	github.com/json-iterator/go v1.1.11 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
+	github.com/sunshine69/golang-tools/utils v0.0.0-20210902050549-1da90c38e98b // indirect
 	golang.org/x/net v0.0.0-20201021035429-f5854403a974 // indirect
 	golang.org/x/oauth2 v0.0.0-20181106182150-f42d05182288 // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
