@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -12,17 +13,20 @@ import (
 )
 
 var (
-	GitLabToken string
+	GitLabToken, projectSearchStr string
 )
 
 func main() {
+	flag.StringVar(&projectSearchStr, "project-search-string", "DevOps", "Project search Str. Empty means everything. Default DevOps")
+	flag.Parse()
+
 	GitLabToken = os.Getenv("GITLAB_TOKEN")
 	git, err := gitlab.NewClient(GitLabToken, gitlab.WithBaseURL("https://code.go1.com.au/api/v4"))
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
 	opt := &gitlab.ListProjectsOptions{
-		Search: gitlab.String("DevOps"),
+		Search: gitlab.String(projectSearchStr),
 		ListOptions: gitlab.ListOptions{
 			PerPage: 25,
 			Page:    1,
@@ -77,6 +81,7 @@ func main() {
 				fmt.Printf("Project ID %d - Action Update\n", row.ID)
 				// before := output["changed"].(map[string]interface{})["before"].([]map[string]interface{})
 				before = append(before, map[string]interface{}{
+					"id":				 row.ID,
 					"name":              row.Name,
 					"url":               row.WebURL,
 					"cadence":           row.ContainerExpirationPolicy.Cadence,
@@ -94,6 +99,7 @@ func main() {
 				u.CheckErr(err, "projectService.GetProject")
 				// after := output["changed"].(map[string]interface{})["after"].([]map[string]interface{})
 				after = append(after, map[string]interface{}{
+					"id": 				 _prj.ID,
 					"name":              _prj.Name,
 					"url":               _prj.WebURL,
 					"cadence":           _prj.ContainerExpirationPolicy.Cadence,
