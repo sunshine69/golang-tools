@@ -46,9 +46,13 @@ func main() {
 	editPrjOpt := gitlab.EditProjectOptions{
 		ContainerExpirationPolicyAttributes: &containerExpirationPolicyAttributes,
 	}
-	output := map[string][]interface{}{
+	before, after := []interface{}{}, []interface{}{}
+	output := map[string]interface{}{
 		"nochange": []interface{}{},
-		"changed": []interface{}{},
+		"changed":  map[string]interface{} {
+			"before": &before,
+			"after" : &after,
+		},
 	}
 	projectService := git.Projects
 	for {
@@ -58,10 +62,10 @@ func main() {
 		for _, row := range projects {
 			if row.ContainerRegistryEnabled && row.RepositoryAccessLevel == "enabled" && Equal_ContainerExpirationPolicyAttributes(&containerExpirationPolicyAttributes, row.ContainerExpirationPolicy) {
 				fmt.Printf("Project ID %d - Already equal, no action\n", row.ID)
-				output["nochange"] = append(output["nochange"], map[string]interface{}{
+				output["nochange"] = append(output["nochange"].([]interface{}), map[string]interface{}{
 					"name":              row.Name,
 					"url":               row.WebURL,
-					"cadence":           "7d",
+					"cadence":           row.ContainerExpirationPolicy.Cadence,
 					"enabled":           row.ContainerExpirationPolicy.Enabled,
 					"keep_n":            row.ContainerExpirationPolicy.KeepN,
 					"older_than":        row.ContainerExpirationPolicy.OlderThan,
@@ -71,12 +75,11 @@ func main() {
 				})
 			} else {
 				fmt.Printf("Project ID %d - Action Update\n", row.ID)
-				_, _, err := projectService.EditProject(row.ID, &editPrjOpt)
-				u.CheckErr(err, "projectService.EditProject")
-				output["changed"] = append(output["nochange"], map[string]interface{}{
+				// before := output["changed"].(map[string]interface{})["before"].([]map[string]interface{})
+				before = append(before, map[string]interface{}{
 					"name":              row.Name,
 					"url":               row.WebURL,
-					"cadence":           "7d",
+					"cadence":           row.ContainerExpirationPolicy.Cadence,
 					"enabled":           row.ContainerExpirationPolicy.Enabled,
 					"keep_n":            row.ContainerExpirationPolicy.KeepN,
 					"older_than":        row.ContainerExpirationPolicy.OlderThan,
@@ -84,7 +87,23 @@ func main() {
 					"name_regex_keep":   row.ContainerExpirationPolicy.NameRegexKeep,
 					"next_run_at":       row.ContainerExpirationPolicy.NextRunAt.Format(u.AUTimeLayout),
 				})
+				_, _, err := projectService.EditProject(row.ID, &editPrjOpt)
+				u.CheckErr(err, "projectService.EditProject")
 				fmt.Printf("Updated %d\n", row.ID)
+				_prj, _, err := projectService.GetProject(row.ID, nil )
+				u.CheckErr(err, "projectService.GetProject")
+				// after := output["changed"].(map[string]interface{})["after"].([]map[string]interface{})
+				after = append(after, map[string]interface{}{
+					"name":              _prj.Name,
+					"url":               _prj.WebURL,
+					"cadence":           _prj.ContainerExpirationPolicy.Cadence,
+					"enabled":           _prj.ContainerExpirationPolicy.Enabled,
+					"keep_n":            _prj.ContainerExpirationPolicy.KeepN,
+					"older_than":        _prj.ContainerExpirationPolicy.OlderThan,
+					"name_regex_delete": _prj.ContainerExpirationPolicy.NameRegexDelete,
+					"name_regex_keep":   _prj.ContainerExpirationPolicy.NameRegexKeep,
+					"next_run_at":       _prj.ContainerExpirationPolicy.NextRunAt.Format(u.AUTimeLayout),
+				})
 			}
 		}
 
