@@ -40,6 +40,14 @@ var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
+func Ternary(expr bool, x, y interface{}) interface{} {
+	if expr {
+		return x
+	} else {
+		return y
+	}
+}
+
 func ConfigureLogging(w *os.File) {
 	if w == nil {
 		w = os.Stderr

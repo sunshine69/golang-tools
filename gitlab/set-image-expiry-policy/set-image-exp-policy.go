@@ -5,23 +5,49 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"os"
 	"time"
-
+	jsoniter "github.com/json-iterator/go"
 	u "github.com/sunshine69/golang-tools/utils"
 	"github.com/xanzy/go-gitlab"
 )
 
 var (
-	GitLabToken, projectSearchStr string
+	GitLabToken, projectSearchStr, configFile string
+	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
+func ParseConfig() map[string]interface{} {
+	configDataBytes, err := ioutil.ReadFile(configFile)
+	u.CheckErr(err, "ParseConfig")
+	config := map[string]interface{}{}
+	u.CheckErr(json.Unmarshal(configDataBytes, &config), "Unmarshal Configfile" )
+	if projectSearchStr == "" && config["projectSearchStr"].(string) != "" {
+		projectSearchStr = config["projectSearchStr"].(string)
+	}
+	return config
+}
 
 func main() {
-	flag.StringVar(&projectSearchStr, "project-search-string", "DevOps", "Project search Str. Empty means everything")
+	flag.StringVar(&projectSearchStr, "project-search-string", "", "Project search Str. Empty means everything")
+	flag.StringVar(&configFile, "f", "", `Config file. A json file in the format
+	{
+		"gitlabAPIBaseURL": "https://code.go1.com.au/api/v4",
+		"projectSearchStr": "",
+		"Cadence": "7d",
+		"Enabled": true,
+		"NameRegexDelete": ".*",
+		"NameRegexKeep": "",
+		"KeepN": 100,
+		"OlderThan": "90d"
+	}`)
+	flag.StringVar(&GitLabToken, "tok", "", "GitLabToken if empty then read from env var GITLAB_TOKEN")
 	flag.Parse()
 
-	GitLabToken = os.Getenv("GITLAB_TOKEN")
-	git, err := gitlab.NewClient(GitLabToken, gitlab.WithBaseURL("https://code.go1.com.au/api/v4"))
+	config := ParseConfig()
+
+	if GitLabToken = u.Getenv("GITLAB_TOKEN", "-1"); GitLabToken == "-1" {
+		log.Fatalf("Requires env var GITLAB_TOKEN")
+	}
+	git, err := gitlab.NewClient(GitLabToken, gitlab.WithBaseURL(config["gitlabAPIBaseURL"].(string)))
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
