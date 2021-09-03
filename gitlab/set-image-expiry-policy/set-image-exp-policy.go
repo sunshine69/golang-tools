@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -12,7 +13,7 @@ import (
 )
 
 var (
-	GitLabToken, projectSearchStr, configFile string
+	GitLabToken, projectSearchStr, configFile, logDir string
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 func ParseConfig() map[string]interface{} {
@@ -41,6 +42,7 @@ func main() {
 		"OlderThan": "90d"
 	}`)
 	flag.StringVar(&GitLabToken, "tok", "", "GitLabToken if empty then read from env var GITLAB_TOKEN")
+	flag.StringVar(&logDir, "logdir", os.Getenv("HOME"), "Log directory")
 	flag.Parse()
 
 	config := ParseConfig()
@@ -149,7 +151,7 @@ func main() {
 		opt.Page = resp.NextPage
 	}
 	fmt.Println("Writting log ...")
-	file_name := fmt.Sprintf("set-image-expiry-%s.json.log", time.Now().Format(u.CleanStringDateLayout))
+	file_name := fmt.Sprintf("%s/set-image-expiry-%s.json.log", logDir, time.Now().Format(u.CleanStringDateLayout))
 	err = ioutil.WriteFile(file_name, []byte(u.JsonDump(output, "    ")), 0777)
 	u.CheckErr(err, "WriteFile set-image-expiry")
 	fmt.Printf("Wrote report file %s\n", file_name)
