@@ -89,7 +89,7 @@ func main() {
 		u.CheckErr(err, "Projects.ListProjects")
 
 		for _, row := range projects {
-			before, after := map[string]interface{}{}, map[string]interface{}{}
+
 			if row.ContainerRegistryEnabled && row.RepositoryAccessLevel == "enabled" && Equal_ContainerExpirationPolicyAttributes(&containerExpirationPolicyAttributes, row.ContainerExpirationPolicy) {
 				fmt.Printf("Project ID %d - Already equal, no action\n", row.ID)
 				output["nochange"] = append(output["nochange"].([]interface{}), map[string]interface{}{
@@ -105,8 +105,7 @@ func main() {
 				})
 			} else {
 				fmt.Printf("Project ID %d - Action Update\n", row.ID)
-				// before := output["changed"].(map[string]interface{})["before"].([]map[string]interface{})
-				before = map[string]interface{}{
+				before := map[string]interface{}{
 					"id":				 row.ID,
 					"name":              row.Name,
 					"url":               row.WebURL,
@@ -124,7 +123,7 @@ func main() {
 				_prj, _, err := projectService.GetProject(row.ID, nil )
 				u.CheckErr(err, "projectService.GetProject")
 				// after := output["changed"].(map[string]interface{})["after"].([]map[string]interface{})
-				after = map[string]interface{}{
+				after := map[string]interface{}{
 					"id": 				 _prj.ID,
 					"name":              _prj.Name,
 					"url":               _prj.WebURL,

@@ -151,8 +151,12 @@ github.com/sunshine69/golang-tools/utils v0.0.0-20210902071334-7f368c27380c h1:a
 github.com/sunshine69/golang-tools/utils v0.0.0-20210902071334-7f368c27380c/go.mod h1:+m78YMYAk6SKqrOW1hXX90XJg9eXyBPm3q/ZQeIKRzQ=
 github.com/sunshine69/golang-tools/utils v0.0.0-20210902132309-14575a028103 h1:53Cwjt29Bgp6dU67z4fmNJ0MeLH6DhY1DN1FfIKqJvw=
 github.com/sunshine69/golang-tools/utils v0.0.0-20210902132309-14575a028103/go.mod h1:+m78YMYAk6SKqrOW1hXX90XJg9eXyBPm3q/ZQeIKRzQ=
+github.com/sunshine69/golang-tools/utils v0.0.0-20210903001047-283446b8207a h1:HvdmR7QdDbOLnWROYWQejurLhlQIbmHtoRhZ0KIUrB0=
+github.com/sunshine69/golang-tools/utils v0.0.0-20210903001047-283446b8207a/go.mod h1:+m78YMYAk6SKqrOW1hXX90XJg9eXyBPm3q/ZQeIKRzQ=
 github.com/xanzy/go-gitlab v0.50.3 h1:M7ncgNhCN4jaFNyXxarJhCLa9Qi6fdmCxFFhMTQPZiY=
 github.com/xanzy/go-gitlab v0.50.3/go.mod h1:Q+hQhV508bDPoBijv7YjK/Lvlb4PhVhJdKqXVQrUoAE=
+github.com/xanzy/go-gitlab v0.50.4 h1:DA0+D9eTBnZvrGBOQ66XV4ZV9gOFXKbbgm9L99EKCUs=
+github.com/xanzy/go-gitlab v0.50.4/go.mod h1:Q+hQhV508bDPoBijv7YjK/Lvlb4PhVhJdKqXVQrUoAE=
 github.com/yuin/goldmark v1.1.25/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.1.32/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
