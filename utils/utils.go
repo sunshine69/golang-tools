@@ -24,7 +24,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
+	"golang.org/x/net/publicsuffix"
 	"github.com/hashicorp/logutils"
 	jsoniter "github.com/json-iterator/go"
 )
@@ -39,6 +39,7 @@ const (
 var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
+
 
 func Ternary(expr bool, x, y interface{}) interface{} {
 	if expr {
@@ -178,6 +179,9 @@ func Curl(method, url, data, savefilename string, headers []string) (string, err
 }
 
 func MakeRequest(method string, config map[string]interface{}, data []byte, jar *cookiejar.Jar) map[string]interface{} {
+	if jar == nil {
+		jar, _ = cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	}
 	_timeout, ok := config["timeout"].(int64)
 	if !ok {
 		_timeout = 600
@@ -228,55 +232,15 @@ func MakeRequest(method string, config map[string]interface{}, data []byte, jar 
 		}
 	}
 }
-
-//Add or delete attrbs set in a to b
-func MergeAttributes(a, b []interface{}, action string) []interface{} {
-	if len(a) == 0 {
-		return b
-	}
-STARTLOOP:
-	for _, _a := range a {
-		_a1 := _a.(map[string]interface{})
-		found := false
-		for idxb, _b := range b {
-			_b1 := _b.(map[string]interface{})
-			if _a1["key"] == _b1["key"] {
-				if _a1["key"] != nil {
-					if action == "add" {
-						b[idxb].(map[string]interface{})["value"] = _a1["value"]
-						found = true
-						continue STARTLOOP
-					} else {
-						b = RemoveItem(b, idxb)
-						found = true
-						continue
-					}
-				} else { //both key is nil
-					if _a1["value"] == _b1["value"] {
-						found = true
-						if action == "add" {
-							continue
-						} else {
-							b = RemoveItem(b, idxb)
-						}
-					}
-				}
-			}
-		}
-		//if reach here and not found we add new one
-		if !found && action == "add" {
-			b = append(b, _a)
-		}
-	}
-	return b
-}
-
 func Upload(client *http.Client, url string, values map[string]io.Reader, mimetype map[string]string, headers map[string]string) (err error) {
 	// Prepare a form that you will submit to that URL.
 	//This is not working for RP basically golang somehow send it using : Content type 'application/octet-stream' (or the server complain about that not supported). There are two parts each of them has different content type and it seems golang implementation does not fully support it? (the jsonPaths must be application-json).
-	//Forwhatever it is, even the header printed out correct - server complain. Curl work though so we will sue curl for now
+	//Forwhatever it is, even the header printed out correct - server complain. Curl work though so we will use curl for now
 	//I think golang behaviour is correct it should be 'application/octet-stream' for the file part, but the RP java server does not behave.
 	//So we add a manual set heasder map in for this case
+	if client == nil {
+		client = &http.Client{}
+	}
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)
 	for key, r := range values {
@@ -337,6 +301,47 @@ func Upload(client *http.Client, url string, values map[string]io.Reader, mimety
 		return err
 	}
 	return nil
+}
+//Add or delete attrbs set in a to b
+func MergeAttributes(a, b []interface{}, action string) []interface{} {
+	if len(a) == 0 {
+		return b
+	}
+STARTLOOP:
+	for _, _a := range a {
+		_a1 := _a.(map[string]interface{})
+		found := false
+		for idxb, _b := range b {
+			_b1 := _b.(map[string]interface{})
+			if _a1["key"] == _b1["key"] {
+				if _a1["key"] != nil {
+					if action == "add" {
+						b[idxb].(map[string]interface{})["value"] = _a1["value"]
+						found = true
+						continue STARTLOOP
+					} else {
+						b = RemoveItem(b, idxb)
+						found = true
+						continue
+					}
+				} else { //both key is nil
+					if _a1["value"] == _b1["value"] {
+						found = true
+						if action == "add" {
+							continue
+						} else {
+							b = RemoveItem(b, idxb)
+						}
+					}
+				}
+			}
+		}
+		//if reach here and not found we add new one
+		if !found && action == "add" {
+			b = append(b, _a)
+		}
+	}
+	return b
 }
 
 func MustOpenFile(f string) *os.File {
@@ -404,6 +409,7 @@ func LookupMap(m map[string]interface{}, key string, default_val string) interfa
 		return default_val
 	}
 }
+var MapLookup = LookupMap
 
 //Crypto utils
 

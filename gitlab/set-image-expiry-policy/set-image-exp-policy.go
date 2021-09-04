@@ -33,6 +33,7 @@ func main() {
 	flag.StringVar(&configFile, "f", "", `Config file. A json file in the format
 	{
 		"gitlabAPIBaseURL": "https://code.go1.com.au/api/v4",
+		"gitLabToken": "changeme",
 		"projectSearchStr": "",
 		"Cadence": "7d",
 		"Enabled": true,
@@ -48,7 +49,9 @@ func main() {
 	config := ParseConfig()
 
 	if GitLabToken = u.Getenv("GITLAB_TOKEN", "-1"); GitLabToken == "-1" {
-		log.Fatalf("Requires env var GITLAB_TOKEN")
+		if GitLabToken = config["gitLabToken"].(string); GitLabToken == "changeme" || GitLabToken == "" {
+			log.Fatalf("Requires env var GITLAB_TOKEN")
+		}
 	}
 	git, err := gitlab.NewClient(GitLabToken, gitlab.WithBaseURL(config["gitlabAPIBaseURL"].(string)))
 	if err != nil {
@@ -79,20 +82,14 @@ func main() {
 	editPrjOpt := gitlab.EditProjectOptions{
 		ContainerExpirationPolicyAttributes: &containerExpirationPolicyAttributes,
 	}
-	before, after := []interface{}{}, []interface{}{}
-	output := map[string]interface{}{
-		"nochange": []interface{}{},
-		"changed":  map[string]interface{} {
-			"before": &before,
-			"after" : &after,
-		},
-	}
+	output := map[string]interface{}{}
 	projectService := git.Projects
 	for {
 		projects, resp, err := projectService.ListProjects(opt)
 		u.CheckErr(err, "Projects.ListProjects")
 
 		for _, row := range projects {
+			before, after := map[string]interface{}{}, map[string]interface{}{}
 			if row.ContainerRegistryEnabled && row.RepositoryAccessLevel == "enabled" && Equal_ContainerExpirationPolicyAttributes(&containerExpirationPolicyAttributes, row.ContainerExpirationPolicy) {
 				fmt.Printf("Project ID %d - Already equal, no action\n", row.ID)
 				output["nochange"] = append(output["nochange"].([]interface{}), map[string]interface{}{
@@ -109,7 +106,7 @@ func main() {
 			} else {
 				fmt.Printf("Project ID %d - Action Update\n", row.ID)
 				// before := output["changed"].(map[string]interface{})["before"].([]map[string]interface{})
-				before = append(before, map[string]interface{}{
+				before = map[string]interface{}{
 					"id":				 row.ID,
 					"name":              row.Name,
 					"url":               row.WebURL,
@@ -120,14 +117,14 @@ func main() {
 					"name_regex_delete": row.ContainerExpirationPolicy.NameRegexDelete,
 					"name_regex_keep":   row.ContainerExpirationPolicy.NameRegexKeep,
 					"next_run_at":       row.ContainerExpirationPolicy.NextRunAt.Format(u.AUTimeLayout),
-				})
+				}
 				_, _, err := projectService.EditProject(row.ID, &editPrjOpt)
 				u.CheckErr(err, "projectService.EditProject")
 				fmt.Printf("Updated %d\n", row.ID)
 				_prj, _, err := projectService.GetProject(row.ID, nil )
 				u.CheckErr(err, "projectService.GetProject")
 				// after := output["changed"].(map[string]interface{})["after"].([]map[string]interface{})
-				after = append(after, map[string]interface{}{
+				after = map[string]interface{}{
 					"id": 				 _prj.ID,
 					"name":              _prj.Name,
 					"url":               _prj.WebURL,
@@ -138,7 +135,11 @@ func main() {
 					"name_regex_delete": _prj.ContainerExpirationPolicy.NameRegexDelete,
 					"name_regex_keep":   _prj.ContainerExpirationPolicy.NameRegexKeep,
 					"next_run_at":       _prj.ContainerExpirationPolicy.NextRunAt.Format(u.AUTimeLayout),
-				})
+				}
+				output[_prj.WebURL] = map[string]interface{} {
+					"before": before,
+					"after": after,
+				}
 			}
 		}
 
