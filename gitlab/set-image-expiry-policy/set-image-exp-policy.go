@@ -33,7 +33,7 @@ func main() {
 	flag.StringVar(&configFile, "f", "", `Config file. A json file in the format
 	{
 		"gitlabAPIBaseURL": "https://code.go1.com.au/api/v4",
-		"gitLabToken": "changeme",
+		"gitlabToken": "changeme",
 		"projectSearchStr": "",
 		"Cadence": "7d",
 		"Enabled": true,
@@ -49,7 +49,7 @@ func main() {
 	config := ParseConfig()
 
 	if GitLabToken = u.Getenv("GITLAB_TOKEN", "-1"); GitLabToken == "-1" {
-		if GitLabToken = config["gitLabToken"].(string); GitLabToken == "changeme" || GitLabToken == "" {
+		if GitLabToken = config["gitlabToken"].(string); GitLabToken == "changeme" || GitLabToken == "" {
 			log.Fatalf("Requires env var GITLAB_TOKEN")
 		}
 	}
@@ -82,7 +82,10 @@ func main() {
 	editPrjOpt := gitlab.EditProjectOptions{
 		ContainerExpirationPolicyAttributes: &containerExpirationPolicyAttributes,
 	}
-	output := map[string]interface{}{}
+	output := map[string]map[string]interface{}{
+        "nochange": map[string]interface{}{},
+        "changed":  map[string]interface{}{},
+    }
 	projectService := git.Projects
 	for {
 		projects, resp, err := projectService.ListProjects(opt)
@@ -92,7 +95,7 @@ func main() {
 
 			if row.ContainerRegistryEnabled && row.RepositoryAccessLevel == "enabled" && Equal_ContainerExpirationPolicyAttributes(&containerExpirationPolicyAttributes, row.ContainerExpirationPolicy) {
 				fmt.Printf("Project ID %d - Already equal, no action\n", row.ID)
-				output["nochange"] = append(output["nochange"].([]interface{}), map[string]interface{}{
+				output["nochange"][row.WebURL] = map[string]interface{}{
 					"name":              row.Name,
 					"url":               row.WebURL,
 					"cadence":           row.ContainerExpirationPolicy.Cadence,
@@ -102,7 +105,7 @@ func main() {
 					"name_regex_delete": row.ContainerExpirationPolicy.NameRegexDelete,
 					"name_regex_keep":   row.ContainerExpirationPolicy.NameRegexKeep,
 					"next_run_at":       row.ContainerExpirationPolicy.NextRunAt.Format(u.AUTimeLayout),
-				})
+				}
 			} else {
 				fmt.Printf("Project ID %d - Action Update\n", row.ID)
 				before := map[string]interface{}{
@@ -135,7 +138,7 @@ func main() {
 					"name_regex_keep":   _prj.ContainerExpirationPolicy.NameRegexKeep,
 					"next_run_at":       _prj.ContainerExpirationPolicy.NextRunAt.Format(u.AUTimeLayout),
 				}
-				output[_prj.WebURL] = map[string]interface{} {
+				output["changed"][_prj.WebURL] = map[string]interface{} {
 					"before": before,
 					"after": after,
 				}
