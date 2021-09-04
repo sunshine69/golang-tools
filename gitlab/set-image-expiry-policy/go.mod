@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/json-iterator/go v1.1.11
-	github.com/sunshine69/golang-tools/utils v0.0.0-20210903001047-283446b8207a
+	github.com/sunshine69/golang-tools/utils v0.0.0-20210903091826-becb5ecc0580
 	github.com/xanzy/go-gitlab v0.50.4
 )
 
