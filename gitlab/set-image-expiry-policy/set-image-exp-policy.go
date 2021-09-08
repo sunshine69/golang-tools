@@ -33,6 +33,7 @@ func ParseConfig() map[string]interface{} {
 
 func main() {
 	flag.StringVar(&projectSearchStr, "project-search-string", "", "Project search Str. Empty means everything")
+	flag.StringVar(&projectSearchStr, "s", "", "Project search Str. Empty means everything")
 	flag.StringVar(&configFile, "f", "", `Config file. A json file in the format
 	{
 		"gitlabAPIBaseURL": "https://code.go1.com.au/api/v4",
@@ -95,7 +96,9 @@ func main() {
 		u.CheckErr(err, "Projects.ListProjects")
 
 		for _, row := range projects {
-			if row.RepositoryAccessLevel == "disabled" {
+			// fmt.Printf("DUMP %s\n", u.JsonDump(row, "    "))
+
+			if ! row.ContainerRegistryEnabled {
 				continue
 			}
 			if Equal_ContainerExpirationPolicyAttributes(&containerExpirationPolicyAttributes, row.ContainerExpirationPolicy) {
