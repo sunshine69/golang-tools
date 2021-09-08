@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strconv"
 	"flag"
 	"fmt"
 	jsoniter "github.com/json-iterator/go"
@@ -32,7 +33,7 @@ func ParseConfig() map[string]interface{} {
 }
 
 func main() {
-	flag.StringVar(&projectSearchStr, "project-search-string", "", "Project search Str. Empty means everything")
+	flag.StringVar(&projectSearchStr, "project-search-string", "", "Project search Str. Empty means everything. If it is a integer then we use as project ID and search for it")
 	flag.StringVar(&projectSearchStr, "s", "", "Project search Str. Empty means everything")
 	flag.StringVar(&configFile, "f", "", `Config file. A json file in the format
 	{
@@ -51,6 +52,7 @@ func main() {
 	flag.Parse()
 
 	config := ParseConfig()
+	u.ConfigureLogging(os.Stdout)
 
 	if GitLabToken = u.Getenv("GITLAB_TOKEN", "-1"); GitLabToken == "-1" {
 		if GitLabToken = config["gitlabToken"].(string); GitLabToken == "changeme" || GitLabToken == "" {
@@ -91,12 +93,25 @@ func main() {
 		"changed":  map[string]interface{}{},
 	}
 	projectService := git.Projects
-	for {
-		projects, resp, err := projectService.ListProjects(opt)
-		u.CheckErr(err, "Projects.ListProjects")
 
+	for {
+		var (
+			projects []*gitlab.Project
+			project *gitlab.Project
+			resp *gitlab.Response
+			err error
+		)
+		projectID, err := strconv.Atoi(projectSearchStr)
+		if err == nil {
+			project, resp, err = projectService.GetProject(projectID, nil)
+			u.CheckErr(err, "GetProject")
+			projects = []*gitlab.Project{ project }
+		} else {
+			projects, resp, err = projectService.ListProjects(opt)
+			u.CheckErr(err, "Projects.ListProjects")
+		}
 		for _, row := range projects {
-			// fmt.Printf("DUMP %s\n", u.JsonDump(row, "    "))
+			log.Printf("[DEBUG] %s\n", u.JsonDump(row, "    "))
 
 			if ! row.ContainerRegistryEnabled {
 				continue
