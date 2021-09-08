@@ -1,27 +1,30 @@
 package main
 
 import (
-	"os"
 	"flag"
 	"fmt"
-	"io/ioutil"
-	"log"
-	"time"
 	jsoniter "github.com/json-iterator/go"
 	u "github.com/sunshine69/golang-tools/utils"
 	"github.com/xanzy/go-gitlab"
+	"io/ioutil"
+	"log"
+	"os"
+	"time"
 )
 
 var (
 	GitLabToken, projectSearchStr, configFile, logDir string
-	json = jsoniter.ConfigCompatibleWithStandardLibrary
+	json                                              = jsoniter.ConfigCompatibleWithStandardLibrary
 )
+
 func ParseConfig() map[string]interface{} {
-	if configFile == "" { log.Fatalf("Config file required. Run with -h for help") }
+	if configFile == "" {
+		log.Fatalf("Config file required. Run with -h for help")
+	}
 	configDataBytes, err := ioutil.ReadFile(configFile)
 	u.CheckErr(err, "ParseConfig")
 	config := map[string]interface{}{}
-	u.CheckErr(json.Unmarshal(configDataBytes, &config), "Unmarshal Configfile" )
+	u.CheckErr(json.Unmarshal(configDataBytes, &config), "Unmarshal Configfile")
 	if projectSearchStr == "" && config["projectSearchStr"].(string) != "" {
 		projectSearchStr = config["projectSearchStr"].(string)
 	}
@@ -83,17 +86,19 @@ func main() {
 		ContainerExpirationPolicyAttributes: &containerExpirationPolicyAttributes,
 	}
 	output := map[string]map[string]interface{}{
-        "nochange": map[string]interface{}{},
-        "changed":  map[string]interface{}{},
-    }
+		"nochange": map[string]interface{}{},
+		"changed":  map[string]interface{}{},
+	}
 	projectService := git.Projects
 	for {
 		projects, resp, err := projectService.ListProjects(opt)
 		u.CheckErr(err, "Projects.ListProjects")
 
 		for _, row := range projects {
-
-			if row.ContainerRegistryEnabled && row.RepositoryAccessLevel == "enabled" && Equal_ContainerExpirationPolicyAttributes(&containerExpirationPolicyAttributes, row.ContainerExpirationPolicy) {
+			if row.RepositoryAccessLevel == "disabled" {
+				continue
+			}
+			if Equal_ContainerExpirationPolicyAttributes(&containerExpirationPolicyAttributes, row.ContainerExpirationPolicy) {
 				fmt.Printf("Project ID %d - Already equal, no action\n", row.ID)
 				output["nochange"][row.WebURL] = map[string]interface{}{
 					"name":              row.Name,
@@ -109,7 +114,7 @@ func main() {
 			} else {
 				fmt.Printf("Project ID %d - Action Update\n", row.ID)
 				before := map[string]interface{}{
-					"id":				 row.ID,
+					"id":                row.ID,
 					"name":              row.Name,
 					"url":               row.WebURL,
 					"cadence":           row.ContainerExpirationPolicy.Cadence,
@@ -123,11 +128,11 @@ func main() {
 				_, _, err := projectService.EditProject(row.ID, &editPrjOpt)
 				u.CheckErr(err, "projectService.EditProject")
 				fmt.Printf("Updated %d\n", row.ID)
-				_prj, _, err := projectService.GetProject(row.ID, nil )
+				_prj, _, err := projectService.GetProject(row.ID, nil)
 				u.CheckErr(err, "projectService.GetProject")
 				// after := output["changed"].(map[string]interface{})["after"].([]map[string]interface{})
 				after := map[string]interface{}{
-					"id": 				 _prj.ID,
+					"id":                _prj.ID,
 					"name":              _prj.Name,
 					"url":               _prj.WebURL,
 					"cadence":           _prj.ContainerExpirationPolicy.Cadence,
@@ -138,9 +143,9 @@ func main() {
 					"name_regex_keep":   _prj.ContainerExpirationPolicy.NameRegexKeep,
 					"next_run_at":       _prj.ContainerExpirationPolicy.NextRunAt.Format(u.AUTimeLayout),
 				}
-				output["changed"][_prj.WebURL] = map[string]interface{} {
+				output["changed"][_prj.WebURL] = map[string]interface{}{
 					"before": before,
-					"after": after,
+					"after":  after,
 				}
 			}
 		}
