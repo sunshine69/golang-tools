@@ -93,7 +93,7 @@ func main() {
 		"changed":  map[string]interface{}{},
 	}
 	projectService := git.Projects
-
+	repoService := git.ContainerRegistry
 	for {
 		var (
 			projects []*gitlab.Project
@@ -114,6 +114,12 @@ func main() {
 			log.Printf("[DEBUG] %s\n", u.JsonDump(row, "    "))
 
 			if ! row.ContainerRegistryEnabled {
+				continue
+			}
+			registry, _, err := repoService.ListRegistryRepositories(row.ID, nil)
+			u.CheckErr(err, "ListRegistryRepositories")
+			if len(registry) == 0 {
+			//For these project even we set enabled gitlab will reset it back to disable for a while
 				continue
 			}
 			if Equal_ContainerExpirationPolicyAttributes(&containerExpirationPolicyAttributes, row.ContainerExpirationPolicy) {
