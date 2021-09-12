@@ -27,6 +27,7 @@ import (
 	"golang.org/x/net/publicsuffix"
 	"github.com/hashicorp/logutils"
 	jsoniter "github.com/json-iterator/go"
+	"gopkg.in/yaml.v2"
 )
 
 //TimeISO8601LayOut
@@ -39,7 +40,34 @@ const (
 var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
+func LoadConfigIntoEnv(configFile string) map[string]interface{} {
+	configObj := ParseConfig(configFile)
+	for key, val := range configObj {
+		if _val, ok := val.(string); ok {
+			if err := os.Setenv(key, _val); err != nil {
+				panic(fmt.Sprintf("[ERROR] can not set env vars from yaml config file %v\n", err))
+			}
+		} else {
+			panic(fmt.Sprintf("[ERROR] key %s not set properly. It needs to be non empty and string type. Check your config file", key))
+		}
+	}
+	return configObj
+}
 
+func ParseConfig(configFile string) map[string]interface{} {
+	if configFile == "" {
+		log.Fatalf("Config file required. Run with -h for help")
+	}
+	configDataBytes, err := ioutil.ReadFile(configFile)
+	CheckErr(err, "ParseConfig")
+	config := map[string]interface{}{}
+	err = json.Unmarshal(configDataBytes, &config)
+	if CheckErrNonFatal(err, "ParseConfig json.Unmarshal") != nil {
+		err = yaml.Unmarshal(configDataBytes, &config)
+		CheckErr(err, "ParseConfig yaml.Unmarshal")
+	}
+	return config
+}
 
 func Ternary(expr bool, x, y interface{}) interface{} {
 	if expr {
