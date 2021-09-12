@@ -5,27 +5,21 @@ import (
 	"strconv"
 	"flag"
 	"fmt"
-	jsoniter "github.com/json-iterator/go"
-	u "github.com/sunshine69/golang-tools/utils"
+	u "localhost.com/utils"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/xanzy/go-gitlab"
-	"io/ioutil"
 	"log"
 	"os"
 )
 var (
 	GitLabToken, projectSearchStr, configFile, Logdbpath string
-	json                                              = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
 func ParseConfig() map[string]interface{} {
 	if configFile == "" {
 		log.Fatalf("Config file required. Run with -h for help")
 	}
-	configDataBytes, err := ioutil.ReadFile(configFile)
-	u.CheckErr(err, "ParseConfig")
-	config := map[string]interface{}{}
-	u.CheckErr(json.Unmarshal(configDataBytes, &config), "Unmarshal Configfile")
+	config := u.ParseConfig(configFile)
 	if projectSearchStr == "" && config["projectSearchStr"].(string) != "" {
 		projectSearchStr = config["projectSearchStr"].(string)
 	}
