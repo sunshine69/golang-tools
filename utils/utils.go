@@ -40,6 +40,39 @@ const (
 var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
+func RemoveDuplicateStr(strSlice []string) []string {
+    allKeys := make(map[string]bool)
+    list := []string{}
+    for _, item := range strSlice {
+        if _, value := allKeys[item]; !value {
+            allKeys[item] = true
+            list = append(list, item)
+        }
+    }
+    return list
+}
+func RemoveDuplicateInt(strSlice []int) []int {
+    allKeys := make(map[int]bool)
+    list := []int{}
+    for _, item := range strSlice {
+        if _, value := allKeys[item]; !value {
+            allKeys[item] = true
+            list = append(list, item)
+        }
+    }
+    return list
+}
+func RemoveDuplicate(strSlice []interface{}) []interface{} {
+    allKeys := make(map[interface{}]bool)
+    list := []interface{}{}
+    for _, item := range strSlice {
+        if _, value := allKeys[item]; !value {
+            allKeys[item] = true
+            list = append(list, item)
+        }
+    }
+    return list
+}
 func LoadConfigIntoEnv(configFile string) map[string]interface{} {
 	configObj := ParseConfig(configFile)
 	for key, val := range configObj {

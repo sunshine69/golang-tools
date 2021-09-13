@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"strconv"
 	"flag"
-	"fmt"
 	u "localhost.com/utils"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/xanzy/go-gitlab"
@@ -61,7 +60,8 @@ func main() {
 	projectService := git.Projects
 	dbc := GetDBConn()
 	defer dbc.Close()
-	dbc.Begin()
+	tx, err := dbc.Begin()
+	u.CheckErr(err, "dbc.Begin")
 	insert_stmt, err := dbc.Prepare(`INSERT INTO project(pid, weburl, owner_id, owner_name, name, name_with_space, path, path_with_namespace, namespace_kind, namespace_name, namespace_id, tag_list, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	u.CheckErr(err, "Prepare")
 	defer insert_stmt.Close()
@@ -85,10 +85,8 @@ func main() {
 		var owner_id int
 		var owner_name string
 		for _, row := range projects {
-			log.Printf("[DEBUG] %s\n", u.JsonDump(row, "    "))
-
 			if ProjectFilter() {
-				fmt.Printf("Project %s - \n", u.JsonDump(row, "    "))
+				log.Printf("[DEBUG] Project %s - \n", u.JsonDump(row, "    "))
 				if row.Owner != nil {
 					owner_id = row.Owner.ID
 					owner_name = row.Owner.Name
@@ -96,11 +94,10 @@ func main() {
 					owner_id = -1
 					owner_name = "null"
 				}
-				tag_list := row.Topics
-				tag_list = append(tag_list, row.TagList...)
+				topic_list := row.Topics
 				_, err = insert_stmt.Exec( row.ID, row.WebURL, owner_id,
 				owner_name, row.Name, row.NameWithNamespace,
-				row.Path, row.PathWithNamespace, row.Namespace.Kind, row.Namespace.Name, row.Namespace.ID, u.JsonDump(tag_list, "    "), row.CreatedAt )
+				row.Path, row.PathWithNamespace, row.Namespace.Kind, row.Namespace.Name, row.Namespace.ID, strings.Join(topic_list, ","), row.CreatedAt )
 				u.CheckErr(err, "insert_stmt.Exec")
 			}
 		}
@@ -108,10 +105,11 @@ func main() {
 		if resp.CurrentPage >= resp.TotalPages {
 			break
 		}
-		u.Sleep("3s")
+		u.Sleep("2s")
 		// Update the page number to get the next page.
 		opt.Page = resp.NextPage
 	}
+	tx.Commit()
 }
 func ProjectFilter() bool {
 	return true
