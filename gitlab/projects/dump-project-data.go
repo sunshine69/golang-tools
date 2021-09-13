@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"database/sql"
 	"strconv"
 	"flag"
@@ -99,7 +100,7 @@ func main() {
 				tag_list = append(tag_list, row.TagList...)
 				_, err = insert_stmt.Exec( row.ID, row.WebURL, owner_id,
 				owner_name, row.Name, row.NameWithNamespace,
-				row.Path, row.PathWithNamespace, row.Namespace.Kind, row.Namespace.Name, row.Namespace.ID, tag_list, row.CreatedAt )
+				row.Path, row.PathWithNamespace, row.Namespace.Kind, row.Namespace.Name, row.Namespace.ID, u.JsonDump(tag_list, "    "), row.CreatedAt )
 				u.CheckErr(err, "insert_stmt.Exec")
 			}
 		}
