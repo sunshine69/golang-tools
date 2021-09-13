@@ -60,8 +60,8 @@ func main() {
 	projectService := git.Projects
 	dbc := GetDBConn()
 	defer dbc.Close()
-
-	insert_stmt, err := dbc.Prepare(`INSERT INTO project(pid, weburl, owner_id, owner_name, name, name_with_space, path, path_with_namespace, namespace_kind, namespace_name, namespace_id, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	dbc.Begin()
+	insert_stmt, err := dbc.Prepare(`INSERT INTO project(pid, weburl, owner_id, owner_name, name, name_with_space, path, path_with_namespace, namespace_kind, namespace_name, namespace_id, tag_list, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	u.CheckErr(err, "Prepare")
 	defer insert_stmt.Close()
 
@@ -85,9 +85,7 @@ func main() {
 		var owner_name string
 		for _, row := range projects {
 			log.Printf("[DEBUG] %s\n", u.JsonDump(row, "    "))
-			// if ! row.ContainerRegistryEnabled {
-			// 	continue
-			// }
+
 			if ProjectFilter() {
 				fmt.Printf("Project %s - \n", u.JsonDump(row, "    "))
 				if row.Owner != nil {
@@ -97,10 +95,11 @@ func main() {
 					owner_id = -1
 					owner_name = "null"
 				}
-				// namespace_kind text, namespace_name text, namespace_id
+				tag_list := row.Topics
+				tag_list = append(tag_list, row.TagList...)
 				_, err = insert_stmt.Exec( row.ID, row.WebURL, owner_id,
 				owner_name, row.Name, row.NameWithNamespace,
-				row.Path, row.PathWithNamespace, row.Namespace.Kind, row.Namespace.Name, row.Namespace.ID, row.CreatedAt )
+				row.Path, row.PathWithNamespace, row.Namespace.Kind, row.Namespace.Name, row.Namespace.ID, tag_list, row.CreatedAt )
 				u.CheckErr(err, "insert_stmt.Exec")
 			}
 		}
@@ -124,9 +123,9 @@ func SetUpLogDatabase() {
 	--drop table log;
 	CREATE TABLE IF NOT EXISTS project(
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		pid int, weburl text, owner_id int, owner_name text, name text, name_with_space text, path text, path_with_namespace text, namespace_kind text, namespace_name text, namespace_id int, created_at DATETIME);
+		pid int, weburl text, owner_id int, owner_name text, name text, name_with_space text, path text, path_with_namespace text, namespace_kind text, namespace_name text, namespace_id int, tag_list text, created_at DATETIME);
 
-	CREATE INDEX IF NOT EXISTS log_ts ON project(pid);
+	CREATE INDEX IF NOT EXISTS pid_idx ON project(pid);
 
 	create table IF NOT EXISTS team (id INTEGER PRIMARY KEY AUTOINCREMENT, name text);
 	create table IF NOT EXISTS team_project(id INTEGER PRIMARY KEY AUTOINCREMENT, team_id int, project_id int, domain text);
