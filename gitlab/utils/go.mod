@@ -1,17 +1,10 @@
-module dump-gitlab-project
+module github.com/sunshine69/golang-tools/gitlab/gitlabutils
 
 go 1.17
 
 replace localhost.com/utils => ../../utils
 
-replace localhost.com/gitlab/utils => ../utils
-
-require (
-	github.com/mattn/go-sqlite3 v1.14.8
-	github.com/sunshine69/sqlstruct v0.0.0-20210630145711-dae28ed37023
-	github.com/xanzy/go-gitlab v0.50.4
-	localhost.com/utils v0.0.0-00010101000000-000000000000
-)
+require github.com/xanzy/go-gitlab v0.50.4
 
 require (
 	github.com/golang/protobuf v1.2.0 // indirect
@@ -27,4 +20,5 @@ require (
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	google.golang.org/appengine v1.3.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	localhost.com/utils v0.0.0-00010101000000-000000000000 // indirect
 )
