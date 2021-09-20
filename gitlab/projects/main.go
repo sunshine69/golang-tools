@@ -14,21 +14,21 @@ import (
     "os"
 )
 var (
-    GitLabToken, projectSearchStr, configFile, Logdbpath string
+    GitLabToken, SearchStr, configFile, Logdbpath, action string
 )
 func ParseConfig() map[string]interface{} {
     if configFile == "" {
         log.Fatalf("Config file required. Run with -h for help")
     }
     config := u.ParseConfig(configFile)
-    if projectSearchStr == "" && config["projectSearchStr"].(string) != "" {
-        projectSearchStr = config["projectSearchStr"].(string)
+    if SearchStr == "" && config["SearchStr"].(string) != "" {
+        SearchStr = config["SearchStr"].(string)
     }
     return config
 }
-func DumpOrUpdateProject(git *gitlab.Client, projectSearchStr string) {
+func DumpOrUpdateProject(git *gitlab.Client, SearchStr string) {
     opt := &gitlab.ListProjectsOptions{
-        Search: gitlab.String(projectSearchStr),
+        Search: gitlab.String(SearchStr),
         ListOptions: gitlab.ListOptions{
             PerPage: 25,
             Page:    1,
@@ -42,7 +42,7 @@ func DumpOrUpdateProject(git *gitlab.Client, projectSearchStr string) {
             resp *gitlab.Response
             err error
         )
-        projectID, err := strconv.Atoi(projectSearchStr)
+        projectID, err := strconv.Atoi(SearchStr)
         if err == nil {
             project, resp, err = projectService.GetProject(projectID, nil)
             u.CheckErr(err, "GetProject")
@@ -83,10 +83,10 @@ func DumpOrUpdateProject(git *gitlab.Client, projectSearchStr string) {
         opt.Page = resp.NextPage
     }
 }
-func DumpOrUpdateNamespace(git *gitlab.Client, searchStr string) {
+func DumpOrUpdateNamespace(git *gitlab.Client, SearchStr string) {
 	nsService := git.Namespaces
 	opt := &gitlab.ListNamespacesOptions {
-		Search: gitlab.String(searchStr),
+		Search: gitlab.String(SearchStr),
 		ListOptions: gitlab.ListOptions{
 			PerPage: 25,
 			Page:    1,
@@ -138,16 +138,19 @@ func UpdateTeam() {
 func UpdateTeamProject() {
 
 }
+
+
 func main() {
     flag.StringVar(&Logdbpath, "db", "", "db path")
-    flag.StringVar(&projectSearchStr, "s", "", "Project search Str. Empty means everything. If it is a integer then we use as project ID and search for it")
+    flag.StringVar(&SearchStr, "s", "", "Project search Str. Empty means everything. If it is a integer then we use as project ID and search for it")
     flag.StringVar(&configFile, "f", "", `Config file. A json file in the format
     {
         "gitlabAPIBaseURL": "https://code.go1.com.au/api/v4",
         "gitlabToken": "changeme",
-        "projectSearchStr": "",
+        "SearchStr": "",
     }`)
     flag.StringVar(&GitLabToken, "tok", "", "GitLabToken if empty then read from env var GITLAB_TOKEN")
+    flag.StringVar(&action, "a", "", "Action. Default is update-all. Can be: update-project|update-namespace|update-team|xxx where xxx is the function name")
     flag.Parse()
 
     config := ParseConfig()
@@ -165,9 +168,22 @@ func main() {
     }
     dbc := GetDBConn()
     defer dbc.Close()
-    DumpOrUpdateProject(git, projectSearchStr)
-    DumpOrUpdateNamespace(git, projectSearchStr)
-    UpdateTeam()
+    switch action {
+    case "update-all":
+        DumpOrUpdateProject(git, SearchStr)
+        DumpOrUpdateNamespace(git, SearchStr)
+        UpdateTeam()
+    case "update-project":
+        DumpOrUpdateProject(git, SearchStr)
+    case "update-namespace":
+        DumpOrUpdateNamespace(git, SearchStr)
+    case "update-team":
+        UpdateTeam()
+    case "get-first10mr-peruser":
+        Addhoc_getfirst10mrperuser(git)
+    default:
+        fmt.Printf("Need an action. Run with -h for help")
+    }
 }
 
 func ProjectFilter() bool {
