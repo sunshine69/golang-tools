@@ -69,11 +69,13 @@ func (p *GitlabNamespace) Get(inputmap map[string]string) []GitlabNamespace {
 }
 func (p *GitlabNamespace) New(full_path string, update bool) {
     dbc := GetDBConn(); defer dbc.Close()
-    stmt, _ := dbc.Prepare( `INSERT INTO gitlab_namespace(full_path) VALUES(?)` ); defer stmt.Close()
+    tx, err := dbc.Begin(); u.CheckErrNonFatal(err, "GitlabNamespace New tx")
+    stmt, _ := tx.Prepare( `INSERT INTO gitlab_namespace(full_path) VALUES(?)` ); defer stmt.Close()
     res, err := stmt.Exec(full_path)
     u.CheckErr(err, "New GitlabNamespace stmt.Exec")
     _ID, _ := res.LastInsertId()
     p.ID = uint(_ID)
+    tx.Commit()
     if update {
         p.Update()
     }

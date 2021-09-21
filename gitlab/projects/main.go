@@ -110,8 +110,8 @@ func DumpOrUpdateNamespace(git *gitlab.Client, SearchStr string) {
 			}
 			p.Name, p.ParentId, p.Path, p.Kind, p.FullPath, p.MembersCountWithDescendants, p.GitlabNamespaceId = row.Name, uint(row.ParentID), row.Path, row.Kind, row.FullPath, uint(row.MembersCountWithDescendants), uint(row.ID)
 			p.Update()
+            GitlabGroup2Team(&p)
 		}
-
 		if resp.CurrentPage >= resp.TotalPages {
 			break
 		}
@@ -120,7 +120,6 @@ func DumpOrUpdateNamespace(git *gitlab.Client, SearchStr string) {
 		opt.Page = resp.NextPage
 	}
 }
-
 func UpdateTeam() {
 	ateam := Team{}
 	currentTeamList := ateam.Get(map[string]string{
@@ -133,13 +132,24 @@ func UpdateTeam() {
 		})
 		if ns.ID == 0 {
 			log.Printf("[DEBUG] %s\n", u.JsonDump(ns, "    "))
-			log.Printf("[WARN] unextected. Can not find the gitlab namespace table matching this team '%s' with id %d. Possibly the Team has not actually been created in gtilab group.\n", row.Name, row.GitlabNamespaceId)
+			log.Printf("[WARN] unextected. Can not find the gitlab namespace table matching this team '%s' with id %d. Possibly the Team has not actually been created in gitlab group.\n", row.Name, row.GitlabNamespaceId)
 			continue
 		}
 		row.GitlabNamespaceId = int(ns.GitlabNamespaceId)
 		row.Update()
 	}
 }
+//For each group if it started with `Team ` then add a record to team table with data
+func GitlabGroup2Team(ns *GitlabNamespace) {
+    if strings.HasPrefix( ns.Name, "Team " ) {
+        log.Printf("[DEBUG] Found gitlab namespace '%s' started with Team. Create - Update Team\n", ns.Name)
+        newTeam := Team{}
+        newTeam.GetOrNew(ns.Name)
+        newTeam.GitlabNamespaceId = int(ns.GitlabNamespaceId)
+        newTeam.Update()
+    }
+}
+
 func UpdateTeamProject() {
 
 }

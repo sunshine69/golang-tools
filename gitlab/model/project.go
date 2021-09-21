@@ -67,11 +67,13 @@ func (p *Project) Get(inputmap map[string]string) []Project {
 }
 func (p *Project) New(path_with_namespace string, update bool) {
     dbc := GetDBConn(); defer dbc.Close()
-    stmt, _ := dbc.Prepare( `INSERT INTO project(path_with_namespace) VALUES(?)` ); defer stmt.Close()
+    tx, err := dbc.Begin(); u.CheckErr(err, "Project new")
+    stmt, _ := tx.Prepare( `INSERT INTO project(path_with_namespace) VALUES(?)` ); defer stmt.Close()
     res, err := stmt.Exec(path_with_namespace)
     u.CheckErr(err, "New stmt.Exec")
     _ID, _ := res.LastInsertId()
     p.ID = uint(_ID)
+    tx.Commit()
     if update {
         p.Update()
     }

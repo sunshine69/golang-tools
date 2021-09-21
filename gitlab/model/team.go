@@ -16,7 +16,12 @@ type Team struct {
 	Note              string `sql:"note"`
 	GitlabNamespaceId int    `sql:"gitlab_ns_id"`
 }
-
+func (nt *Team) GetOrNew(name string) {
+	nt.GetOne(map[string]string{"where": fmt.Sprintf("name = '%s'", name)})
+	if nt.ID == 0 {
+		nt.New(name, false)
+	}
+}
 func (p *Team) GetOne(inputmap map[string]string) {
 	dbc := GetDBConn()
 	defer dbc.Close()
@@ -62,14 +67,14 @@ func (p *Team) Get(inputmap map[string]string) []Team {
 	return o
 }
 func (p *Team) New(teamname string, update bool) {
-	dbc := GetDBConn()
-	defer dbc.Close()
-	stmt, _ := dbc.Prepare(`INSERT INTO team(name) VALUES(?)`)
+	dbc := GetDBConn();	defer dbc.Close()
+	tx, err := dbc.Begin(); u.CheckErrNonFatal(err, "New teamname dbc.Begin")
+	stmt, err := tx.Prepare(`INSERT INTO team(name) VALUES(?)`); u.CheckErr(err, "New teamname")
 	defer stmt.Close()
-	res, err := stmt.Exec(teamname)
-	u.CheckErr(err, "New stmt.Exec")
+	res, err := stmt.Exec(teamname); u.CheckErr(err, "New teamname stmt.Exec")
 	_ID, _ := res.LastInsertId()
 	p.ID = uint(_ID)
+	tx.Commit()
 	if update {
 		p.Update()
 	}
