@@ -16,10 +16,10 @@ type Team struct {
 	Note              string `sql:"note"`
 	GitlabNamespaceId int    `sql:"gitlab_ns_id"`
 }
-func (nt *Team) GetOrNew(name string) {
-	nt.GetOne(map[string]string{"where": fmt.Sprintf("name = '%s'", name)})
-	if nt.ID == 0 {
-		nt.New(name, false)
+func (p *Team) GetOrNew(name string) {
+	p.GetOne(map[string]string{"where": fmt.Sprintf("name = '%s'", name)})
+	if p.ID == 0 {
+		p.New(name, false)
 	}
 }
 func (p *Team) GetOne(inputmap map[string]string) {
@@ -67,10 +67,13 @@ func (p *Team) Get(inputmap map[string]string) []Team {
 	return o
 }
 func (p *Team) New(teamname string, update bool) {
+	p.Name = teamname
 	dbc := GetDBConn();	defer dbc.Close()
 	tx, err := dbc.Begin(); u.CheckErrNonFatal(err, "New teamname dbc.Begin")
-	stmt, err := tx.Prepare(`INSERT INTO team(name) VALUES(?)`); u.CheckErr(err, "New teamname")
+	sql := `INSERT INTO team(name) VALUES(?)`
+	stmt, err := tx.Prepare(sql); u.CheckErr(err, "New teamname")
 	defer stmt.Close()
+	log.Printf("[DEBUG] sql - %s - param '%s'\n", sql, teamname)
 	res, err := stmt.Exec(teamname); u.CheckErr(err, "New teamname stmt.Exec")
 	_ID, _ := res.LastInsertId()
 	p.ID = uint(_ID)
@@ -122,4 +125,28 @@ func (p *Team) Update() {
 		}
 	}
 	u.CheckErr(tx.Commit(), "tx.Commit")
+}
+func (p *Team) Delete(inputmap map[string]string) {
+	sql := ""
+	if inputmap == nil {
+		sql = fmt.Sprintf(`DELETE FROM team WHERE id = %d`, p.ID)
+	} else {
+		if id, ok := inputmap["id"]; ok {
+			sql = fmt.Sprintf(`DELETE FROM team WHERE id = %s`, id)
+		} else {
+			sql = fmt.Sprintf(`DELETE FROM team WHERE %s`, inputmap["where"])
+		}
+	}
+	dbc := GetDBConn()
+	defer dbc.Close()
+	tx, err := dbc.Begin()
+	u.CheckErr(err, "Team dbc.Begin")
+	stmt, err := tx.Prepare(sql); u.CheckErr(err, "Team Delete")
+	defer stmt.Close()
+	_, err = stmt.Exec()
+	if u.CheckErrNonFatal(err, "Team Delete") != nil {
+		tx.Rollback()
+	} else {
+		tx.Commit()
+	}
 }

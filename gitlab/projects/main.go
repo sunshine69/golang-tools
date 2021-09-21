@@ -6,13 +6,10 @@ import (
 	"log"
 	"strconv"
 	"strings"
-
 	. "localhost.com/gitlab/model"
 	u "localhost.com/utils"
-
 	// gu "localhost.com/gitlab/utils"
 	"os"
-
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/xanzy/go-gitlab"
 )
@@ -77,6 +74,7 @@ func DumpOrUpdateProject(git *gitlab.Client, SearchStr string) {
 				p.TagList = strings.Join(row.Topics, ",")
 				p.Pid, p.Weburl, p.Name, p.NameWithSpace, p.Path, p.PathWithNamespace, p.NamespaceKind, p.NamespaceName, p.NamespaceId, p.GitlabCreatedAt = uint(row.ID), row.WebURL, row.Name, row.NameWithNamespace, row.Path, row.PathWithNamespace, row.Namespace.Kind, row.Namespace.Name, row.Namespace.ID, row.CreatedAt.Format(u.CleanStringDateLayout)
 				p.Update()
+                UpdateTeamProject(git, row)
 			}
 		}
 		// Exit the loop when we've seen all pages.
@@ -149,11 +147,6 @@ func GitlabGroup2Team(ns *GitlabNamespace) {
         newTeam.Update()
     }
 }
-
-func UpdateTeamProject() {
-
-}
-
 func main() {
 	flag.StringVar(&Logdbpath, "db", "", "db path")
 	flag.StringVar(&SearchStr, "s", "", "Project search Str. Empty means everything. If it is a integer then we use as project ID and search for it")

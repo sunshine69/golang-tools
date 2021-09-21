@@ -66,6 +66,7 @@ func (p *Project) Get(inputmap map[string]string) []Project {
     return o
 }
 func (p *Project) New(path_with_namespace string, update bool) {
+    p.PathWithNamespace = path_with_namespace
     dbc := GetDBConn(); defer dbc.Close()
     tx, err := dbc.Begin(); u.CheckErr(err, "Project new")
     stmt, _ := tx.Prepare( `INSERT INTO project(path_with_namespace) VALUES(?)` ); defer stmt.Close()
@@ -185,4 +186,28 @@ func (p *Project) Update() {
         }
     }
     u.CheckErr( tx.Commit(), "tx.Commit" )
+}
+func (p *Project) Delete(inputmap map[string]string) {
+	sql := ""
+	if inputmap == nil {
+		sql = fmt.Sprintf(`DELETE FROM project WHERE id = %d`, p.ID)
+	} else {
+		if id, ok := inputmap["id"]; ok {
+			sql = fmt.Sprintf(`DELETE FROM project WHERE id = %s`, id)
+		} else {
+			sql = fmt.Sprintf(`DELETE FROM project WHERE %s`, inputmap["where"])
+		}
+	}
+	dbc := GetDBConn()
+	defer dbc.Close()
+	tx, err := dbc.Begin()
+	u.CheckErr(err, "Project dbc.Begin")
+	stmt, err := tx.Prepare(sql); u.CheckErr(err, "Project Delete")
+	defer stmt.Close()
+	_, err = stmt.Exec()
+	if u.CheckErrNonFatal(err, "Project Delete") != nil {
+		tx.Rollback()
+	} else {
+		tx.Commit()
+	}
 }

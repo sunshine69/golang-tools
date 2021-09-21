@@ -68,6 +68,7 @@ func (p *GitlabNamespace) Get(inputmap map[string]string) []GitlabNamespace {
     return o
 }
 func (p *GitlabNamespace) New(full_path string, update bool) {
+    p.FullPath = full_path
     dbc := GetDBConn(); defer dbc.Close()
     tx, err := dbc.Begin(); u.CheckErrNonFatal(err, "GitlabNamespace New tx")
     stmt, _ := tx.Prepare( `INSERT INTO gitlab_namespace(full_path) VALUES(?)` ); defer stmt.Close()
@@ -187,4 +188,28 @@ func (p *GitlabNamespace) Update() {
         }
     }
     u.CheckErr( tx.Commit(), "tx.Commit" )
+}
+func (p *GitlabNamespace) Delete(inputmap map[string]string) {
+	sql := ""
+	if inputmap == nil {
+		sql = fmt.Sprintf(`DELETE FROM gitlab_namespace WHERE id = %d`, p.ID)
+	} else {
+		if id, ok := inputmap["id"]; ok {
+			sql = fmt.Sprintf(`DELETE FROM gitlab_namespace WHERE id = %s`, id)
+		} else {
+			sql = fmt.Sprintf(`DELETE FROM gitlab_namespace WHERE %s`, inputmap["where"])
+		}
+	}
+	dbc := GetDBConn()
+	defer dbc.Close()
+	tx, err := dbc.Begin()
+	u.CheckErr(err, "GitlabNamespace dbc.Begin")
+	stmt, err := tx.Prepare(sql); u.CheckErr(err, "GitlabNamespace Delete")
+	defer stmt.Close()
+	_, err = stmt.Exec()
+	if u.CheckErrNonFatal(err, "GitlabNamespace Delete") != nil {
+		tx.Rollback()
+	} else {
+		tx.Commit()
+	}
 }

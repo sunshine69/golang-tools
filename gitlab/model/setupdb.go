@@ -66,7 +66,14 @@ func SetUpLogDatabase() {
         PRIMARY KEY("id" AUTOINCREMENT)
     );
 
-    CREATE TABLE IF NOT EXISTS team_project(id INTEGER PRIMARY KEY AUTOINCREMENT, team_id int, project_id int, domain text);
+    CREATE TABLE IF NOT EXISTS "team_project" (
+        "id"	INTEGER,
+        "team_id"	int,
+        "project_id"	int,
+        "domain"	text,
+        PRIMARY KEY("id" AUTOINCREMENT),
+        CONSTRAINT "teamid-pid" UNIQUE("team_id","project_id")
+    );
 
     PRAGMA main.page_size = 4096;
     PRAGMA main.cache_size=10000;
