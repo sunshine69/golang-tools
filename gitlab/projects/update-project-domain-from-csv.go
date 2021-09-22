@@ -61,6 +61,9 @@ func UpdateProjectDomainFromCSV(filename string) {
 			if l[0] == "" || l[4] == "" || l[1] == "DO NOT MIGRATE"  { continue }
 			p := GetAProjectSmartly( ProjectNameSanitize(l[0]) )
 			if p.ID == 0 {continue}
+			if  strings.TrimSpace(l[1]) == "DONE" {
+				p.IsActive = 1; p.Update()
+			}
 			d := GetADomainSmartly(l[4])
 			if d.GitlabNamespaceId == 0 {continue}
 			pd := ProjectDomain{}

@@ -38,7 +38,7 @@ func (p *GitlabNamespace) GetOne(inputmap map[string]string) {
         sql = fmt.Sprintf(`SELECT %s FROM gitlab_namespace WHERE %s`, sqlstruct.Columns(GitlabNamespace{}), inputmap["where"])
     }
     sql = sql + ` ORDER BY id DESC`
-    log.Printf("[DEBUG] sql %s\n", sql)
+    // log.Printf("[DEBUG] sql %s\n", sql)
     stmt, err := dbc.Prepare(sql)
     u.CheckErr(err, "GitlabNamespace GetOne");  defer stmt.Close()
     rows, _ := stmt.Query(); defer rows.Close()

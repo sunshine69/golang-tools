@@ -3,7 +3,6 @@ package model
 import (
 	"database/sql"
 	"log"
-
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -30,7 +29,7 @@ func SetUpLogDatabase() {
         "namespace_id"  int,
         "tag_list"  text DEFAULT "",
         "labels"  text DEFAULT "",
-        "gitlab_created_at" DATETIME,
+        "gitlab_created_at" TEXT,
         "is_active" INTEGER DEFAULT 1,
         "domain_ownership_confirmed"    INTEGER DEFAULT 0,
         PRIMARY KEY("id" AUTOINCREMENT)

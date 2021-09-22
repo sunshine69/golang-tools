@@ -20,6 +20,7 @@ func (p *Team) GetOneOrNew(name string) {
 	p.GetOne(map[string]string{"where": fmt.Sprintf("name = '%s'", name)})
 	if p.ID == 0 {
 		p.New(name, false)
+		//Update struct with database default value
 		p.GetOne(map[string]string{"id": fmt.Sprintf("%d", p.ID)})
 	}
 }

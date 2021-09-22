@@ -55,13 +55,7 @@ func DumpOrUpdateProject(git *gitlab.Client, SearchStr string) {
 		for _, row := range projects {
 			if ProjectFilter() {
 				p := Project{}
-				p.GetOne(map[string]string{
-					"where": fmt.Sprintf("path_with_namespace = '%s'", row.PathWithNamespace),
-				})
-				if p.ID == 0 {
-					log.Printf("[INFO] Creating new project with Name: %s - ID %d - PathWithNamespace %s\n", row.Name, row.ID, row.PathWithNamespace)
-					p.New(row.PathWithNamespace, false)
-				}
+                p.GetOneOrNew(row.PathWithNamespace)
 				log.Printf("[DEBUG] Project %s - \n", u.JsonDump(p, "    "))
 				if row.Owner != nil {
 					p.OwnerId = row.Owner.ID
@@ -177,6 +171,19 @@ func GitlabGroup2Domain(ns *GitlabNamespace) {
         newDomain.Update()
     }
 }
+func GetGitlabClient() *gitlab.Client {
+    config := ParseConfig()
+    if GitLabToken = u.Getenv("GITLAB_TOKEN", "-1"); GitLabToken == "-1" {
+		if GitLabToken = config["gitlabToken"].(string); GitLabToken == "changeme" || GitLabToken == "" {
+			log.Fatalf("Requires env var GITLAB_TOKEN")
+		}
+	}
+	git, err := gitlab.NewClient(GitLabToken, gitlab.WithBaseURL(config["gitlabAPIBaseURL"].(string)))
+	if err != nil {
+		log.Fatalf("Failed to create client: %v", err)
+	}
+    return git
+}
 func main() {
 	flag.StringVar(&Logdbpath, "db", "", "db path")
 	flag.StringVar(&SearchStr, "s", "", "Project search Str. Empty means everything. If it is a integer then we use as project ID and search for it")
@@ -190,19 +197,10 @@ func main() {
 	flag.StringVar(&action, "a", "", "Action. Default is update-all. Can be: update-project|update-namespace|update-team|xxx where xxx is the function name")
 	flag.Parse()
 
-	config := ParseConfig()
+    git := GetGitlabClient()
 	u.ConfigureLogging(os.Stdout)
 	SetUpLogDatabase()
 
-	if GitLabToken = u.Getenv("GITLAB_TOKEN", "-1"); GitLabToken == "-1" {
-		if GitLabToken = config["gitlabToken"].(string); GitLabToken == "changeme" || GitLabToken == "" {
-			log.Fatalf("Requires env var GITLAB_TOKEN")
-		}
-	}
-	git, err := gitlab.NewClient(GitLabToken, gitlab.WithBaseURL(config["gitlabAPIBaseURL"].(string)))
-	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
-	}
 	dbc := GetDBConn()
 	defer dbc.Close()
 	switch action {
