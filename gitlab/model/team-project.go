@@ -32,13 +32,13 @@ func (p *TeamProject) GetOne(inputmap map[string]uint) {
 	}
 	sql = sql + ` ORDER BY id DESC`
 	stmt, err := dbc.Prepare(sql)
-	u.CheckErr(err, "Team GetOne")
+	u.CheckErr(err, "TeamProject GetOne")
 	defer stmt.Close()
 	rows, _ := stmt.Query()
 	defer rows.Close()
 	if rows.Next() {
 		err = sqlstruct.Scan(p, rows)
-		u.CheckErr(err, "Team GetOne query")
+		u.CheckErr(err, "TeamProject GetOne query")
 	}
 }
 func (p *TeamProject) Get(inputmap map[string]string) []TeamProject {
@@ -46,13 +46,13 @@ func (p *TeamProject) Get(inputmap map[string]string) []TeamProject {
 	defer dbc.Close()
 	sql := ""
 	if id, ok := inputmap["id"]; ok {
-		sql = fmt.Sprintf(`SELECT %s FROM team WHERE id = %s`, sqlstruct.Columns(TeamProject{}), id)
+		sql = fmt.Sprintf(`SELECT %s FROM team_project WHERE id = %s`, sqlstruct.Columns(TeamProject{}), id)
 	} else {
-		sql = fmt.Sprintf(`SELECT %s FROM team WHERE %s`, sqlstruct.Columns(TeamProject{}), inputmap["where"])
+		sql = fmt.Sprintf(`SELECT %s FROM team_project WHERE %s`, sqlstruct.Columns(TeamProject{}), inputmap["where"])
 	}
 	sql = sql + ` ORDER BY id DESC`
 	stmt, err := dbc.Prepare(sql)
-	u.CheckErr(err, "Team GetOne")
+	u.CheckErr(err, "TeamProjectGetOne")
 	defer stmt.Close()
 	rows, _ := stmt.Query()
 	defer rows.Close()
@@ -60,13 +60,13 @@ func (p *TeamProject) Get(inputmap map[string]string) []TeamProject {
 	for rows.Next() {
 		localp := TeamProject{}
 		err = sqlstruct.Scan(&localp, rows)
-		u.CheckErr(err, "Team Get query")
+		u.CheckErr(err, "TeamProjectGet query")
 		o = append(o, localp)
 	}
 	return o
 }
 func (p *TeamProject) New(team_id, project_id uint, update bool) {
-	p.TeamId, p.ProjectId = team_id, project_id
+	p.TeamId, p.ProjectId, p.Domain = team_id, project_id, ""
 	dbc := GetDBConn();	defer dbc.Close()
 	tx, err := dbc.Begin(); u.CheckErrNonFatal(err, "New TeamProject dbc.Begin")
 	sql := `INSERT INTO team_project(team_id, project_id) VALUES(?, ?)`
@@ -88,7 +88,7 @@ func (p *TeamProject) Update() {
 	u.CheckErr(err, "TeamProject dbc.Begin")
 	for _, colname := range strings.Split(sqlstruct.Columns(TeamProject{}), ",") {
 		colname = strings.TrimSpace(colname)
-		sql := fmt.Sprintf(`UPDATE team SET %s = ? WHERE id = ?`, colname)
+		sql := fmt.Sprintf(`UPDATE team_project SET %s = ? WHERE id = ?`, colname)
 		stmt, err := tx.Prepare(sql)
 		u.CheckErr(err, "tx.Prepare")
 		defer stmt.Close()

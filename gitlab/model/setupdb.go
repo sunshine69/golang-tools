@@ -18,17 +18,18 @@ func SetUpLogDatabase() {
     CREATE TABLE IF NOT EXISTS project (
         "id"    INTEGER,
         "pid"   int,
-        "weburl"    text,
+        "weburl"    text DEFAULT "",
         "owner_id"  int,
-        "owner_name"    text,
-        "name"  text,
-        "name_with_space"   text,
-        "path"  text,
+        "owner_name"    text DEFAULT "",
+        "name"  text DEFAULT "",
+        "name_with_space"   text DEFAULT "",
+        "path"  text DEFAULT "",
         "path_with_namespace"   text UNIQUE,
-        "namespace_kind"    text,
-        "namespace_name"    text,
+        "namespace_kind"    text DEFAULT "",
+        "namespace_name"    text DEFAULT "",
         "namespace_id"  int,
-        "tag_list"  text,
+        "tag_list"  text DEFAULT "",
+        "labels"  text DEFAULT "",
         "gitlab_created_at" DATETIME,
         "is_active" INTEGER DEFAULT 1,
         "domain_ownership_confirmed"    INTEGER DEFAULT 0,
@@ -38,43 +39,63 @@ func SetUpLogDatabase() {
 
     CREATE TABLE IF NOT EXISTS "gitlab_namespace" (
         "id"	INTEGER,
-        "name"	TEXT,
+        "name"	TEXT DEFAULT "",
         "parent_id"	INTEGER,
-        "path"	TEXT,
-        "kind"	TEXT,
+        "path"	TEXT DEFAULT "",
+        "kind"	TEXT DEFAULT "",
         "full_path"	TEXT UNIQUE,
         "members_count_with_descendants"	INTEGER,
         "gitlab_ns_id"	INTEGER,
         "domain_ownership_confirmed"	INTEGER DEFAULT 0,
-        "web_url"	TEXT,
-        "avatar_url"	TEXT,
+        "web_url"	TEXT DEFAULT "",
+        "avatar_url"	TEXT DEFAULT "",
         "billable_members_count"	INTEGER,
         "seats_in_use"	INTEGER,
         "max_seats_used"	INTEGER,
-        "plan"	TEXT,
-        "trial_ends_on"	TEXT,
+        "plan"	TEXT DEFAULT "",
+        "trial_ends_on"	TEXT DEFAULT "",
         "trial"	INTEGER DEFAULT 0,
+        "labels"  text DEFAULT "",
         PRIMARY KEY("id" AUTOINCREMENT)
     );
-
     CREATE TABLE IF NOT EXISTS team (
         "id"    INTEGER,
-        "name"  text,
-        "keyword"   TEXT,
-        "note"  TEXT,
+        "name"  text DEFAULT "",
+        "keyword"   TEXT DEFAULT "",
+        "note"  TEXT DEFAULT "",
         "gitlab_ns_id"  INTEGER DEFAULT -1,
         PRIMARY KEY("id" AUTOINCREMENT)
     );
-
+    CREATE TABLE IF NOT EXISTS domain (
+        "id"    INTEGER,
+        "name"  text DEFAULT "",
+        "keyword"   TEXT DEFAULT "",
+        "note"  TEXT DEFAULT "",
+        "gitlab_ns_id"  INTEGER DEFAULT -1,
+        PRIMARY KEY("id" AUTOINCREMENT)
+    );
     CREATE TABLE IF NOT EXISTS "team_project" (
         "id"	INTEGER,
         "team_id"	int,
         "project_id"	int,
-        "domain"	text,
+        "domain"	text DEFAULT "",
         PRIMARY KEY("id" AUTOINCREMENT),
         CONSTRAINT "teamid-pid" UNIQUE("team_id","project_id")
     );
-
+    CREATE TABLE IF NOT EXISTS "team_domain" (
+        "id"	INTEGER,
+        "team_id"	int,
+        "domain_id"	int,
+        PRIMARY KEY("id" AUTOINCREMENT),
+        CONSTRAINT "teamid-did" UNIQUE("team_id","domain_id")
+    );
+    CREATE TABLE IF NOT EXISTS "project_domain" (
+        "id"	INTEGER,
+        "project_id"	int,
+        "domain_id"	int,
+        PRIMARY KEY("id" AUTOINCREMENT),
+        CONSTRAINT "projectid-did" UNIQUE("project_id","domain_id")
+    );
     PRAGMA main.page_size = 4096;
     PRAGMA main.cache_size=10000;
     PRAGMA main.locking_mode=EXCLUSIVE;

@@ -25,6 +25,7 @@ type Project struct {
     GitlabCreatedAt string `sql:"gitlab_created_at"`
     IsActive    uint8 `sql:"is_active"`
     DomainOwnershipConfirmed    uint8 `sql:"domain_ownership_confirmed"`
+    Labels string `sql:"labels"`
 }
 func (p *Project) GetOne(inputmap map[string]string) {
     dbc := GetDBConn(); defer dbc.Close()
@@ -177,6 +178,12 @@ func (p *Project) Update() {
             }
         case "domain_ownership_confirmed":
             _, err = stmt.Exec(p.DomainOwnershipConfirmed, p.ID)
+            if u.CheckErrNonFatal(err, "Exec") != nil {
+                tx.Rollback()
+                log.Fatalf("aborted due to error")
+            }
+        case "labels":
+            _, err = stmt.Exec(p.Labels, p.ID)
             if u.CheckErrNonFatal(err, "Exec") != nil {
                 tx.Rollback()
                 log.Fatalf("aborted due to error")

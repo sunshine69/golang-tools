@@ -26,6 +26,7 @@ type GitlabNamespace struct {
     Plan string `sql:"plan"`
     Trial_ends_on string `sql:"trial_ends_on"`
     Trial uint `sql:"trial"`
+    Labels string `sql:"labels"`
 }
 
 func (p *GitlabNamespace) GetOne(inputmap map[string]string) {
@@ -179,6 +180,12 @@ func (p *GitlabNamespace) Update() {
             }
         case "trial":
             _, err = stmt.Exec(p.Trial, p.ID)
+            if u.CheckErrNonFatal(err, "Exec") != nil {
+                tx.Rollback()
+                log.Fatal("aborted due to error\n")
+            }
+        case "labels":
+            _, err = stmt.Exec(p.Labels, p.ID)
             if u.CheckErrNonFatal(err, "Exec") != nil {
                 tx.Rollback()
                 log.Fatal("aborted due to error\n")

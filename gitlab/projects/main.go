@@ -8,7 +8,6 @@ import (
 	"strings"
 	. "localhost.com/gitlab/model"
 	u "localhost.com/utils"
-	// gu "localhost.com/gitlab/utils"
 	"os"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/xanzy/go-gitlab"
@@ -72,7 +71,17 @@ func DumpOrUpdateProject(git *gitlab.Client, SearchStr string) {
 					p.OwnerName = "null"
 				}
 				p.TagList = strings.Join(row.Topics, ",")
-				p.Pid, p.Weburl, p.Name, p.NameWithSpace, p.Path, p.PathWithNamespace, p.NamespaceKind, p.NamespaceName, p.NamespaceId, p.GitlabCreatedAt = uint(row.ID), row.WebURL, row.Name, row.NameWithNamespace, row.Path, row.PathWithNamespace, row.Namespace.Kind, row.Namespace.Name, row.Namespace.ID, row.CreatedAt.Format(u.CleanStringDateLayout)
+                labels, _, err := git.Labels.ListLabels(row.ID, &gitlab.ListLabelsOptions{
+                    ListOptions: gitlab.ListOptions{
+                        Page: 1, PerPage: 100,
+                    },
+                })
+                u.CheckErr(err, "Project Labels.ListLabels")
+                labelList := []string{}
+                for _, _label := range labels {
+                    labelList = append(labelList, _label.Name)
+                }
+				p.Pid, p.Weburl, p.Name, p.NameWithSpace, p.Path, p.PathWithNamespace, p.NamespaceKind, p.NamespaceName, p.NamespaceId, p.GitlabCreatedAt, p.Labels = uint(row.ID), row.WebURL, row.Name, row.NameWithNamespace, row.Path, row.PathWithNamespace, row.Namespace.Kind, row.Namespace.Name, row.Namespace.ID, row.CreatedAt.Format(u.CleanStringDateLayout), strings.Join(labelList, ",")
 				p.Update()
                 UpdateTeamProject(git, row)
 			}
@@ -106,9 +115,18 @@ func DumpOrUpdateNamespace(git *gitlab.Client, SearchStr string) {
 			if p.ID == 0 {
 				p.New(row.FullPath, false)
 			}
-			p.Name, p.ParentId, p.Path, p.Kind, p.FullPath, p.MembersCountWithDescendants, p.GitlabNamespaceId = row.Name, uint(row.ParentID), row.Path, row.Kind, row.FullPath, uint(row.MembersCountWithDescendants), uint(row.ID)
+            lList := []string{}
+            if row.Kind == "group"{
+                labels, _, err := git.GroupLabels.ListGroupLabels(row.ID, &gitlab.ListGroupLabelsOptions{
+                    Page: 1, PerPage: 100,
+                })
+                u.CheckErr(err, "GroupLabels.ListGroupLabels")
+                for _, l := range labels { lList = append(lList, l.Name ) }
+            }
+			p.Name, p.ParentId, p.Path, p.Kind, p.FullPath, p.MembersCountWithDescendants, p.GitlabNamespaceId, p.Labels = row.Name, uint(row.ParentID), row.Path, row.Kind, row.FullPath, uint(row.MembersCountWithDescendants), uint(row.ID), strings.Join(lList, ",")
 			p.Update()
             GitlabGroup2Team(&p)
+            GitlabGroup2Domain(&p)
 		}
 		if resp.CurrentPage >= resp.TotalPages {
 			break
@@ -118,6 +136,7 @@ func DumpOrUpdateNamespace(git *gitlab.Client, SearchStr string) {
 		opt.Page = resp.NextPage
 	}
 }
+//From the team table update its gitlab id. If not found, warning. Maybe in the future we can automate creation of the tem.
 func UpdateTeam() {
 	ateam := Team{}
 	currentTeamList := ateam.Get(map[string]string{
@@ -125,6 +144,7 @@ func UpdateTeam() {
 	})
 	for _, row := range currentTeamList {
 		ns := GitlabNamespace{}
+        //Assume Team Name must be unique. Gitlab group does not require that but it is go1 business rule
 		ns.GetOne(map[string]string{
 			"where": fmt.Sprintf("name = '%s'", row.Name),
 		})
@@ -145,6 +165,16 @@ func GitlabGroup2Team(ns *GitlabNamespace) {
         newTeam.GetOrNew(ns.Name)
         newTeam.GitlabNamespaceId = int(ns.GitlabNamespaceId)
         newTeam.Update()
+    }
+}
+//For each group if it started with `Domain ` then add a record to domain table with data
+func GitlabGroup2Domain(ns *GitlabNamespace) {
+    if strings.HasPrefix( ns.Name, "Domain " ) {
+        log.Printf("[DEBUG] Found gitlab namespace '%s' started with Domain. Create - Update Domain\n", ns.Name)
+        newDomain := Domain{}
+        newDomain.GetOrNew(ns.Name)
+        newDomain.GitlabNamespaceId = int(ns.GitlabNamespaceId)
+        newDomain.Update()
     }
 }
 func main() {
