@@ -24,7 +24,7 @@ func UpdateTeamProject(git *gitlab.Client, p *gitlab.Project) {
 		for _, pg := range projectGroups {
 			if strings.HasPrefix(pg.Name, "Team -") {
 				tp := TeamProject{}
-				tp.GetOrNew(uint(pg.ID), uint(p.ID))
+				tp.GetOneOrNew(uint(pg.ID), uint(p.ID))
 			}
 		}
 		if resp.CurrentPage >= resp.TotalPages {

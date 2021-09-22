@@ -14,12 +14,13 @@ type Domain struct {
 	Name              string `sql:"name"`
 	Keyword           string `sql:"keyword"`
 	Note              string `sql:"note"`
-	GitlabNamespaceId int    `sql:"gitlab_ns_id"`
+	GitlabNamespaceId uint    `sql:"gitlab_ns_id"`
 }
-func (p *Domain) GetOrNew(name string) {
+func (p *Domain) GetOneOrNew(name string) {
 	p.GetOne(map[string]string{"where": fmt.Sprintf("name = '%s'", name)})
 	if p.ID == 0 {
 		p.New(name, false)
+		p.GetOne(map[string]string{"id": fmt.Sprintf("%d", p.ID)})
 	}
 }
 func (p *Domain) GetOne(inputmap map[string]string) {

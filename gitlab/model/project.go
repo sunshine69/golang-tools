@@ -36,7 +36,7 @@ func (p *Project) GetOne(inputmap map[string]string) {
         sql = fmt.Sprintf(`SELECT %s FROM project WHERE %s`, sqlstruct.Columns(Project{}), inputmap["where"])
     }
     sql = sql + ` ORDER BY id DESC`
-    log.Printf("[DEBUG] sql %s\n", sql)
+    // log.Printf("[DEBUG] sql %s\n", sql)
     stmt, err := dbc.Prepare(sql)
     u.CheckErr(err, "Project GetOne");  defer stmt.Close()
     rows, _ := stmt.Query(); defer rows.Close()

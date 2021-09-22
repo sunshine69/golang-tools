@@ -162,7 +162,7 @@ func GitlabGroup2Team(ns *GitlabNamespace) {
     if strings.HasPrefix( ns.Name, "Team " ) {
         log.Printf("[DEBUG] Found gitlab namespace '%s' started with Team. Create - Update Team\n", ns.Name)
         newTeam := Team{}
-        newTeam.GetOrNew(ns.Name)
+        newTeam.GetOneOrNew(ns.Name)
         newTeam.GitlabNamespaceId = int(ns.GitlabNamespaceId)
         newTeam.Update()
     }
@@ -172,8 +172,8 @@ func GitlabGroup2Domain(ns *GitlabNamespace) {
     if strings.HasPrefix( ns.Name, "Domain " ) {
         log.Printf("[DEBUG] Found gitlab namespace '%s' started with Domain. Create - Update Domain\n", ns.Name)
         newDomain := Domain{}
-        newDomain.GetOrNew(ns.Name)
-        newDomain.GitlabNamespaceId = int(ns.GitlabNamespaceId)
+        newDomain.GetOneOrNew(ns.Name)
+        newDomain.GitlabNamespaceId = ns.GitlabNamespaceId
         newDomain.Update()
     }
 }
@@ -218,6 +218,8 @@ func main() {
 		UpdateTeam()
 	case "get-first10mr-peruser":
 		Addhoc_getfirst10mrperuser(git)
+    case "UpdateProjectDomainFromCSV":
+        UpdateProjectDomainFromCSV("MigrationServices.csv")
 	default:
 		fmt.Printf("Need an action. Run with -h for help")
 	}

@@ -16,10 +16,11 @@ type Team struct {
 	Note              string `sql:"note"`
 	GitlabNamespaceId int    `sql:"gitlab_ns_id"`
 }
-func (p *Team) GetOrNew(name string) {
+func (p *Team) GetOneOrNew(name string) {
 	p.GetOne(map[string]string{"where": fmt.Sprintf("name = '%s'", name)})
 	if p.ID == 0 {
 		p.New(name, false)
+		p.GetOne(map[string]string{"id": fmt.Sprintf("%d", p.ID)})
 	}
 }
 func (p *Team) GetOne(inputmap map[string]string) {

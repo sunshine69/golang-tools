@@ -13,7 +13,7 @@ type TeamDomain struct {
 	TeamId              uint `sql:"team_id"`
 	DomainId           uint `sql:"domain_id"`
 }
-func (p *TeamDomain) GetOrNew(team_id, domain_id uint) {
+func (p *TeamDomain) GetOneOrNew(team_id, domain_id uint) {
 	p.GetOne(map[string]uint{"team_id": team_id, "domain_id": domain_id})
 	if p.ID == 0 {
 		p.New(team_id, domain_id, false)

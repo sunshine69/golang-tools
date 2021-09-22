@@ -9,11 +9,11 @@ import (
 )
 
 type ProjectDomain struct {
-	ID                  uint   `sql:"id"`
-	TeamId              uint `sql:"project_id"`
-	DomainId           uint `sql:"domain_id"`
+	ID                  uint  `sql:"id"`
+	ProjectId           uint `sql:"project_id"`
+	DomainId            uint `sql:"domain_id"`
 }
-func (p *ProjectDomain) GetOrNew(project_id, domain_id uint) {
+func (p *ProjectDomain) GetOneOrNew(project_id, domain_id uint) {
 	p.GetOne(map[string]uint{"project_id": project_id, "domain_id": domain_id})
 	if p.ID == 0 {
 		p.New(project_id, domain_id, false)
@@ -64,7 +64,7 @@ func (p *ProjectDomain) Get(inputmap map[string]string) []ProjectDomain {
 	return o
 }
 func (p *ProjectDomain) New(project_id, domain_id uint, update bool) {
-	p.TeamId, p.DomainId= project_id, domain_id
+	p.ProjectId, p.DomainId= project_id, domain_id
 	dbc := GetDBConn();	defer dbc.Close()
 	tx, err := dbc.Begin(); u.CheckErrNonFatal(err, "New ProjectDomain dbc.Begin")
 	sql := `INSERT INTO project_domain(project_id, domain_id) VALUES(?, ?)`
