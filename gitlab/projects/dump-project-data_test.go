@@ -17,6 +17,13 @@ func TestGetGitlabProject(t *testing.T) {
 	p, _, err := git.Projects.GetProject(1399, nil); u.CheckErr(err, "GetProject")
 	log.Printf("[DEBUG] %s\n", p.CreatedAt.Format(u.CleanStringDateLayout) )
 }
+func TestGetGitlabGroup(t *testing.T) {
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "testdb.sqlite3"
+	git := GetGitlabClient()
+	ns := GitlabNamespaceNew("ft1"); log.Printf("[DEBUG] %d\n", ns.GitlabNamespaceId )
+	p, _, err := git.Groups.GetGroup(ns.GitlabNamespaceId, nil); u.CheckErr(err, "TestGetGitlabGroup")
+	log.Printf("[DEBUG] %s\n", u.JsonDump(p, "  ") )
+}
 func TestGetGitlabProjects(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "testdb.sqlite3"
 	git := GetGitlabClient()
@@ -47,5 +54,18 @@ func TestGitDomain(t *testing.T) {
 			}
 		}
 		// log.Printf("%s\n", u.JsonDump(row, "    "))
+	}
+}
+func TestGetProjectFromDomain(t *testing.T) {
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "testdb.sqlite3"
+	domains := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("name LIKE 'Domain - Recommendation'")})
+	for _, row := range domains {
+		if row.ParentId == 0 {//Root group, no parent
+			if row.MembersCountWithDescendants > 0 {//Having a subgroup or project/domain
+				//Find projects
+				ps := ProjectGet(map[string]string{"where": fmt.Sprintf("namespace_id = %d", row.GitlabNamespaceId)})
+				log.Printf("%s\n", u.JsonDump(ps, "  "))
+			}
+		}
 	}
 }

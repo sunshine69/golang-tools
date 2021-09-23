@@ -10,11 +10,13 @@ import (
 )
 
 type Domain struct {
-	ID                uint   `sql:"id"`
+	ID                int   `sql:"id"`
 	Name              string `sql:"name"`
 	Keyword           string `sql:"keyword"`
 	Note              string `sql:"note"`
-	GitlabNamespaceId uint    `sql:"gitlab_ns_id"`
+	GitlabNamespaceId int    `sql:"gitlab_ns_id"`
+	CreatedAt         string   `sql:"created_at"`
+	HasTeam           int   `sql:"has_team"`
 }
 func DomainNew(name string) Domain {
 	p := Domain{}
@@ -79,7 +81,7 @@ func (p *Domain) New(domainname string, update bool) {
 	log.Printf("[DEBUG] sql - %s - param '%s'\n", sql, domainname)
 	res, err := stmt.Exec(domainname); u.CheckErr(err, "New domainname stmt.Exec")
 	_ID, _ := res.LastInsertId()
-	p.ID = uint(_ID)
+	p.ID = int(_ID)
 	tx.Commit()
 	if update {
 		p.Update()
@@ -119,6 +121,18 @@ func (p *Domain) Update() {
 			}
 		case "gitlab_ns_id":
 			_, err = stmt.Exec(p.GitlabNamespaceId, p.ID)
+			if u.CheckErrNonFatal(err, "Exec") != nil {
+				tx.Rollback()
+				log.Fatal("aborted due to error\n")
+			}
+		case "created_at":
+			_, err = stmt.Exec(p.CreatedAt, p.ID)
+			if u.CheckErrNonFatal(err, "Exec") != nil {
+				tx.Rollback()
+				log.Fatal("aborted due to error\n")
+			}
+		case "has_team":
+			_, err = stmt.Exec(p.HasTeam, p.ID)
 			if u.CheckErrNonFatal(err, "Exec") != nil {
 				tx.Rollback()
 				log.Fatal("aborted due to error\n")

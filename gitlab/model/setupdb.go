@@ -63,6 +63,7 @@ func SetUpLogDatabase() {
         "keyword"   TEXT DEFAULT "",
         "note"  TEXT DEFAULT "",
         "gitlab_ns_id"  INTEGER DEFAULT 0,
+        "created_at"  TEXT DEFAULT "",
         PRIMARY KEY("id" AUTOINCREMENT)
     );
     CREATE TABLE IF NOT EXISTS domain (
@@ -71,6 +72,7 @@ func SetUpLogDatabase() {
         "keyword"   TEXT DEFAULT "",
         "note"  TEXT DEFAULT "",
         "gitlab_ns_id"  INTEGER DEFAULT 0,
+        "created_at"  TEXT DEFAULT "",
         PRIMARY KEY("id" AUTOINCREMENT)
     );
     CREATE TABLE IF NOT EXISTS "team_project" (

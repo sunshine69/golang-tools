@@ -9,8 +9,8 @@ import (
 )
 
 type Project struct {
-    ID  uint `sql:"id"`
-    Pid uint `sql:"pid"`
+    ID  int `sql:"id"`
+    Pid int `sql:"pid"`
     Weburl  string `sql:"weburl"`
     OwnerId int `sql:"owner_id"`
     OwnerName   string `sql:"owner_name"`
@@ -23,8 +23,8 @@ type Project struct {
     NamespaceId int `sql:"namespace_id"`
     TagList string `sql:"tag_list"`
     GitlabCreatedAt string `sql:"gitlab_created_at"`
-    IsActive    uint8 `sql:"is_active"`
-    DomainOwnershipConfirmed    uint8 `sql:"domain_ownership_confirmed"`
+    IsActive    int8 `sql:"is_active"`
+    DomainOwnershipConfirmed    int8 `sql:"domain_ownership_confirmed"`
     Labels string `sql:"labels"`
 }
 func ProjectNew(path_with_namespace string) Project {
@@ -83,7 +83,7 @@ func (p *Project) New(path_with_namespace string, update bool) {
     res, err := stmt.Exec(path_with_namespace)
     u.CheckErr(err, "New stmt.Exec")
     _ID, _ := res.LastInsertId()
-    p.ID = uint(_ID)
+    p.ID = int(_ID)
     tx.Commit()
     if update {
         p.Update()

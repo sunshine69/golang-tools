@@ -24,7 +24,7 @@ func UpdateTeamProject(git *gitlab.Client, p *gitlab.Project) {
 		u.CheckErr(err, "pSrv.ListProjectsGroups")
 		for _, pg := range projectGroups {
 			if strings.HasPrefix(pg.Name, "Team -") {
-				tp := TeamProjectNew(uint(pg.ID), uint(p.ID))
+				tp := TeamProjectNew(pg.ID, p.ID)
 				log.Printf("[DEBUG] TeamProjectNew %s\n", u.JsonDump(tp, "  "))
 			}
 		}

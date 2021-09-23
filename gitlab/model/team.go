@@ -10,11 +10,12 @@ import (
 )
 
 type Team struct {
-	ID                uint   `sql:"id"`
+	ID                int   `sql:"id"`
 	Name              string `sql:"name"`
 	Keyword           string `sql:"keyword"`
 	Note              string `sql:"note"`
-	GitlabNamespaceId uint    `sql:"gitlab_ns_id"`
+	GitlabNamespaceId int    `sql:"gitlab_ns_id"`
+	CreatedAt         string   `sql:"created_at"`
 }
 func TeamNew(name string) Team {
 	p := Team{}
@@ -80,7 +81,7 @@ func (p *Team) New(teamname string, update bool) {
 	log.Printf("[DEBUG] sql - %s - param '%s'\n", sql, teamname)
 	res, err := stmt.Exec(teamname); u.CheckErr(err, "New teamname stmt.Exec")
 	_ID, _ := res.LastInsertId()
-	p.ID = uint(_ID)
+	p.ID = int(_ID)
 	tx.Commit()
 	if update {
 		p.Update()
@@ -120,6 +121,12 @@ func (p *Team) Update() {
 			}
 		case "gitlab_ns_id":
 			_, err = stmt.Exec(p.GitlabNamespaceId, p.ID)
+			if u.CheckErrNonFatal(err, "Exec") != nil {
+				tx.Rollback()
+				log.Fatal("aborted due to error\n")
+			}
+		case "created_at":
+			_, err = stmt.Exec(p.CreatedAt, p.ID)
 			if u.CheckErrNonFatal(err, "Exec") != nil {
 				tx.Rollback()
 				log.Fatal("aborted due to error\n")

@@ -9,19 +9,19 @@ import (
 )
 
 type ProjectDomain struct {
-	ID                  uint  `sql:"id"`
-	ProjectId           uint `sql:"project_id"`
-	DomainId            uint `sql:"domain_id"`
+	ID                  int  `sql:"id"`
+	ProjectId           int `sql:"project_id"`
+	DomainId            int `sql:"domain_id"`
 }
-func ProjectDomainNew(project_id, domain_id uint) ProjectDomain {
+func ProjectDomainNew(project_id, domain_id int) ProjectDomain {
 	p := ProjectDomain{}
-	p.GetOne(map[string]uint{"project_id": project_id, "domain_id": domain_id})
+	p.GetOne(map[string]int{"project_id": project_id, "domain_id": domain_id})
 	if p.ID == 0 {
 		p.New(project_id, domain_id, false)
 	}
 	return p
 }
-func (p *ProjectDomain) GetOne(inputmap map[string]uint) {
+func (p *ProjectDomain) GetOne(inputmap map[string]int) {
 	dbc := GetDBConn()
 	defer dbc.Close()
 	sql := ""
@@ -65,7 +65,7 @@ func ProjectDomainGet(inputmap map[string]string) []ProjectDomain {
 	}
 	return o
 }
-func (p *ProjectDomain) New(project_id, domain_id uint, update bool) {
+func (p *ProjectDomain) New(project_id, domain_id int, update bool) {
 	p.ProjectId, p.DomainId= project_id, domain_id
 	dbc := GetDBConn();	defer dbc.Close()
 	tx, err := dbc.Begin(); u.CheckErrNonFatal(err, "New ProjectDomain dbc.Begin")
@@ -75,7 +75,7 @@ func (p *ProjectDomain) New(project_id, domain_id uint, update bool) {
 	log.Printf("[DEBUG] sql - %s - param '%d', '%d'\n", sql, project_id, domain_id)
 	res, err := stmt.Exec(project_id, domain_id); u.CheckErr(err, "New teamname stmt.Exec")
 	_ID, _ := res.LastInsertId()
-	p.ID = uint(_ID)
+	p.ID = int(_ID)
 	tx.Commit()
 	if update {
 		p.Update()

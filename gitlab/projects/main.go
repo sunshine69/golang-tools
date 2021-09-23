@@ -74,7 +74,7 @@ func DumpOrUpdateProject(git *gitlab.Client, SearchStr string) {
                 for _, _label := range labels {
                     labelList = append(labelList, _label.Name)
                 }
-				p.Pid, p.Weburl, p.Name, p.NameWithSpace, p.Path, p.PathWithNamespace, p.NamespaceKind, p.NamespaceName, p.NamespaceId, p.GitlabCreatedAt, p.Labels = uint(row.ID), row.WebURL, row.Name, row.NameWithNamespace, row.Path, row.PathWithNamespace, row.Namespace.Kind, row.Namespace.Name, row.Namespace.ID, row.CreatedAt.Format(u.CleanStringDateLayout), strings.Join(labelList, ",")
+				p.Pid, p.Weburl, p.Name, p.NameWithSpace, p.Path, p.PathWithNamespace, p.NamespaceKind, p.NamespaceName, p.NamespaceId, p.GitlabCreatedAt, p.Labels = row.ID, row.WebURL, row.Name, row.NameWithNamespace, row.Path, row.PathWithNamespace, row.Namespace.Kind, row.Namespace.Name, row.Namespace.ID, row.CreatedAt.Format(u.CleanStringDateLayout), strings.Join(labelList, ",")
 				p.Update()
                 UpdateTeamProject(git, row)
 			}
@@ -101,13 +101,7 @@ func DumpOrUpdateNamespace(git *gitlab.Client, SearchStr string) {
 		o, resp, err := nsService.ListNamespaces(opt)
 		u.CheckErr(err, "nsService.ListNamespaces")
 		for _, row := range o {
-			p := GitlabNamespace{}
-			p.GetOne(map[string]string{
-				"where": fmt.Sprintf("full_path = '%s'", row.FullPath),
-			})
-			if p.ID == 0 {
-				p.New(row.FullPath, false)
-			}
+			p := GitlabNamespaceNew(row.FullPath)
             lList := []string{}
             if row.Kind == "group"{
                 labels, _, err := git.GroupLabels.ListGroupLabels(row.ID, &gitlab.ListGroupLabelsOptions{
@@ -116,10 +110,10 @@ func DumpOrUpdateNamespace(git *gitlab.Client, SearchStr string) {
                 u.CheckErr(err, "GroupLabels.ListGroupLabels")
                 for _, l := range labels { lList = append(lList, l.Name ) }
             }
-			p.Name, p.ParentId, p.Path, p.Kind, p.FullPath, p.MembersCountWithDescendants, p.GitlabNamespaceId, p.Labels = row.Name, uint(row.ParentID), row.Path, row.Kind, row.FullPath, uint(row.MembersCountWithDescendants), uint(row.ID), strings.Join(lList, ",")
+			p.Name, p.ParentId, p.Path, p.Kind, p.FullPath, p.MembersCountWithDescendants, p.GitlabNamespaceId, p.Labels = row.Name, row.ParentID, row.Path, row.Kind, row.FullPath, row.MembersCountWithDescendants, row.ID, strings.Join(lList, ",")
 			p.Update()
-            GitlabGroup2Team(&p)
-            GitlabGroup2Domain(&p)
+            GitlabGroup2Team(git, &p)
+            GitlabGroup2Domain(git, &p)
 		}
 		if resp.CurrentPage >= resp.TotalPages {
 			break
@@ -150,19 +144,31 @@ func UpdateTeam() {
 	}
 }
 //For each group if it started with `Team ` then add a record to team table with data
-func GitlabGroup2Team(ns *GitlabNamespace) {
+func GitlabGroup2Team(git *gitlab.Client, ns *GitlabNamespace) {
     if strings.HasPrefix( ns.Name, "Team " ) {
         log.Printf("[DEBUG] Found gitlab namespace '%s' started with Team. Create - Update Team\n", ns.Name)
         newTeam := TeamNew(ns.Name)
+        log.Printf("[DEBUG] %s\n",u.JsonDump(ns, "  "))
+        aGroup, _, err := git.Groups.GetGroup(ns.GitlabNamespaceId, nil); u.CheckErr(err, "GitlabGroup2Team Groups.GetGroup")
+        newTeam.CreatedAt = aGroup.CreatedAt.Format(u.CleanStringDateLayout)
         newTeam.GitlabNamespaceId = ns.GitlabNamespaceId
         newTeam.Update()
     }
 }
 //For each group if it started with `Domain ` then add a record to domain table with data
-func GitlabGroup2Domain(ns *GitlabNamespace) {
-    if strings.HasPrefix( ns.Name, "Domain " ) {
-        log.Printf("[DEBUG] Found gitlab namespace '%s' started with Domain. Create - Update Domain\n", ns.Name)
+// Maybe we need to check if it has at least a member named started with `Team -` ?
+func GitlabGroup2Domain(git *gitlab.Client, ns *GitlabNamespace) {
+    if strings.HasPrefix( ns.Name, "Domain " ) && (ns.MembersCountWithDescendants > 0)  {
+        childGroup := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("parent_id = %d AND name LIKE 'Team - %%'", ns.GitlabNamespaceId)})
         newDomain := DomainNew(ns.Name)
+        if len(childGroup) > 0 {
+            log.Printf("[DEBUG] Found gitlab namespace '%s' started with Domain. Create - Update Domain\n", ns.Name)
+            newDomain.HasTeam = 1
+        } else {
+            newDomain.HasTeam = 0
+        }
+        aGroup, _, err := git.Groups.GetGroup(ns.GitlabNamespaceId, nil); u.CheckErr(err, "GitlabGroup2Team Groups.GetGroup")
+        newDomain.CreatedAt = aGroup.CreatedAt.Format(u.CleanStringDateLayout)
         newDomain.GitlabNamespaceId = ns.GitlabNamespaceId
         newDomain.Update()
     }

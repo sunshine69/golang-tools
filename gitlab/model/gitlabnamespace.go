@@ -9,26 +9,34 @@ import (
 )
 
 type GitlabNamespace struct {
-    ID  uint `sql:"id"`
+    ID  int `sql:"id"`
     Name    string `sql:"name"`
-    ParentId uint `sql:"parent_id"`
+    ParentId int `sql:"parent_id"`
     Path    string `sql:"path"`
     Kind string `sql:"kind"`
     FullPath   string `sql:"full_path"`
-    MembersCountWithDescendants uint `sql:"members_count_with_descendants"`
-    GitlabNamespaceId uint `sql:"gitlab_ns_id"`
-    DomainOwnershipConfirmed    uint8 `sql:"domain_ownership_confirmed"`
+    MembersCountWithDescendants int `sql:"members_count_with_descendants"`
+    GitlabNamespaceId int `sql:"gitlab_ns_id"`
+    DomainOwnershipConfirmed    int8 `sql:"domain_ownership_confirmed"`
     WebUrl string `sql:"web_url"`
     AvatarUrl string `sql:"avatar_url"`
-    BillableMembersCount uint `sql:"billable_members_count"`
-    Seats_in_use uint `sql:"seats_in_use"`
-    Max_seats_used uint `sql:"max_seats_used"`
+    BillableMembersCount int `sql:"billable_members_count"`
+    Seats_in_use int `sql:"seats_in_use"`
+    Max_seats_used int `sql:"max_seats_used"`
     Plan string `sql:"plan"`
     Trial_ends_on string `sql:"trial_ends_on"`
-    Trial uint `sql:"trial"`
+    Trial int `sql:"trial"`
     Labels string `sql:"labels"`
 }
-
+func GitlabNamespaceNew(full_path string) GitlabNamespace {
+	p := GitlabNamespace{}
+	p.GetOne(map[string]string{"where": fmt.Sprintf("full_path = '%s'", full_path)})
+	if p.ID == 0 {
+		p.New(full_path, false)
+		p.GetOne(map[string]string{"id": fmt.Sprintf("%d", p.ID)})
+	}
+	return p
+}
 func (p *GitlabNamespace) GetOne(inputmap map[string]string) {
     dbc := GetDBConn(); defer dbc.Close()
     sql := ""
@@ -76,7 +84,7 @@ func (p *GitlabNamespace) New(full_path string, update bool) {
     res, err := stmt.Exec(full_path)
     u.CheckErr(err, "New GitlabNamespace stmt.Exec")
     _ID, _ := res.LastInsertId()
-    p.ID = uint(_ID)
+    p.ID = int(_ID)
     tx.Commit()
     if update {
         p.Update()

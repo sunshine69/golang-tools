@@ -9,19 +9,19 @@ import (
 )
 
 type TeamDomain struct {
-	ID                  uint   `sql:"id"`
-	TeamId              uint `sql:"team_id"`
-	DomainId           uint `sql:"domain_id"`
+	ID                  int   `sql:"id"`
+	TeamId              int `sql:"team_id"`
+	DomainId           int `sql:"domain_id"`
 }
-func TeamDomainNew(team_id, domain_id uint) TeamDomain {
+func TeamDomainNew(team_id, domain_id int) TeamDomain {
 	p := TeamDomain{}
-	p.GetOne(map[string]uint{"team_id": team_id, "domain_id": domain_id})
+	p.GetOne(map[string]int{"team_id": team_id, "domain_id": domain_id})
 	if p.ID == 0 {
 		p.New(team_id, domain_id, false)
 	}
 	return p
 }
-func (p *TeamDomain) GetOne(inputmap map[string]uint) {
+func (p *TeamDomain) GetOne(inputmap map[string]int) {
 	dbc := GetDBConn()
 	defer dbc.Close()
 	sql := ""
@@ -65,7 +65,7 @@ func TeamDomainGet(inputmap map[string]string) []TeamDomain {
 	}
 	return o
 }
-func (p *TeamDomain) New(team_id, domain_id uint, update bool) {
+func (p *TeamDomain) New(team_id, domain_id int, update bool) {
 	p.TeamId, p.DomainId= team_id, domain_id
 	dbc := GetDBConn();	defer dbc.Close()
 	tx, err := dbc.Begin(); u.CheckErrNonFatal(err, "New TeamDomain dbc.Begin")
@@ -75,7 +75,7 @@ func (p *TeamDomain) New(team_id, domain_id uint, update bool) {
 	log.Printf("[DEBUG] sql - %s - param '%d', '%d'\n", sql, team_id, domain_id)
 	res, err := stmt.Exec(team_id, domain_id); u.CheckErr(err, "New teamname stmt.Exec")
 	_ID, _ := res.LastInsertId()
-	p.ID = uint(_ID)
+	p.ID = int(_ID)
 	tx.Commit()
 	if update {
 		p.Update()
