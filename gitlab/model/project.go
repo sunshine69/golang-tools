@@ -27,12 +27,14 @@ type Project struct {
     DomainOwnershipConfirmed    uint8 `sql:"domain_ownership_confirmed"`
     Labels string `sql:"labels"`
 }
-func (p *Project) GetOneOrNew(path_with_namespace string) {
+func ProjectNew(path_with_namespace string) Project {
+    p := Project{}
     p.GetOne(map[string]string{"where": fmt.Sprintf("path_with_namespace = '%s'", path_with_namespace) })
     if p.ID == 0 {
         p.New(path_with_namespace, false)
         p.GetOne(map[string]string{"id": fmt.Sprintf("%d", p.ID)})
     }
+    return p
 }
 func (p *Project) GetOne(inputmap map[string]string) {
     dbc := GetDBConn(); defer dbc.Close()
@@ -52,7 +54,7 @@ func (p *Project) GetOne(inputmap map[string]string) {
         u.CheckErr(err, "Project GetOne query")
     }
 }
-func (p *Project) Get(inputmap map[string]string) []Project {
+func ProjectGet(inputmap map[string]string) []Project {
     dbc := GetDBConn(); defer dbc.Close()
     sql := ""
     if id, ok := inputmap["id"]; ok {

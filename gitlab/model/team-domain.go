@@ -13,11 +13,13 @@ type TeamDomain struct {
 	TeamId              uint `sql:"team_id"`
 	DomainId           uint `sql:"domain_id"`
 }
-func (p *TeamDomain) GetOneOrNew(team_id, domain_id uint) {
+func TeamDomainNew(team_id, domain_id uint) TeamDomain {
+	p := TeamDomain{}
 	p.GetOne(map[string]uint{"team_id": team_id, "domain_id": domain_id})
 	if p.ID == 0 {
 		p.New(team_id, domain_id, false)
 	}
+	return p
 }
 func (p *TeamDomain) GetOne(inputmap map[string]uint) {
 	dbc := GetDBConn()
@@ -39,7 +41,7 @@ func (p *TeamDomain) GetOne(inputmap map[string]uint) {
 		u.CheckErr(err, "TeamDomain GetOne query")
 	}
 }
-func (p *TeamDomain) Get(inputmap map[string]string) []TeamDomain {
+func TeamDomainGet(inputmap map[string]string) []TeamDomain {
 	dbc := GetDBConn()
 	defer dbc.Close()
 	sql := ""

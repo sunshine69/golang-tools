@@ -14,15 +14,17 @@ type Team struct {
 	Name              string `sql:"name"`
 	Keyword           string `sql:"keyword"`
 	Note              string `sql:"note"`
-	GitlabNamespaceId int    `sql:"gitlab_ns_id"`
+	GitlabNamespaceId uint    `sql:"gitlab_ns_id"`
 }
-func (p *Team) GetOneOrNew(name string) {
+func TeamNew(name string) Team {
+	p := Team{}
 	p.GetOne(map[string]string{"where": fmt.Sprintf("name = '%s'", name)})
 	if p.ID == 0 {
 		p.New(name, false)
 		//Update struct with database default value
 		p.GetOne(map[string]string{"id": fmt.Sprintf("%d", p.ID)})
 	}
+	return p
 }
 func (p *Team) GetOne(inputmap map[string]string) {
 	dbc := GetDBConn()
@@ -44,7 +46,7 @@ func (p *Team) GetOne(inputmap map[string]string) {
 		u.CheckErr(err, "Team GetOne query")
 	}
 }
-func (p *Team) Get(inputmap map[string]string) []Team {
+func TeamGet(inputmap map[string]string) []Team {
 	dbc := GetDBConn()
 	defer dbc.Close()
 	sql := ""

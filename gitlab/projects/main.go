@@ -54,8 +54,7 @@ func DumpOrUpdateProject(git *gitlab.Client, SearchStr string) {
 		}
 		for _, row := range projects {
 			if ProjectFilter() {
-				p := Project{}
-                p.GetOneOrNew(row.PathWithNamespace)
+				p := ProjectNew(row.PathWithNamespace)
 				log.Printf("[DEBUG] Project %s - \n", u.JsonDump(p, "    "))
 				if row.Owner != nil {
 					p.OwnerId = row.Owner.ID
@@ -132,8 +131,7 @@ func DumpOrUpdateNamespace(git *gitlab.Client, SearchStr string) {
 }
 //From the team table update its gitlab id. If not found, warning. Maybe in the future we can automate creation of the tem.
 func UpdateTeam() {
-	ateam := Team{}
-	currentTeamList := ateam.Get(map[string]string{
+	currentTeamList := TeamGet(map[string]string{
 		"where": "1",
 	})
 	for _, row := range currentTeamList {
@@ -147,7 +145,7 @@ func UpdateTeam() {
 			log.Printf("[WARN] unextected. Can not find the gitlab namespace table matching this team '%s' with id %d. Possibly the Team has not actually been created in gitlab group.\n", row.Name, row.GitlabNamespaceId)
 			continue
 		}
-		row.GitlabNamespaceId = int(ns.GitlabNamespaceId)
+		row.GitlabNamespaceId = ns.GitlabNamespaceId
 		row.Update()
 	}
 }
@@ -155,9 +153,8 @@ func UpdateTeam() {
 func GitlabGroup2Team(ns *GitlabNamespace) {
     if strings.HasPrefix( ns.Name, "Team " ) {
         log.Printf("[DEBUG] Found gitlab namespace '%s' started with Team. Create - Update Team\n", ns.Name)
-        newTeam := Team{}
-        newTeam.GetOneOrNew(ns.Name)
-        newTeam.GitlabNamespaceId = int(ns.GitlabNamespaceId)
+        newTeam := TeamNew(ns.Name)
+        newTeam.GitlabNamespaceId = ns.GitlabNamespaceId
         newTeam.Update()
     }
 }
@@ -165,8 +162,7 @@ func GitlabGroup2Team(ns *GitlabNamespace) {
 func GitlabGroup2Domain(ns *GitlabNamespace) {
     if strings.HasPrefix( ns.Name, "Domain " ) {
         log.Printf("[DEBUG] Found gitlab namespace '%s' started with Domain. Create - Update Domain\n", ns.Name)
-        newDomain := Domain{}
-        newDomain.GetOneOrNew(ns.Name)
+        newDomain := DomainNew(ns.Name)
         newDomain.GitlabNamespaceId = ns.GitlabNamespaceId
         newDomain.Update()
     }
@@ -218,6 +214,8 @@ func main() {
 		Addhoc_getfirst10mrperuser(git)
     case "UpdateProjectDomainFromCSV":
         UpdateProjectDomainFromCSV("MigrationServices.csv")
+    case "UpdateProjectDomainFromCSVSheet3":
+        UpdateProjectDomainFromCSVSheet3("MigrationServices-sheet3.csv")
 	default:
 		fmt.Printf("Need an action. Run with -h for help")
 	}

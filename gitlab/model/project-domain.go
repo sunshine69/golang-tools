@@ -13,11 +13,13 @@ type ProjectDomain struct {
 	ProjectId           uint `sql:"project_id"`
 	DomainId            uint `sql:"domain_id"`
 }
-func (p *ProjectDomain) GetOneOrNew(project_id, domain_id uint) {
+func ProjectDomainNew(project_id, domain_id uint) ProjectDomain {
+	p := ProjectDomain{}
 	p.GetOne(map[string]uint{"project_id": project_id, "domain_id": domain_id})
 	if p.ID == 0 {
 		p.New(project_id, domain_id, false)
 	}
+	return p
 }
 func (p *ProjectDomain) GetOne(inputmap map[string]uint) {
 	dbc := GetDBConn()
@@ -39,7 +41,7 @@ func (p *ProjectDomain) GetOne(inputmap map[string]uint) {
 		u.CheckErr(err, "ProjectDomain GetOne query")
 	}
 }
-func (p *ProjectDomain) Get(inputmap map[string]string) []ProjectDomain {
+func ProjectDomainGet(inputmap map[string]string) []ProjectDomain {
 	dbc := GetDBConn()
 	defer dbc.Close()
 	sql := ""

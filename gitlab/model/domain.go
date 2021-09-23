@@ -16,12 +16,14 @@ type Domain struct {
 	Note              string `sql:"note"`
 	GitlabNamespaceId uint    `sql:"gitlab_ns_id"`
 }
-func (p *Domain) GetOneOrNew(name string) {
+func DomainNew(name string) Domain {
+	p := Domain{}
 	p.GetOne(map[string]string{"where": fmt.Sprintf("name = '%s'", name)})
 	if p.ID == 0 {
 		p.New(name, false)
 		p.GetOne(map[string]string{"id": fmt.Sprintf("%d", p.ID)})
 	}
+	return p
 }
 func (p *Domain) GetOne(inputmap map[string]string) {
 	dbc := GetDBConn()
@@ -43,7 +45,7 @@ func (p *Domain) GetOne(inputmap map[string]string) {
 		u.CheckErr(err, "Domain GetOne query")
 	}
 }
-func (p *Domain) Get(inputmap map[string]string) []Domain {
+func DomainGet(inputmap map[string]string) []Domain {
 	dbc := GetDBConn()
 	defer dbc.Close()
 	sql := ""

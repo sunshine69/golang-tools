@@ -1,5 +1,6 @@
 package main
 import (
+	"fmt"
 	"log"
 	"testing"
 	. "localhost.com/gitlab/model"
@@ -27,11 +28,25 @@ func TestGetGitlabProjects(t *testing.T) {
 	}); u.CheckErr(err, "GetProject")
 	for _, p := range ps {
 		log.Printf("[DEBUG] %s\n", p.PathWithNamespace )
-		localp := Project{}
-		localp.GetOneOrNew(p.PathWithNamespace)
+		localp := ProjectNew(p.PathWithNamespace)
 		log.Printf("[DEBUG] %s\n",u.JsonDump(localp,"  "))
 		localp.GitlabCreatedAt = p.CreatedAt.Format(u.CleanStringDateLayout)
 		localp.Update()
 		log.Printf("[DEBUG1] %s\n",u.JsonDump(localp,"  "))
+	}
+}
+func TestGitDomain(t *testing.T) {
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "testdb.sqlite3"
+	git := GetGitlabClient()
+	ns, _, err := git.Namespaces.SearchNamespace("Domain - Recommendation", nil); u.CheckErr(err, "SearchNamespace")
+	for _, row := range ns {
+		if row.ParentID == 0 {//Root group, no parent
+			if row.MembersCountWithDescendants > 0 {//Having a subgroup or project/domain
+				//Find projects
+				ps := ProjectGet(map[string]string{"where": fmt.Sprintf("namespace_id = %d", row.ID)})
+				log.Printf("%s\n", u.JsonDump(ps, "  "))
+			}
+		}
+		log.Printf("%s\n", u.JsonDump(row, "    "))
 	}
 }

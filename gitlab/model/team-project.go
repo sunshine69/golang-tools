@@ -15,11 +15,13 @@ type TeamProject struct {
 	ProjectId           uint `sql:"project_id"`
 	Domain              string `sql:"domain"`
 }
-func (p *TeamProject) GetOneOrNew(team_id, project_id uint) {
+func TeamProjectNew(team_id, project_id uint) TeamProject {
+	p := TeamProject{}
 	p.GetOne(map[string]uint{"team_id": team_id, "project_id": project_id})
 	if p.ID == 0 {
 		p.New(team_id, project_id, false)
 	}
+	return p
 }
 func (p *TeamProject) GetOne(inputmap map[string]uint) {
 	dbc := GetDBConn()
@@ -41,7 +43,7 @@ func (p *TeamProject) GetOne(inputmap map[string]uint) {
 		u.CheckErr(err, "TeamProject GetOne query")
 	}
 }
-func (p *TeamProject) Get(inputmap map[string]string) []TeamProject {
+func TeamProjectGet(inputmap map[string]string) []TeamProject {
 	dbc := GetDBConn()
 	defer dbc.Close()
 	sql := ""

@@ -47,7 +47,7 @@ func (p *GitlabNamespace) GetOne(inputmap map[string]string) {
         u.CheckErr(err, "Gitlabnamespace GetOne query")
     }
 }
-func (p *GitlabNamespace) Get(inputmap map[string]string) []GitlabNamespace {
+func GitlabNamespaceGet(inputmap map[string]string) []GitlabNamespace {
     dbc := GetDBConn(); defer dbc.Close()
     sql := ""
     if id, ok := inputmap["id"]; ok {
