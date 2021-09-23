@@ -8,10 +8,9 @@ import (
 	"github.com/xanzy/go-gitlab"
 	u "localhost.com/utils"
 )
+// Run like this to experiment/addhoc logic. Make a function Test_XXXX
+//go test --tags "sqlite_stat4 sqlite_foreign_keys sqlite_json" -timeout 30s -run '^Test_XXXX' -v
 
-func TestProject(t *testing.T) {
-	Logdbpath = "testdb.sqlite3"
-}
 func TestGetGitlabProject(t *testing.T) {
 	ConfigFile = "/home/stevek/.dump-gitlab-project-data.json"
 	git := GetGitlabClient()
@@ -47,6 +46,6 @@ func TestGitDomain(t *testing.T) {
 				log.Printf("%s\n", u.JsonDump(ps, "  "))
 			}
 		}
-		log.Printf("%s\n", u.JsonDump(row, "    "))
+		// log.Printf("%s\n", u.JsonDump(row, "    "))
 	}
 }
