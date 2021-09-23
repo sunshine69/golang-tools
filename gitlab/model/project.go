@@ -26,6 +26,7 @@ type Project struct {
     IsActive    int8 `sql:"is_active"`
     DomainOwnershipConfirmed    int8 `sql:"domain_ownership_confirmed"`
     Labels string `sql:"labels"`
+    TS         string   `sql:"ts"`
 }
 func ProjectNew(path_with_namespace string) Project {
     p := Project{}

@@ -19,10 +19,10 @@ func TestGetGitlabProject(t *testing.T) {
 }
 func TestGetGitlabGroup(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "testdb.sqlite3"
-	git := GetGitlabClient()
-	ns := GitlabNamespaceNew("ft1"); log.Printf("[DEBUG] %d\n", ns.GitlabNamespaceId )
-	p, _, err := git.Groups.GetGroup(ns.GitlabNamespaceId, nil); u.CheckErr(err, "TestGetGitlabGroup")
-	log.Printf("[DEBUG] %s\n", u.JsonDump(p, "  ") )
+	// git := GetGitlabClient()
+	// childGroup := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("parent_id = %d AND name LIKE 'Team - %%'", 188)})
+	childGroup := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("parent_id = %d", 584)})
+	log.Printf("[DEBUG] %s\n",u.JsonDump(childGroup,"  "))
 }
 func TestGetGitlabProjects(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "testdb.sqlite3"

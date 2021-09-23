@@ -12,6 +12,7 @@ type TeamDomain struct {
 	ID                  int   `sql:"id"`
 	TeamId              int `sql:"team_id"`
 	DomainId           int `sql:"domain_id"`
+	TS         string   `sql:"ts"`
 }
 func TeamDomainNew(team_id, domain_id int) TeamDomain {
 	p := TeamDomain{}
@@ -95,6 +96,12 @@ func (p *TeamDomain) Update() {
 		switch colname {
 		case "id", "team_id", "domain_id":
 			continue
+		case "ts":
+			_, err := stmt.Exec("", p.ID) //Just update so trigger will fired to udpate ts
+			if u.CheckErrNonFatal(err, "Exec") != nil {
+				tx.Rollback()
+				log.Fatal("aborted due to error\n")
+			}
 		default:
 			fmt.Println("Not matching anything.")
 		}

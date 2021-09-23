@@ -17,6 +17,7 @@ type Domain struct {
 	GitlabNamespaceId int    `sql:"gitlab_ns_id"`
 	CreatedAt         string   `sql:"created_at"`
 	HasTeam           int   `sql:"has_team"`
+	TS         string   `sql:"ts"`
 }
 func DomainNew(name string) Domain {
 	p := Domain{}

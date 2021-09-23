@@ -14,6 +14,7 @@ type TeamProject struct {
 	TeamId              int `sql:"team_id"`
 	ProjectId           int `sql:"project_id"`
 	Domain              string `sql:"domain"`
+	TS         string   `sql:"ts"`
 }
 func TeamProjectNew(team_id, project_id int) TeamProject {
 	p := TeamProject{}
@@ -99,6 +100,12 @@ func (p *TeamProject) Update() {
 			continue
 		case "domain":
 			_, err := stmt.Exec(p.Domain, p.ID)
+			if u.CheckErrNonFatal(err, "Exec") != nil {
+				tx.Rollback()
+				log.Fatal("aborted due to error\n")
+			}
+		case "ts":
+			_, err := stmt.Exec("", p.ID) //Just update so trigger will fired to udpate ts
 			if u.CheckErrNonFatal(err, "Exec") != nil {
 				tx.Rollback()
 				log.Fatal("aborted due to error\n")

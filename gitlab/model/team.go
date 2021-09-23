@@ -16,6 +16,7 @@ type Team struct {
 	Note              string `sql:"note"`
 	GitlabNamespaceId int    `sql:"gitlab_ns_id"`
 	CreatedAt         string   `sql:"created_at"`
+	TS         string   `sql:"ts"`
 }
 func TeamNew(name string) Team {
 	p := Team{}

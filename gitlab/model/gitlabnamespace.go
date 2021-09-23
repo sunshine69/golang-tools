@@ -27,6 +27,7 @@ type GitlabNamespace struct {
     Trial_ends_on string `sql:"trial_ends_on"`
     Trial int `sql:"trial"`
     Labels string `sql:"labels"`
+    TS         string   `sql:"ts"`
 }
 func GitlabNamespaceNew(full_path string) GitlabNamespace {
 	p := GitlabNamespace{}
