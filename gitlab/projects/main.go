@@ -217,6 +217,9 @@ func main() {
         UpdateGroupMember(git)
 	case "update-team":
 		UpdateTeam()
+    //From now is function name - adhoc run
+    case "UpdateGroupMember":
+        UpdateGroupMember(git)
 	case "get-first10mr-peruser":
 		Addhoc_getfirst10mrperuser(git)
     case "UpdateProjectDomainFromCSV":

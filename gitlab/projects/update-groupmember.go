@@ -18,6 +18,9 @@ func UpdateGroupMember(git *gitlab.Client) {
 			if strings.HasPrefix(sharedGroup.GroupName, "Team - ") {
 				log.Printf("[DEBUG] Found shafred group member name started with 'Team - '")
 				GroupmemberNew(aGroup.ID, sharedGroup.GroupID)
+				domain := DomainNew(aGroup.Name)
+				domain.HasTeam = 1
+				domain.Update()
 			}
 		}
 	}
