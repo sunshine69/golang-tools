@@ -46,6 +46,8 @@ func TestGitDomain(t *testing.T) {
 	git := GetGitlabClient()
 	ns, _, err := git.Namespaces.SearchNamespace("Domain - Recommendation", nil); u.CheckErr(err, "SearchNamespace")
 	for _, row := range ns {
+		mygroup, _, _ := git.Groups.GetGroup(row.ID, nil)
+		log.Printf("GROUP %s\n", u.JsonDump(mygroup, "  "))
 		if row.ParentID == 0 {//Root group, no parent
 			if row.MembersCountWithDescendants > 0 {//Having a subgroup or project/domain
 				//Find projects
@@ -64,8 +66,31 @@ func TestGetProjectFromDomain(t *testing.T) {
 			if row.MembersCountWithDescendants > 0 {//Having a subgroup or project/domain
 				//Find projects
 				ps := ProjectGet(map[string]string{"where": fmt.Sprintf("namespace_id = %d", row.GitlabNamespaceId)})
-				log.Printf("%s\n", u.JsonDump(ps, "  "))
+				log.Printf("PROJECT %s\n", u.JsonDump(ps, "  "))
 			}
+		}
+	}
+}
+func TestGetMemberFromDomain(t *testing.T) {
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "testdb.sqlite3"
+	domains := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("name LIKE 'Domain - Recommendation'")})
+	git := GetGitlabClient()
+	for _, row := range domains {
+		log.Printf("%s\n", u.JsonDump(row, "  "))
+		if row.ParentId == 0 && row.MembersCountWithDescendants > 0 {
+			// this return a member as User kind, not group kind. No it seems this feature is new, gitlab api not supported yet
+			users, _, err := git.Groups.ListGroupMembers(row.GitlabNamespaceId, &gitlab.ListGroupMembersOptions{
+				ListOptions: gitlab.ListOptions{
+					Page:1, PerPage:100,
+				},
+			}); u.CheckErr(err, "Groups.ListGroupMembers")
+			log.Printf("%s\n", u.JsonDump(users,"  "))
+			groups, _, err := git.Groups.ListAllGroupMembers(row.GitlabNamespaceId, &gitlab.ListGroupMembersOptions {
+				ListOptions: gitlab.ListOptions{
+					Page:1, PerPage:100,
+				},
+			}); u.CheckErr(err, "Groups.ListGroupMembers")
+			log.Printf("%s\n", u.JsonDump(groups,"  "))
 		}
 	}
 }

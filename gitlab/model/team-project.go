@@ -111,7 +111,7 @@ func (p *TeamProject) Update() {
 				log.Fatal("aborted due to error\n")
 			}
 		default:
-			fmt.Println("Not matching anything.")
+			fmt.Printf("UPDATE table Column '%s' not yet process\n", colname)
 		}
 	}
 	u.CheckErr(tx.Commit(), "tx.Commit")

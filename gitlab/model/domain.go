@@ -100,7 +100,7 @@ func (p *Domain) Update() {
 		u.CheckErr(err, "tx.Prepare")
 		defer stmt.Close()
 		switch colname {
-		case "id":
+		case "id", "ts":
 			continue
 		case "name":
 			_, err := stmt.Exec(p.Name, p.ID)
@@ -139,7 +139,7 @@ func (p *Domain) Update() {
 				log.Fatal("aborted due to error\n")
 			}
 		default:
-			fmt.Println("Not matching anything.")
+			fmt.Printf("UPDATE table Column '%s' not yet process\n", colname)
 		}
 	}
 	u.CheckErr(tx.Commit(), "tx.Commit")

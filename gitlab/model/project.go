@@ -100,7 +100,7 @@ func (p *Project) Update() {
         stmt, err := tx.Prepare(sql)
         u.CheckErr(err, "tx.Prepare"); defer stmt.Close()
         switch colname {
-        case "id":
+        case "id", "ts":
             continue
         case "pid":
             _, err = stmt.Exec(p.Pid, p.ID)
@@ -199,7 +199,7 @@ func (p *Project) Update() {
                 log.Fatalf("aborted due to error")
             }
         default:
-            log.Printf("[DEBUG] Not matching anything with this %s\n", colname)
+            fmt.Printf("UPDATE table Column '%s' not yet process\n", colname)
         }
     }
     u.CheckErr( tx.Commit(), "tx.Commit" )

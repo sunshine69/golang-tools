@@ -214,6 +214,7 @@ func main() {
 		DumpOrUpdateProject(git, SearchStr)
 	case "update-namespace":
 		DumpOrUpdateNamespace(git, SearchStr)
+        UpdateGroupMember(git)
 	case "update-team":
 		UpdateTeam()
 	case "get-first10mr-peruser":
