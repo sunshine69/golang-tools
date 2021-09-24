@@ -28,6 +28,7 @@ go run --tags "sqlite_stat4 sqlite_foreign_keys sqlite_json" . -f ~/.dump-gitlab
 ```
 
 The json config file looks like
+
 ```
 {
      "gitlabAPIBaseURL": "https://code.go1.com.au/api/v4",

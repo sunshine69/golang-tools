@@ -97,6 +97,7 @@ func TestGetMemberFromDomain(t *testing.T) {
 func TestProjectMigrationStatus(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "testdb.sqlite3"
 	git := GetGitlabClient()
+	
 	dbc := GetDBConn()
 	defer dbc.Close()
 	domains := GroupmemberGet(map[string]string{"where": "group_id = 541"})
