@@ -44,7 +44,7 @@ func TestGetGitlabProjects(t *testing.T) {
 func TestGitDomain(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "testdb.sqlite3"
 	git := GetGitlabClient()
-	ns, _, err := git.Namespaces.SearchNamespace("Domain - Recommendation", nil); u.CheckErr(err, "SearchNamespace")
+	ns, _, err := git.Namespaces.SearchNamespace("Domain - Users", nil); u.CheckErr(err, "SearchNamespace")
 	for _, row := range ns {
 		mygroup, _, _ := git.Groups.GetGroup(row.ID, nil)
 		log.Printf("GROUP %s\n", u.JsonDump(mygroup, "  "))
@@ -93,4 +93,28 @@ func TestGetMemberFromDomain(t *testing.T) {
 			log.Printf("%s\n", u.JsonDump(groups,"  "))
 		}
 	}
+}
+func TestProjectMigrationStatus(t *testing.T) {
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "testdb.sqlite3"
+	git := GetGitlabClient()
+	dbc := GetDBConn()
+	defer dbc.Close()
+	domains := GroupmemberGet(map[string]string{"where": "group_id = 541"})
+	for _, row := range domains {
+		ps, _, err := git.Groups.ListGroupProjects(row.GroupId, nil)
+		u.CheckErr(err, "ReportProjectMigrationStatus ListGroupProjects")
+		log.Printf("Count project %d\n",len(ps))
+		for _, p := range ps {
+			aP := ProjectNew(p.PathWithNamespace)
+			aP.DomainOwnershipConfirmed = 1
+			aP.Update()
+			// log.Printf("[DEBUG] project %s\n", u.JsonDump(p, "  "))
+		}
+	}
+	// Output and write csv file use sqlitebrowser better
+}
+func TestRawSQL(t *testing.T) {
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "testdb.sqlite3"
+	gm := GroupmemberGet(map[string]string{"sql": "select group_id from groupmember where member_group_id =  544 group by group_id"})
+	log.Printf("%s\n",u.JsonDump(gm,"  "))
 }

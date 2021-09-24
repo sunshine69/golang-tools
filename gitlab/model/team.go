@@ -54,8 +54,10 @@ func TeamGet(inputmap map[string]string) []Team {
 	sql := ""
 	if id, ok := inputmap["id"]; ok {
 		sql = fmt.Sprintf(`SELECT %s FROM team WHERE id = %s`, sqlstruct.Columns(Team{}), id)
+	} else if where, ok := inputmap["where"]; ok {
+		sql = fmt.Sprintf(`SELECT %s FROM team WHERE %s`, sqlstruct.Columns(Team{}), where)
 	} else {
-		sql = fmt.Sprintf(`SELECT %s FROM team WHERE %s`, sqlstruct.Columns(Team{}), inputmap["where"])
+		sql = inputmap["sql"]
 	}
 	sql = sql + ` ORDER BY id DESC`
 	stmt, err := dbc.Prepare(sql)

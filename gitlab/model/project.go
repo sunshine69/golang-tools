@@ -60,9 +60,11 @@ func ProjectGet(inputmap map[string]string) []Project {
     sql := ""
     if id, ok := inputmap["id"]; ok {
         sql = fmt.Sprintf(`SELECT %s FROM project WHERE id = %s`, sqlstruct.Columns(Project{}), id)
+    } else if where, ok := inputmap["where"]; ok {
+        sql = fmt.Sprintf(`SELECT %s FROM project WHERE %s`, sqlstruct.Columns(Project{}), where)
     } else {
-        sql = fmt.Sprintf(`SELECT %s FROM project WHERE %s`, sqlstruct.Columns(Project{}), inputmap["where"])
-    }
+		sql = inputmap["sql"]
+	}
     sql = sql + ` ORDER BY id DESC`
     stmt, err := dbc.Prepare(sql)
     u.CheckErr(err, "GetOne");  defer stmt.Close()

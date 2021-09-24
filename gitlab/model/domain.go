@@ -54,8 +54,10 @@ func DomainGet(inputmap map[string]string) []Domain {
 	sql := ""
 	if id, ok := inputmap["id"]; ok {
 		sql = fmt.Sprintf(`SELECT %s FROM domain WHERE id = %s`, sqlstruct.Columns(Domain{}), id)
+	} else if where, ok := inputmap["where"]; ok {
+		sql = fmt.Sprintf(`SELECT %s FROM domain WHERE %s`, sqlstruct.Columns(Domain{}), where)
 	} else {
-		sql = fmt.Sprintf(`SELECT %s FROM domain WHERE %s`, sqlstruct.Columns(Domain{}), inputmap["where"])
+		sql = inputmap["sql"]
 	}
 	sql = sql + ` ORDER BY id DESC`
 	stmt, err := dbc.Prepare(sql)

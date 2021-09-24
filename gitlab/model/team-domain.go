@@ -48,8 +48,10 @@ func TeamDomainGet(inputmap map[string]string) []TeamDomain {
 	sql := ""
 	if id, ok := inputmap["id"]; ok {
 		sql = fmt.Sprintf(`SELECT %s FROM team_domain WHERE id = %s`, sqlstruct.Columns(TeamDomain{}), id)
+	}  else if where, ok := inputmap["where"]; ok {
+		sql = fmt.Sprintf(`SELECT %s FROM team_domain WHERE %s`, sqlstruct.Columns(TeamDomain{}), where)
 	} else {
-		sql = fmt.Sprintf(`SELECT %s FROM team_domain WHERE %s`, sqlstruct.Columns(TeamDomain{}), inputmap["where"])
+		sql = inputmap["sql"]
 	}
 	sql = sql + ` ORDER BY id DESC`
 	stmt, err := dbc.Prepare(sql)

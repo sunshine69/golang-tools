@@ -48,8 +48,10 @@ func ProjectDomainGet(inputmap map[string]string) []ProjectDomain {
 	sql := ""
 	if id, ok := inputmap["id"]; ok {
 		sql = fmt.Sprintf(`SELECT %s FROM project_domain WHERE id = %s`, sqlstruct.Columns(ProjectDomain{}), id)
+	} else if where, ok := inputmap["where"]; ok {
+		sql = fmt.Sprintf(`SELECT %s FROM project_domain WHERE %s`, sqlstruct.Columns(ProjectDomain{}), where)
 	} else {
-		sql = fmt.Sprintf(`SELECT %s FROM project_domain WHERE %s`, sqlstruct.Columns(ProjectDomain{}), inputmap["where"])
+		sql = inputmap["sql"]
 	}
 	sql = sql + ` ORDER BY id DESC`
 	stmt, err := dbc.Prepare(sql)

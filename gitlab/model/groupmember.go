@@ -49,8 +49,10 @@ func GroupmemberGet(inputmap map[string]string) []Groupmember {
 	sql := ""
 	if id, ok := inputmap["id"]; ok {
 		sql = fmt.Sprintf(`SELECT %s FROM groupmember WHERE id = %s`, sqlstruct.Columns(Groupmember{}), id)
+	} else if where, ok := inputmap["where"]; ok {
+		sql = fmt.Sprintf(`SELECT %s FROM groupmember WHERE %s`, sqlstruct.Columns(Groupmember{}), where)
 	} else {
-		sql = fmt.Sprintf(`SELECT %s FROM groupmember WHERE %s`, sqlstruct.Columns(Groupmember{}), inputmap["where"])
+		sql = inputmap["sql"]
 	}
 	sql = sql + ` ORDER BY id DESC`
 	stmt, err := dbc.Prepare(sql)

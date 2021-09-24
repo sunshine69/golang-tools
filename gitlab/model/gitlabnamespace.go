@@ -61,9 +61,11 @@ func GitlabNamespaceGet(inputmap map[string]string) []GitlabNamespace {
     sql := ""
     if id, ok := inputmap["id"]; ok {
         sql = fmt.Sprintf(`SELECT %s FROM gitlab_namespace WHERE id = %s`, sqlstruct.Columns(GitlabNamespace{}), id)
+    } else if where, ok := inputmap["where"]; ok {
+        sql = fmt.Sprintf(`SELECT %s FROM gitlab_namespace WHERE %s`, sqlstruct.Columns(GitlabNamespace{}), where)
     } else {
-        sql = fmt.Sprintf(`SELECT %s FROM gitlab_namespace WHERE %s`, sqlstruct.Columns(GitlabNamespace{}), inputmap["where"])
-    }
+		sql = inputmap["sql"]
+	}
     sql = sql + ` ORDER BY id DESC`
     stmt, err := dbc.Prepare(sql)
     u.CheckErr(err, "GitlabNamespace GetOne");  defer stmt.Close()
