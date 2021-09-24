@@ -226,6 +226,8 @@ func main() {
         UpdateProjectDomainFromCSV("MigrationServices.csv")
     case "UpdateProjectDomainFromCSVSheet3":
         UpdateProjectDomainFromCSVSheet3("MigrationServices-sheet3.csv")
+	case "UpdateProjectMigrationStatus":
+		UpdateProjectMigrationStatus(git)
 	default:
 		fmt.Printf("Need an action. Run with -h for help")
 	}
