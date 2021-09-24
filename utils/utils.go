@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"bufio"
 	"bytes"
 	"crypto/ecdsa"
@@ -28,6 +29,7 @@ import (
 	"github.com/hashicorp/logutils"
 	jsoniter "github.com/json-iterator/go"
 	"gopkg.in/yaml.v2"
+	"database/sql"
 )
 
 //TimeISO8601LayOut
@@ -40,6 +42,57 @@ const (
 var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
+func RunDSL(dbc *sql.DB, sql string) map[string]interface{}{
+	stmt, err := dbc.Prepare(sql)
+	if err != nil {return map[string]interface{}{"result":nil,"error": err}}
+	defer stmt.Close()
+	result, err := stmt.Exec()
+	return map[string]interface{}{"result":result,"error": err}
+}
+// Run SELECT and return map[string]interface{}{"result": []interface{}, "error": error}
+func RunSQL(dbc *sql.DB, sql string) map[string]interface{} {
+	var result = make([]interface{}, 0)
+	ptn := regexp.MustCompile(`[\s]+(from|FROM)[\s]+([^\s]+)[\s]*`)
+	if matches := ptn.FindStringSubmatch(sql); len(matches) == 3 {
+		stmt, err := dbc.Prepare(sql)
+		if err != nil {return map[string]interface{}{"result":nil,"error": err}}
+		defer stmt.Close()
+		rows, err := stmt.Query()
+		if err != nil {return map[string]interface{}{"result":nil,"error": err}}
+		defer rows.Close()
+		columnNames, err := rows.Columns() // []string{"id", "name"}
+		if err != nil {return map[string]interface{}{"result":nil,"error": err}}
+		columns := make([]interface{}, len(columnNames))
+		columnTypes, _ := rows.ColumnTypes()
+		columnPointers := make([]interface{}, len(columnNames))
+		for i := range columns {
+			columnPointers[i] = &columns[i]
+		}
+		for rows.Next() {
+			err := rows.Scan(columnPointers...)
+			if err != nil {return map[string]interface{}{"result":nil,"error": err}}
+			_temp := make(map[string]interface{})
+			for idx, _cName := range columnNames {
+				if strings.ToUpper(columnTypes[idx].DatabaseTypeName()) == "TEXT" {
+					//avoid auto base64 enc by golang when hitting the []byte type
+					//not sure why some TEXT return []uint8 other return as string.
+					_data, ok := columns[idx].([]uint8)
+					if ok {
+						_temp[_cName] = string(_data)
+					} else {
+						_temp[_cName] = columns[idx]
+					}
+				} else {
+					_temp[_cName] = columns[idx]
+				}
+			}
+			result = append(result, _temp)
+		}
+	} else {
+		return map[string]interface{}{"result": nil, "error": errors.New("ERROR Malformed sql, no table name found")}
+	}
+	return map[string]interface{}{"result": result, "error": nil}
+}
 func RemoveDuplicateStr(strSlice []string) []string {
     allKeys := make(map[string]bool)
     list := []string{}
