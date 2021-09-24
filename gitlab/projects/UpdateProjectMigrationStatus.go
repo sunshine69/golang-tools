@@ -12,7 +12,7 @@ import (
 func UpdateProjectMigrationStatus(git *gitlab.Client) {
 	dbc := GetDBConn()
 	defer dbc.Close()
-	domains := GroupmemberGet(map[string]string{"where": "1"})
+	domains := GroupmemberGet(map[string]string{"where": "1 group by group_id"})
 	for _, row := range domains {
 		ps, _, err := git.Groups.ListGroupProjects(row.GroupId, nil)
 		u.CheckErr(err, "ReportProjectMigrationStatus ListGroupProjects")
@@ -20,7 +20,7 @@ func UpdateProjectMigrationStatus(git *gitlab.Client) {
 			aP := ProjectNew(p.PathWithNamespace)
 			aP.DomainOwnershipConfirmed = 1
 			aP.Update()
-			log.Printf("[DEBUG] project %s\n", u.JsonDump(aP, "  "))
+			log.Printf("project %s\n", u.JsonDump(aP, "  "))
 		}
 	}
 	// Output and write csv file use sqlitebrowser better

@@ -16,7 +16,7 @@ func UpdateGroupMember(git *gitlab.Client) {
 		aGroup, _, err := git.Groups.GetGroup(ns.GitlabNamespaceId, nil); u.CheckErr(err, "UpdateGroupMember")
 		for _, sharedGroup := range aGroup.SharedWithGroups {
 			if strings.HasPrefix(sharedGroup.GroupName, "Team - ") {
-				log.Printf("[DEBUG] Found shafred group member name started with 'Team - '")
+				log.Printf("[DEBUG] Found shared group member name started with 'Team - '")
 				GroupmemberNew(aGroup.ID, sharedGroup.GroupID)
 				domain := DomainNew(aGroup.Name)
 				domain.HasTeam = 1
