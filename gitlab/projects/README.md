@@ -24,7 +24,7 @@ See main.go for how to, and the order of data parser, command opt.
 My example command is
 
 ```
-go run --tags "sqlite_stat4 sqlite_foreign_keys sqlite_json" . -f ~/.dump-gitlab-project-data.json -db testdb.sqlite3 -a update-all
+go run --tags "sqlite_stat4 sqlite_foreign_keys sqlite_json" . -f ~/.dump-gitlab-project-data.json -db data/testdb.sqlite3 -a update-all
 ```
 
 The json config file looks like

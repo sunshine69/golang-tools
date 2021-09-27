@@ -123,7 +123,7 @@ func DumpOrUpdateNamespace(git *gitlab.Client, SearchStr string) {
 		opt.Page = resp.NextPage
 	}
 }
-//From the team table update its gitlab id. If not found, warning. Maybe in the future we can automate creation of the tem.
+//From the team table update its gitlab id. If not found, warning. Maybe in the future we can automate creation of the team.
 func UpdateTeam() {
 	currentTeamList := TeamGet(map[string]string{
 		"where": "1",
@@ -223,9 +223,9 @@ func main() {
 	case "get-first10mr-peruser":
 		Addhoc_getfirst10mrperuser(git)
     case "UpdateProjectDomainFromCSV":
-        UpdateProjectDomainFromCSV("MigrationServices.csv")
+        UpdateProjectDomainFromCSV("data/MigrationServices.csv")
     case "UpdateProjectDomainFromCSVSheet3":
-        UpdateProjectDomainFromCSVSheet3("MigrationServices-sheet3.csv")
+        UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv")
 	case "UpdateProjectMigrationStatus":
 		UpdateProjectMigrationStatus(git)
 	default:
