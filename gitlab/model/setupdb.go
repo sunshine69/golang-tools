@@ -8,6 +8,7 @@ import (
 
 var (
 	GitLabToken, SearchStr, ConfigFile, Logdbpath string
+    AppConfig map[string]interface{} = map[string]interface{}{}
 )
 
 func SetUpLogDatabase() {

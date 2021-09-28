@@ -17,15 +17,19 @@ var (
     action string
 )
 
-func ParseConfig() map[string]interface{} {
+func ParseConfig() {
 	if ConfigFile == "" {
 		log.Fatalf("Config file required. Run with -h for help")
 	}
-	config := u.ParseConfig(ConfigFile)
-	if SearchStr == "" && config["SearchStr"].(string) != "" {
-		SearchStr = config["SearchStr"].(string)
+	AppConfig = u.ParseConfig(ConfigFile)
+	log.Printf("[DEBUG] AppConfig %s\n",u.JsonDump(AppConfig,"  "))
+	if SearchStr == "" && AppConfig["SearchStr"].(string) != "" {
+		SearchStr = AppConfig["SearchStr"].(string)
 	}
-	return config
+	WebSrvConfig.Port = AppConfig["Port"].(string)
+	WebSrvConfig.AuthUser = AppConfig["AuthUser"].(string)
+	WebSrvConfig.SharedToken = AppConfig["SharedToken"].(string)
+
 }
 func DumpOrUpdateProject(git *gitlab.Client, SearchStr string) {
 	opt := &gitlab.ListProjectsOptions{
@@ -174,13 +178,12 @@ func GitlabGroup2Domain(git *gitlab.Client, ns *GitlabNamespace) {
     }
 }
 func GetGitlabClient() *gitlab.Client {
-    config := ParseConfig()
     if GitLabToken = u.Getenv("GITLAB_TOKEN", "-1"); GitLabToken == "-1" {
-		if GitLabToken = config["gitlabToken"].(string); GitLabToken == "changeme" || GitLabToken == "" {
+		if GitLabToken = AppConfig["gitlabToken"].(string); GitLabToken == "changeme" || GitLabToken == "" {
 			log.Fatalf("Requires env var GITLAB_TOKEN")
 		}
 	}
-	git, err := gitlab.NewClient(GitLabToken, gitlab.WithBaseURL(config["gitlabAPIBaseURL"].(string)))
+	git, err := gitlab.NewClient(GitLabToken, gitlab.WithBaseURL(AppConfig["gitlabAPIBaseURL"].(string)))
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
@@ -199,6 +202,7 @@ func main() {
 	flag.StringVar(&action, "a", "", "Action. Default is update-all. Can be: update-project|update-namespace|update-team|xxx where xxx is the function name")
 	flag.Parse()
 
+	ParseConfig()
     git := GetGitlabClient()
 	u.ConfigureLogging(os.Stdout)
 	SetUpLogDatabase()
@@ -236,6 +240,8 @@ func main() {
 		UpdateProjectDomainFromCSVNext("data/UpdateProjectDomainFromCSVNext.csv")
 	case "UpdateTeamDomainFromCSVNext":
 		UpdateTeamDomainFromCSVNext(git, "data/UpdateTeamDomainFromCSVNext")
+	case "StartWebGUI":
+		StartWebGUI()
 	default:
 		fmt.Printf("Need an action. Run with -h for help")
 	}
