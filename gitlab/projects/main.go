@@ -210,6 +210,10 @@ func main() {
 		DumpOrUpdateProject(git, SearchStr)
 		DumpOrUpdateNamespace(git, SearchStr)
 		UpdateTeam()
+		UpdateProjectDomainFromCSV("data/MigrationServices.csv")
+		UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv")
+		UpdateProjectDomainFromCSVNext("data/UpdateProjectDomainFromCSVNext.csv")
+		UpdateTeamDomainFromCSVNext(git, "data/UpdateTeamDomainFromCSVNext")
 	case "update-project":
 		DumpOrUpdateProject(git, SearchStr)
 	case "update-namespace":
@@ -228,6 +232,10 @@ func main() {
         UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv")
 	case "UpdateProjectMigrationStatus":
 		UpdateProjectMigrationStatus(git)
+	case "UpdateProjectDomainFromCSVNext":
+		UpdateProjectDomainFromCSVNext("data/UpdateProjectDomainFromCSVNext.csv")
+	case "UpdateTeamDomainFromCSVNext":
+		UpdateTeamDomainFromCSVNext(git, "data/UpdateTeamDomainFromCSVNext")
 	default:
 		fmt.Printf("Need an action. Run with -h for help")
 	}
