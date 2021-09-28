@@ -12,6 +12,7 @@ type TeamDomain struct {
 	ID                  int   `sql:"id"`
 	TeamId              int `sql:"team_id"`
 	DomainId           int `sql:"domain_id"`
+	Permission         string `sql:"permission"`
 	TS         string   `sql:"ts"`
 }
 func TeamDomainNew(team_id, domain_id int) TeamDomain {

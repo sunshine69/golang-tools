@@ -123,6 +123,7 @@ func SetUpLogDatabase() {
         "id"	INTEGER,
         "team_id"	int,
         "domain_id"	int,
+        "permission"	TEXT DEFAULT "",
         PRIMARY KEY("id" AUTOINCREMENT),
         CONSTRAINT "teamid-did" UNIQUE("team_id","domain_id")
     );
