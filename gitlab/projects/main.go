@@ -26,10 +26,6 @@ func ParseConfig() {
 	if SearchStr == "" && AppConfig["SearchStr"].(string) != "" {
 		SearchStr = AppConfig["SearchStr"].(string)
 	}
-	WebSrvConfig.Port = AppConfig["Port"].(string)
-	WebSrvConfig.AuthUser = AppConfig["AuthUser"].(string)
-	WebSrvConfig.SharedToken = AppConfig["SharedToken"].(string)
-	WebSrvConfig.SessionKey = AppConfig["SessionKey"].(string)
 }
 func DumpOrUpdateProject(git *gitlab.Client, SearchStr string) {
 	log.Printf("DumpOrUpdateProject Started\n")

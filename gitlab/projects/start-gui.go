@@ -20,28 +20,11 @@ import (
 	"html/template"
 	"github.com/xanzy/go-gitlab"
 )
-type ServerConfig struct {
-	AuthUser     string
-	SharedToken  string
-	Port         string
-	Serverdomain string
-	SslKey       string
-	SslCert      string
-	Logdbpath    string
-	Dbtimeout    string
-	LogRetention string
-	SessionKey   string
-}
 var (
-	WebSrvConfig  ServerConfig = ServerConfig{}
+	// AppConfig  map[string]interface{}
 	version, SessionKey, SessionName string
 	SessionStore *sessions.CookieStore
 )
-func init() {
-	SessionKey, SessionName = WebSrvConfig.SessionKey, "golanggitlab-auth"
-	SessionStore = sessions.NewCookieStore([]byte(SessionKey))
-}
-
 func homePage(w http.ResponseWriter, r *http.Request) {
 	session, _ := SessionStore.Get(r, SessionName) //; u.CheckErr(err, "homePage store.Get")
 	t := template.Must(template.New("home.html").ParseFiles("templates/home.html"))
@@ -138,12 +121,12 @@ func RunTransferProject(w http.ResponseWriter, r *http.Request) {
 //HandleRequests -
 func HandleRequests() {
 	router := mux.NewRouter()
-	router.HandleFunc("/", BasicAuth(homePage, WebSrvConfig.AuthUser, WebSrvConfig.SharedToken, "default realm")).Methods("GET")
-	router.HandleFunc("/run/{func_name}", BasicAuth(RunFunction, WebSrvConfig.AuthUser, WebSrvConfig.SharedToken, "default realm")).Methods("POST")
-	router.HandleFunc("/transferproject/{page_offset:[0-9]+}", BasicAuth(DisplayTransferProjectConsole, WebSrvConfig.AuthUser, WebSrvConfig.SharedToken, "default realm")).Methods("GET")
-	router.HandleFunc("/runmigrate/{project_id:[0-9]+}", BasicAuth(RunTransferProject, WebSrvConfig.AuthUser, WebSrvConfig.SharedToken, "default realm")).Methods("POST")
+	router.HandleFunc("/", BasicAuth(homePage, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("GET")
+	router.HandleFunc("/run/{func_name}", BasicAuth(RunFunction, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("POST")
+	router.HandleFunc("/transferproject/{page_offset:[0-9]+}", BasicAuth(DisplayTransferProjectConsole, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("GET")
+	router.HandleFunc("/runmigrate/{project_id:[0-9]+}", BasicAuth(RunTransferProject, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("POST")
 
-	if WebSrvConfig.SharedToken == "" {
+	if AppConfig["SharedToken"].(string) == "" {
 		log.Printf("[WARN] - SharedToken is not set. Log server will allow anyone to put log in\n")
 	} else {
 		router.HandleFunc("/version", GetVersion).Methods("GET")
@@ -151,7 +134,7 @@ func HandleRequests() {
 		router.HandleFunc("/container_status", ContainerStatus).Methods("GET")
 	}
 	srv := &http.Server{
-		Addr: fmt.Sprintf(":%s", WebSrvConfig.Port),
+		Addr: fmt.Sprintf(":%s", AppConfig["Port"].(string)),
 		// Good practice to set timeouts to avoid Slowloris attacks.
 		WriteTimeout: time.Second * 15,
 		ReadTimeout:  time.Second * 15,
@@ -159,9 +142,12 @@ func HandleRequests() {
 		Handler:      router, // Pass our instance of gorilla/mux in.
 	}
 	// srv.Handler = gzhttp.GzipHandler(router)
-	sslKey, sslCert := WebSrvConfig.SslKey, WebSrvConfig.SslCert
+	sslKey, sslCert := "", ""
+	if sslKeyI, ok := AppConfig["SslKey"]; ok {
+		sslKey, sslCert = sslKeyI.(string), AppConfig["SslCert"].(string)
+	}
 	if sslKey == "" {
-		log.Printf("Start server on port %s\n", WebSrvConfig.Port)
+		log.Printf("Start server on port %s\n", AppConfig["Port"].(string))
 		log.Fatal(srv.ListenAndServe())
 	} else {
 		if sslKey == "auto" {
@@ -170,22 +156,24 @@ func HandleRequests() {
 			certManager := autocert.Manager{
 				Prompt:     autocert.AcceptTOS,
 				Cache:      autocert.DirCache("certs"),
-				HostPolicy: autocert.HostWhitelist(WebSrvConfig.Serverdomain),
+				HostPolicy: autocert.HostWhitelist(AppConfig["Serverdomain"].(string)),
 				Client:     client,
 			}
 			srv.TLSConfig = &tls.Config{
 				GetCertificate: certManager.GetCertificate,
 			}
 			go http.ListenAndServe(":80", certManager.HTTPHandler(nil))
-			log.Printf("Start SSL/TLS server with letsencrypt enabled on port %s\n", WebSrvConfig.Port)
+			log.Printf("Start SSL/TLS server with letsencrypt enabled on port %s\n", AppConfig["Port"].(string))
 			log.Fatal(srv.ListenAndServeTLS("", ""))
 		} else {
-			log.Printf("Start SSL/TLS server on port %s\n", WebSrvConfig.Port)
+			log.Printf("Start SSL/TLS server on port %s\n", AppConfig["Port"].(string))
 			log.Fatal(srv.ListenAndServeTLS(sslCert, sslKey))
 		}
 	}
 }
 func StartWebGUI() {
+	SessionKey, SessionName = AppConfig ["SessionKey"].(string), "golanggitlab-auth"
+	SessionStore = sessions.NewCookieStore([]byte(SessionKey))
 	RunScheduleTasks()
 	HandleRequests()
 }
@@ -237,7 +225,7 @@ func RunScheduleTasks() {
 func DatabaseMaintenance() {
 	conn := GetDBConn()
 	defer conn.Close()
-	start, _ := u.ParseTimeRange(WebSrvConfig.LogRetention, "")
+	start, _ := u.ParseTimeRange(AppConfig["LogRetention"].(string), "")
 	_startTime := start.Format("2006-01-02 15:04:05.999")
 	_, err := conn.Exec(fmt.Sprintf(
 		`DELETE FROM log WHERE ts < "%s";
