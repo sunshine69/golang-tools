@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"fmt"
 	"log"
 	"encoding/csv"
@@ -51,9 +52,13 @@ func UpdateTeamDomainFromCSVNext(git *gitlab.Client, filename string) {
 // One day I will make the two func into one only :)
 func CreateGitlabDomain(git *gitlab.Client, d *Domain) {
 	gName, gDesc := d.Name, "autocreated"
+	gPath := strings.ReplaceAll(strings.ToLower(gName), " ", "")
+	parentID := 0
 	log.Printf("[INFO] Going to create Domain as GitlabGroup - Name: %s Description: %s\n", gName, gDesc)
 	newGroup, _, err := git.Groups.CreateGroup(&gitlab.CreateGroupOptions{
 		Name: &gName,
+		Path: &gPath,
+		ParentID: &parentID,
 		Description: &gDesc,
 	})
 	u.CheckErr(err, "CreateGitlabDomain CreateGroup")
@@ -62,11 +67,15 @@ func CreateGitlabDomain(git *gitlab.Client, d *Domain) {
 func CreateGitlabTeam(git *gitlab.Client, d *Team) {
 	gName, gDesc := d.Name, "autocreated"
 	log.Printf("[INFO] Going to create Team as GitlabGroup - Name: %s Description: %s\n", gName, gDesc)
+	gPath := strings.ReplaceAll(strings.ToLower(gName), " ", "")
+	parentID := 0
 	newGroup, _, err := git.Groups.CreateGroup(&gitlab.CreateGroupOptions{
 		Name: &gName,
+		Path: &gPath,
+		ParentID: &parentID,
 		Description: &gDesc,
 	})
-	u.CheckErr(err, "CreateGitlabDomain CreateGroup")
+	u.CheckErr(err, "CreateGitlabTeam CreateGroup")
 	d.GitlabNamespaceId = newGroup.ID ; d.Update()
 }
 func AddGitlabTeamToDomain(git *gitlab.Client, d *Domain) {
