@@ -1,0 +1,42 @@
+<html>
+    <head>
+        <script type="text/javascript" src='https://note.kaykraft.org:6919/assets/media/js/ajax.js'></script>
+        <script language="javascript">
+        function run_command_action() {
+            var Token = encodeURIComponent(document.getElementsByName("token")[0].value);
+            var headers = [ ["X-Authorization-Token", Token] ];
+            AJAX.postText("/run/"+encodeURIComponent(document.getElementById('action').value),
+                "",
+                function(r) {
+                    alert(r);
+                },
+                headers);
+        }
+        </script>
+    <title>Go1 GitlabProjectDomain Console</title>
+    </head>
+    <body>
+        <h1>Go1 Gitlab Domain Console</h1>
+        <h3>User: {{.user}}</h3>
+        <table>
+            <tr>
+                <td>Run command action: </td><td>
+                    <select name="action" id="action">
+                        <option value="update-all">update-all</option>
+                        <option value="update-project">update-project</option>
+                        <option value="update-namespace">update-namespace</option>
+                        <option value="update-team">update-team</option>
+                        <option value="UpdateGroupMember">UpdateGroupMember</option>
+                        <option value="UpdateProjectDomainFromCSVNext">UpdateProjectDomainFromCSVNext</option>
+                        <option value="UpdateTeamDomainFromCSVNext">UpdateTeamDomainFromCSVNext</option>
+                    </select>
+                </td>
+                <td><input name="run_command_action" type="button" value="Run" onclick="return run_command_action();" /></td>
+            </tr>
+        </table>
+        <hr/>
+        <a href="/transferproject/{{.page_offset}}">Project Migration Console</a>
+        <input type="hidden" name="user" value="{{ .user }}"/>
+        <input type="hidden" name="token" value="{{ .token }}"/>
+    </body>
+</html>

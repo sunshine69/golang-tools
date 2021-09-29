@@ -65,7 +65,7 @@ func ProjectGet(inputmap map[string]string) []Project {
     } else {
 		sql = inputmap["sql"]
 	}
-    sql = sql + ` ORDER BY id DESC`
+    // sql = sql + ` ORDER BY id DESC`
     stmt, err := dbc.Prepare(sql)
     u.CheckErr(err, "GetOne");  defer stmt.Close()
     rows, _ := stmt.Query(); defer rows.Close()

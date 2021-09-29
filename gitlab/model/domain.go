@@ -37,7 +37,6 @@ func (p *Domain) GetOne(inputmap map[string]string) {
 	} else {
 		sql = fmt.Sprintf(`SELECT %s FROM domain WHERE %s`, sqlstruct.Columns(Domain{}), inputmap["where"])
 	}
-	sql = sql + ` ORDER BY id DESC`
 	stmt, err := dbc.Prepare(sql)
 	u.CheckErr(err, "Domain GetOne")
 	defer stmt.Close()

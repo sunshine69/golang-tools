@@ -29,9 +29,10 @@ func ParseConfig() {
 	WebSrvConfig.Port = AppConfig["Port"].(string)
 	WebSrvConfig.AuthUser = AppConfig["AuthUser"].(string)
 	WebSrvConfig.SharedToken = AppConfig["SharedToken"].(string)
-
+	WebSrvConfig.SessionKey = AppConfig["SessionKey"].(string)
 }
 func DumpOrUpdateProject(git *gitlab.Client, SearchStr string) {
+	log.Printf("DumpOrUpdateProject Started\n")
 	opt := &gitlab.ListProjectsOptions{
 		Search: gitlab.String(SearchStr),
 		ListOptions: gitlab.ListOptions{
@@ -91,8 +92,10 @@ func DumpOrUpdateProject(git *gitlab.Client, SearchStr string) {
 		// Update the page number to get the next page.
 		opt.Page = resp.NextPage
 	}
+	log.Printf("DumpOrUpdateProject Done\n")
 }
 func DumpOrUpdateNamespace(git *gitlab.Client, SearchStr string) {
+	log.Printf("DumpOrUpdateNamespace Started\n")
 	nsService := git.Namespaces
 	opt := &gitlab.ListNamespacesOptions{
 		Search: gitlab.String(SearchStr),
@@ -126,9 +129,11 @@ func DumpOrUpdateNamespace(git *gitlab.Client, SearchStr string) {
 		// Update the page number to get the next page.
 		opt.Page = resp.NextPage
 	}
+	log.Printf("DumpOrUpdateNamespace Done\n")
 }
 //From the team table update its gitlab id. If not found, warning. Maybe in the future we can automate creation of the team.
 func UpdateTeam() {
+	log.Printf("Update Team Started\n")
 	currentTeamList := TeamGet(map[string]string{
 		"where": "1",
 	})
@@ -146,6 +151,7 @@ func UpdateTeam() {
 		row.GitlabNamespaceId = ns.GitlabNamespaceId
 		row.Update()
 	}
+	log.Printf("Update Team Done\n")
 }
 //For each group if it started with `Team ` then add a record to team table with data
 func GitlabGroup2Team(git *gitlab.Client, ns *GitlabNamespace) {

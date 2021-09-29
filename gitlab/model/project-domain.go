@@ -31,7 +31,6 @@ func (p *ProjectDomain) GetOne(inputmap map[string]int) {
 	} else {
 		sql = fmt.Sprintf(`SELECT %s FROM project_domain WHERE project_id = %d AND domain_id = %d`, sqlstruct.Columns(ProjectDomain{}), inputmap["project_id"], inputmap["domain_id"])
 	}
-	sql = sql + ` ORDER BY id DESC`
 	stmt, err := dbc.Prepare(sql)
 	u.CheckErr(err, "ProjectDomain GetOne")
 	defer stmt.Close()

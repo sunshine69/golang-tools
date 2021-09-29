@@ -18,3 +18,4 @@
 *.sqlite3-*
 *.sqlite3
 *.csv
+gitlab/projects/data/*

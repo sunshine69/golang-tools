@@ -1,0 +1,59 @@
+<html>
+    <head>
+        <style>
+            #textarea {
+              line-height: 12px;
+            }
+            #customers {
+              font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+              border-collapse: collapse;
+              width: 100%;
+              table-layout: auto;
+            }
+            #customers td, #customers th {
+              border: 1px solid #ddd;
+              padding: 4px;
+              word-wrap: break-word;
+            }
+            #customers tr:nth-child(even){background-color: #f2f2f2;}
+            #customers tr:hover {background-color: #ddd;}
+            #customers th {
+              padding-top: 12px;
+              padding-bottom: 12px;
+              text-align: left;
+              background-color: #4CAF50;
+              color: white;
+            }
+
+        </style>
+        <script type="text/javascript" src='https://note.kaykraft.org:6919/assets/media/js/ajax.js'></script>
+        <script language="javascript">
+        function run_migrate(projectID) {
+            AJAX.postText("/runmigrate/"+projectID,
+                "",
+                function(r) {
+                    alert(r);
+                });
+        }
+        </script>
+    <title>Go1 Project Transfer Console</title>
+    </head>
+    <body>
+        <h1>Go1 Gitlab Domain Console</h1>
+        <h3>User: {{.user}}</h3>
+        <p><form action="/transferproject/0" method="GET">Seach by project name: <input type="text" name="keyword" value=""><input value="submit" type="submit"></form></p>
+        <div style="text-align: center;"> <a href="/transferproject/{{.page_offset}}">Next 25</a>&nbsp;&nbsp;<a href="/transferproject/0">Reset offset</a>&nbsp;&nbsp;<a href="/">Home</a></div>
+        <table id="customers">
+            <tr>
+                <th>created_date</th><th>project_name</th><th>full_path</th><th>current_domain</th><th>action</th>
+            </tr>
+            {{ range $idx, $project := .projects }}
+            <tr>
+                <td>{{$project.GitlabCreatedAt}}</td><td><a href="{{$project.Weburl}}">{{$project.Name}}</a></td><td>{{ $project.PathWithNamespace }}</td>  <td>{{$project.NamespaceName}}</td><td><input type="button" name="run_migrate" value="Migrate" onclick='return run_migrate({{ $project.Pid }});'/></td>
+            </tr>
+            {{ end }}
+        </table>
+        <hr/>
+        <div style="text-align: center;"> <a href="/transferproject/{{.page_offset}}">Next 25</a>&nbsp;&nbsp;<a href="/transferproject/0">Reset offset</a>&nbsp;&nbsp;<a href="/">Home</a></div>
+    </body>
+</html>

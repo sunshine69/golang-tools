@@ -30,6 +30,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"gopkg.in/yaml.v2"
 	"database/sql"
+	mr "math/rand"
 )
 
 //TimeISO8601LayOut
@@ -37,11 +38,47 @@ const (
 	TimeISO8601LayOut = "2006-01-02T15:04:05-0700"
 	AUTimeLayout      = "02/01/2006 15:04:05 MST"
 	CleanStringDateLayout = "2006-01-02-150405"
+	LetterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#%^()"
 )
 
 var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
+func FileTouch(fileName string) error {
+	_, err := os.Stat(fileName)
+    if os.IsNotExist(err) {
+        file, err := os.Create(fileName)
+        if err != nil {
+            return err
+        }
+        defer file.Close()
+    } else {
+        currentTime := time.Now().Local()
+        err = os.Chtimes(fileName, currentTime, currentTime)
+        if err != nil {
+            return err
+        }
+    }
+	return nil
+}
+func FileExists(name string) (bool, error) {
+    _, err := os.Stat(name)
+    if err == nil {
+        return true, nil
+    }
+    if errors.Is(err, os.ErrNotExist) {
+        return false, nil
+    }
+    return false, err
+}
+func GenRandomString(n int) string {
+	mr.Seed(time.Now().UnixNano())
+    b := make([]byte, n)
+    for i := range b {
+        b[i] = LetterBytes[mr.Intn(len(LetterBytes))]
+    }
+    return string(b)
+}
 func RunDSL(dbc *sql.DB, sql string) map[string]interface{}{
 	stmt, err := dbc.Prepare(sql)
 	if err != nil {return map[string]interface{}{"result":nil,"error": err}}

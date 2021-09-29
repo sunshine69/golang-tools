@@ -33,7 +33,6 @@ func (p *TeamProject) GetOne(inputmap map[string]int) {
 	} else {
 		sql = fmt.Sprintf(`SELECT %s FROM team_project WHERE team_id = %d AND project_id = %d`, sqlstruct.Columns(TeamProject{}), inputmap["team_id"], inputmap["project_id"])
 	}
-	sql = sql + ` ORDER BY id DESC`
 	stmt, err := dbc.Prepare(sql)
 	u.CheckErr(err, "TeamProject GetOne")
 	defer stmt.Close()

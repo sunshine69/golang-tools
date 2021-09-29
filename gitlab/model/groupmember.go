@@ -32,7 +32,6 @@ func (p *Groupmember) GetOne(inputmap map[string]string) {
 	} else {
 		sql = fmt.Sprintf(`SELECT %s FROM groupmember WHERE %s`, sqlstruct.Columns(Groupmember{}), inputmap["where"])
 	}
-	sql = sql + ` ORDER BY id DESC`
 	stmt, err := dbc.Prepare(sql)
 	u.CheckErr(err, "Groupmember GetOne")
 	defer stmt.Close()
