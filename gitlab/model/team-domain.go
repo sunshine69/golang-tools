@@ -104,6 +104,12 @@ func (p *TeamDomain) Update() {
 				tx.Rollback()
 				log.Fatal("aborted due to error\n")
 			}
+		case "permission":
+			_, err := stmt.Exec(p.Permission, p.ID) //Just update so trigger will fired to udpate ts
+			if u.CheckErrNonFatal(err, "Exec") != nil {
+				tx.Rollback()
+				log.Fatal("aborted due to error\n")
+			}
 		default:
 			fmt.Printf("UPDATE table Column '%s' not yet process\n", colname)
 		}

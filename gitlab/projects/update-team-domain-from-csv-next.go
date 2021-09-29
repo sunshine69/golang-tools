@@ -53,12 +53,10 @@ func UpdateTeamDomainFromCSVNext(git *gitlab.Client, filename string) {
 func CreateGitlabDomain(git *gitlab.Client, d *Domain) {
 	gName, gDesc := d.Name, "autocreated"
 	gPath := strings.ReplaceAll(strings.ToLower(gName), " ", "")
-	parentID := 0
 	log.Printf("[INFO] Going to create Domain as GitlabGroup - Name: %s Description: %s\n", gName, gDesc)
 	newGroup, _, err := git.Groups.CreateGroup(&gitlab.CreateGroupOptions{
 		Name: &gName,
 		Path: &gPath,
-		ParentID: &parentID,
 		Description: &gDesc,
 	})
 	u.CheckErr(err, "CreateGitlabDomain CreateGroup")
@@ -68,11 +66,9 @@ func CreateGitlabTeam(git *gitlab.Client, d *Team) {
 	gName, gDesc := d.Name, "autocreated"
 	log.Printf("[INFO] Going to create Team as GitlabGroup - Name: %s Description: %s\n", gName, gDesc)
 	gPath := strings.ReplaceAll(strings.ToLower(gName), " ", "")
-	parentID := 0
 	newGroup, _, err := git.Groups.CreateGroup(&gitlab.CreateGroupOptions{
 		Name: &gName,
 		Path: &gPath,
-		ParentID: &parentID,
 		Description: &gDesc,
 	})
 	u.CheckErr(err, "CreateGitlabTeam CreateGroup")
@@ -86,6 +82,6 @@ func AddGitlabTeamToDomain(git *gitlab.Client, d *Domain) {
 			GroupID: &(teamd.TeamId),
 			GroupAccess: gitlab.AccessLevel(GitlabPermissionLookup[teamd.Permission]),
 		})
-		u.CheckErr(err, "AddGitlabTeamToDomain ShareGroupWithGroup")
+		u.CheckErrNonFatal(err, "AddGitlabTeamToDomain ShareGroupWithGroup")
 	}
 }
