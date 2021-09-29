@@ -34,7 +34,7 @@ func UpdateTeamDomainFromCSVNext(git *gitlab.Client, filename string) {
 	if lines, err := csvReader.ReadAll(); err == nil {
 		for idx, l := range lines {
 			if idx == 0 {continue}
-			//team_name,domain name
+			//team_name,domain name, access level
 			if l[0] == "" || l[1] == "" || l[2] == ""  { continue }
 			t := TeamNew(l[0])
 			if t.GitlabNamespaceId == 0 { CreateGitlabTeam(git, &t) }

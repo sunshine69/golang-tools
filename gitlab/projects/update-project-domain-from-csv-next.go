@@ -21,10 +21,10 @@ func UpdateProjectDomainFromCSVNext(filename string) {
 		for idx, l := range lines {
 			if idx == 0 {continue}
 			//project name,path_with_namespace,weburl,domain name
-			if l[0] == "" || l[1] == "" || l[2] == "" || l[3] == ""  { continue }
-			p := ProjectNew(l[1])
+			if l[0] == "" || l[1] == "" || l[2] == ""  { continue }
+			p := ProjectNew(l[0])
 			if p.Pid == 0 {continue}
-			d := DomainNew(l[3])
+			d := DomainNew(l[2])
 			if d.GitlabNamespaceId == 0 {continue}
 			pd := ProjectDomainNew(p.Pid, d.GitlabNamespaceId)
 			log.Printf("[DEBUG] %s\n", u.JsonDump(pd, "  "))
