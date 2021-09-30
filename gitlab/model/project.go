@@ -6,6 +6,7 @@ import (
     "log"
     u "localhost.com/utils"
     "strings"
+    "github.com/xanzy/go-gitlab"
 )
 
 type Project struct {
@@ -229,4 +230,13 @@ func (p *Project) Delete(inputmap map[string]string) {
 	} else {
 		tx.Commit()
 	}
+}
+//Non standard function for the model, specific to project
+
+func GetContainerRegistryBaseLocation(git *gitlab.Client, gitlabProjectId int) string {
+    // For each c registry it has a name and this base + "/<name>:<TAG>" will be final location
+    // Most project the <name> is empty but a project may have many container reg with different name like reportportal-tool for example.
+	apibaseurl := git.BaseURL()
+	p, _, _ := git.Projects.GetProject(2348, nil)
+	return fmt.Sprintf("registry.%s/%s", apibaseurl.Hostname(), p.PathWithNamespace)
 }

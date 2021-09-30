@@ -18,14 +18,14 @@ func TestGetGitlabProject(t *testing.T) {
 	log.Printf("[DEBUG] %s\n", p.CreatedAt.Format(u.CleanStringDateLayout) )
 }
 func TestGetGitlabGroup(t *testing.T) {
-	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "testdb.sqlite3"
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
 	// git := GetGitlabClient()
 	// childGroup := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("parent_id = %d AND name LIKE 'Team - %%'", 188)})
 	childGroup := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("parent_id = %d", 584)})
 	log.Printf("[DEBUG] %s\n",u.JsonDump(childGroup,"  "))
 }
 func TestGetGitlabProjects(t *testing.T) {
-	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "testdb.sqlite3"
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
 	git := GetGitlabClient()
 	ps, _, err := git.Projects.ListProjects(&gitlab.ListProjectsOptions{
 		ListOptions: gitlab.ListOptions{
@@ -42,7 +42,7 @@ func TestGetGitlabProjects(t *testing.T) {
 	}
 }
 func TestGitDomain(t *testing.T) {
-	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "testdb.sqlite3"
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
 	git := GetGitlabClient()
 	ns, _, err := git.Namespaces.SearchNamespace("Domain - Users", nil); u.CheckErr(err, "SearchNamespace")
 	for _, row := range ns {
@@ -59,7 +59,7 @@ func TestGitDomain(t *testing.T) {
 	}
 }
 func TestGetProjectFromDomain(t *testing.T) {
-	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "testdb.sqlite3"
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
 	domains := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("name LIKE 'Domain - Recommendation'")})
 	for _, row := range domains {
 		if row.ParentId == 0 {//Root group, no parent
@@ -72,7 +72,7 @@ func TestGetProjectFromDomain(t *testing.T) {
 	}
 }
 func TestGetMemberFromDomain(t *testing.T) {
-	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "testdb.sqlite3"
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
 	domains := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("name LIKE 'Domain - Recommendation'")})
 	git := GetGitlabClient()
 	for _, row := range domains {
@@ -95,9 +95,9 @@ func TestGetMemberFromDomain(t *testing.T) {
 	}
 }
 func TestProjectMigrationStatus(t *testing.T) {
-	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "testdb.sqlite3"
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
 	git := GetGitlabClient()
-	
+
 	dbc := GetDBConn()
 	defer dbc.Close()
 	domains := GroupmemberGet(map[string]string{"where": "group_id = 541"})
@@ -115,7 +115,36 @@ func TestProjectMigrationStatus(t *testing.T) {
 	// Output and write csv file use sqlitebrowser better
 }
 func TestRawSQL(t *testing.T) {
-	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "testdb.sqlite3"
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
 	gm := GroupmemberGet(map[string]string{"sql": "select group_id from groupmember where member_group_id =  544 group by group_id"})
 	log.Printf("%s\n",u.JsonDump(gm,"  "))
+}
+func TestProjectContainterRegistry(t *testing.T) {
+	log.Println("started")
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
+	ParseConfig()
+	git := GetGitlabClient()
+	returnTag := true
+	registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(2337, &gitlab.ListRegistryRepositoriesOptions{
+		ListOptions: gitlab.ListOptions{
+			Page: 1, PerPage: 500,
+		},
+		Tags: &returnTag,
+		TagsCount: &returnTag,
+	}); u.CheckErr(err, "ProcessTransferProjectRegistry ListRegistryRepositories")
+	apibaseurl := git.BaseURL()
+	p, _, _ := git.Projects.GetProject(2337, nil)
+	registryBase := fmt.Sprintf("registry.%s/%s", apibaseurl.Hostname(), p.PathWithNamespace)
+	log.Println(registryBase)
+	for _, repoReg := range registryRepos {
+		// _, tags := repoReg.Location, repoReg.Tags
+		// for _, t := range tags{
+			// log.Printf("%s:%s", registryBase, t.Name )
+			//u.RunSystemCommand(fmt.Sprintf(`docker pull %s:%s`, location, t), true)
+		// }
+		log.Printf("%s\n",u.JsonDump(repoReg, "  "))
+	}
+}
+func TestRunSystemCmd(t *testing.T) {
+	log.Println( u.RunSystemCommand("docker images registry.code.go1.com.au/qa/reportportal-tool/webservice | awk '{print $2}' | while read cn; do docker rmi registry.code.go1.com.au/qa/reportportal-tool/webservice:$cn; done", true))
 }
