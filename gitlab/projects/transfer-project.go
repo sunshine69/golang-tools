@@ -61,6 +61,7 @@ func BackupProjectRegistryImages(git *gitlab.Client, p *gitlab.Project) *gitlab.
 // This should run after the domain creation - that is no domain in the domain table having the gitlab_ns_id is 0 and has_team is 0. The func UpdateTeamDomainFromCSVNext should satisfy that.
 
 func TransferProject(git *gitlab.Client, gitlabProjectId int) {
+	log.Printf("TransferProject ID %d started\n", gitlabProjectId)
 	gitlabProject, _, err := git.Projects.GetProject(gitlabProjectId, nil)
 	u.CheckErr(err, "TransferProject Projects.GetProject")
 	// Get the domain for this project from Project_Domain relationship
@@ -92,4 +93,5 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int) {
 	log.Println("Delete temporary project")
 	_, err = git.Projects.DeleteProject(tempPrj.ID, nil)
 	u.CheckErr(err, "TransferProject DeleteProject")
+	log.Printf("TransferProject ID %d completed\n", gitlabProjectId)
 }

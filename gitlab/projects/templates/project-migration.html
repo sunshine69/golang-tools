@@ -28,12 +28,17 @@
         </style>
         <script type="text/javascript" src='https://note.kaykraft.org:6919/assets/media/js/ajax.js'></script>
         <script language="javascript">
-        function run_migrate(projectID) {
-            AJAX.postText("/runmigrate/"+projectID,
+        function run_migrate(projectID, projectName) {
+            if (confirm("Are you sure you want to start migration this project\nid: "+projectID+"\nname: "+ projectName+" ?")) {
+                AJAX.postText("/runmigrate/"+projectID,
                 "",
                 function(r) {
-                    alert(r);
+                    ele = document.getElementById("loglink_" + projectID);
+                    ele.innerHTML = r;
                 });
+            } else {
+                console.log("Cancelled");
+            }
         }
         </script>
     <title>Go1 Project Transfer Console</title>
@@ -45,11 +50,12 @@
         <div style="text-align: center;"> <a href="/transferproject/{{.page_offset}}">Next 25</a>&nbsp;&nbsp;<a href="/transferproject/0">Reset offset</a>&nbsp;&nbsp;<a href="/">Home</a></div>
         <table id="customers">
             <tr>
-                <th>created_date</th><th>project_name</th><th>full_path</th><th>current_domain</th><th>action</th>
+                <th>created_date</th><th>project_name</th><th>full_path</th><th>current_domain</th><th>action</th><th>view log link</th>
             </tr>
             {{ range $idx, $project := .projects }}
             <tr>
-                <td>{{$project.GitlabCreatedAt}}</td><td><a href="{{$project.Weburl}}">{{$project.Name}}</a></td><td>{{ $project.PathWithNamespace }}</td>  <td>{{$project.NamespaceName}}</td><td><input type="button" name="run_migrate" value="Migrate" onclick='return run_migrate({{ $project.Pid }});'/></td>
+                <td>{{$project.GitlabCreatedAt}}</td><td><a href="{{$project.Weburl}}">{{$project.Name}}</a></td><td>{{ $project.PathWithNamespace }}</td>  <td>{{$project.NamespaceName}}</td><td><input type="button" name="run_migrate" value="Migrate" onclick='return run_migrate({{ $project.Pid }},{{$project.Name}});'/></td>
+                <td id="loglink_{{$project.Pid}}"></td>
             </tr>
             {{ end }}
         </table>

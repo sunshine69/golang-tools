@@ -8,7 +8,8 @@
             AJAX.postText("/run/"+encodeURIComponent(document.getElementById('action').value),
                 "",
                 function(r) {
-                    alert(r);
+                    ele = document.getElementById("output");
+                    ele.innerHTML = r;
                 },
                 headers);
         }
@@ -38,5 +39,7 @@
         <a href="/transferproject/{{.page_offset}}">Project Migration Console</a>
         <input type="hidden" name="user" value="{{ .user }}"/>
         <input type="hidden" name="token" value="{{ .token }}"/>
+        <hr/><h4>Log</h4>
+        <div id="output" name="output"></div>
     </body>
 </html>

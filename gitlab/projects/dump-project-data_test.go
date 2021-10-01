@@ -1,5 +1,6 @@
 package main
 import (
+	"os"
 	"fmt"
 	"log"
 	"testing"
@@ -146,5 +147,12 @@ func TestProjectContainterRegistry(t *testing.T) {
 	}
 }
 func TestRunSystemCmd(t *testing.T) {
-	log.Println( u.RunSystemCommand("docker images registry.code.go1.com.au/qa/reportportal-tool/webservice | awk '{print $2}' | while read cn; do docker rmi registry.code.go1.com.au/qa/reportportal-tool/webservice:$cn; done", true))
+	f, err := os.OpenFile("log/testlogfile.log", os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+	u.CheckErr(err, "OpenFile Log")
+	defer f.Close()
+	log.SetOutput(f)
+
+	log.Println( u.RunSystemCommand("ls $HOME", true))
+	log.SetOutput(os.Stdout)
+	log.Printf("REACH HERE\n")
 }

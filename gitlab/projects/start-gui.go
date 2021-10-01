@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io/ioutil"
 	"strconv"
 	"os"
 	"crypto/tls"
@@ -54,6 +55,7 @@ func UpdateAllWrapper(git *gitlab.Client, SearchStr string) {
 
 func RunFunction(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
+	ses, _ := SessionStore.Get(r, SessionName)
 	func_name := vars["func_name"]
 	git, SearchStr := GetGitlabClient(), ""
 	lockFileName := fmt.Sprintf("/tmp/%s.lock", func_name)
@@ -62,38 +64,44 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, err := os.Create(lockFileName); u.CheckErr(err, "UpdateAllWrapper create clock file")
+	logFile := "RunFunction"+func_name+"-"+ses.Values["user"].(string)+"-"+time.Now().Format(u.CleanStringDateLayout)+".txt"
+	f, err := os.OpenFile("log/" + logFile, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+	u.CheckErr(err, "OpenFile Log") // Close file inside each go routine
+
 	switch func_name {
 	case "update-all":
-		go func() {UpdateAllWrapper(git, SearchStr); os.Remove(lockFileName)}()
+		go func() {log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); UpdateAllWrapper(git, SearchStr); os.Remove(lockFileName)}()
 	case "update-project":
 		go func() {
+			log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout)
 			DumpOrUpdateProject(git, SearchStr)
 			os.Remove(lockFileName)
 		}()
 	case "update-namespace":
 		go func(){
+			log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout)
 			DumpOrUpdateNamespace(git, SearchStr)
 			UpdateGroupMember(git)
 			os.Remove(lockFileName)
 		}()
 	case "update-team":
-		go func() { UpdateTeam(); os.Remove(lockFileName)}()
+		go func() {log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); UpdateTeam(); os.Remove(lockFileName)}()
     case "UpdateGroupMember":
-        go func() { UpdateGroupMember(git); os.Remove(lockFileName)}()
+        go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); UpdateGroupMember(git); os.Remove(lockFileName)}()
 	case "get-first10mr-peruser":
-		go func() {Addhoc_getfirst10mrperuser(git); os.Remove(lockFileName)}()
+		go func() {log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); Addhoc_getfirst10mrperuser(git); os.Remove(lockFileName)}()
     case "UpdateProjectDomainFromCSV":
-        go func() { UpdateProjectDomainFromCSV("data/MigrationServices.csv"); os.Remove(lockFileName) }()
+        go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); UpdateProjectDomainFromCSV("data/MigrationServices.csv"); os.Remove(lockFileName) }()
     case "UpdateProjectDomainFromCSVSheet3":
-        go func() { UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv"); os.Remove(lockFileName) }()
+        go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv"); os.Remove(lockFileName) }()
 	case "UpdateProjectMigrationStatus":
-		go func() { UpdateProjectMigrationStatus(git); os.Remove(lockFileName) }()
+		go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); UpdateProjectMigrationStatus(git); os.Remove(lockFileName) }()
 	case "UpdateProjectDomainFromCSVNext":
-		go func() { UpdateProjectDomainFromCSVNext("data/UpdateProjectDomainFromCSVNext.csv"); os.Remove(lockFileName) }()
+		go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout);UpdateProjectDomainFromCSVNext("data/UpdateProjectDomainFromCSVNext.csv"); os.Remove(lockFileName) }()
 	case "UpdateTeamDomainFromCSVNext":
-		go func() { UpdateTeamDomainFromCSVNext(git, "data/UpdateTeamDomainFromCSVNext"); os.Remove(lockFileName) }()
+		go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout);UpdateTeamDomainFromCSVNext(git, "data/UpdateTeamDomainFromCSVNext"); os.Remove(lockFileName) }()
 	}
-	fmt.Fprintf(w, "Process %s started", func_name)
+	fmt.Fprintf(w, "<p>Process %s started. You can see the log <a href='/log/%s'>here</a></p>", func_name, logFile)
 }
 func DisplayTransferProjectConsole(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
@@ -116,11 +124,34 @@ func DisplayTransferProjectConsole(w http.ResponseWriter, r *http.Request) {
 }
 func RunTransferProject(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	fmt.Fprintf(w, "RunTransferProject OK Project ID %s", vars["project_id"])
+	ses, _ := SessionStore.Get(r, SessionName)
+	lockFileName := fmt.Sprintf("/tmp/RunTransferProject_%s.lock", vars["project_id"])
+	logFile := "RunFunction RunTransferProject"+"-"+ses.Values["user"].(string)+"-"+time.Now().Format(u.CleanStringDateLayout)+".txt"
+	if ok, err := u.FileExists(lockFileName); ok && (err == nil) {
+		previousLogfile, _ := ioutil.ReadFile(lockFileName)
+		fmt.Fprintf(w, "RunTransferProject already running - lock file %s - <a href='/log/%s'>Log</a>", lockFileName, string(previousLogfile))
+		return
+	}
+	ioutil.WriteFile(lockFileName, []byte(logFile), 0660)
+	f, _ := os.OpenFile("log/" + logFile, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+	go func() {
+		log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout)
+		// git := GetGitlabClient()
+		project_id, _ := strconv.Atoi( vars["project_id"])
+		u.Sleep("1m")
+		log.Printf("Fake Started with is %d - \n", project_id)
+		// TransferProject(git, project_id)
+		os.Remove(lockFileName)
+	}()
+	fmt.Fprintf(w, "Started Project ID %s - <a href='/log/%s'>Log</a>", vars["project_id"], logFile)
 }
 //HandleRequests -
 func HandleRequests() {
 	router := mux.NewRouter()
+
+	staticFS := http.FileServer(http.Dir("./log"))
+    router.PathPrefix("/log/").Handler(http.StripPrefix("/log/", staticFS))
+
 	router.HandleFunc("/", BasicAuth(homePage, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("GET")
 	router.HandleFunc("/run/{func_name}", BasicAuth(RunFunction, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("POST")
 	router.HandleFunc("/transferproject/{page_offset:[0-9]+}", BasicAuth(DisplayTransferProjectConsole, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("GET")
