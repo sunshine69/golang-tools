@@ -10,6 +10,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	. "localhost.com/gitlab/model"
 	"github.com/xanzy/go-gitlab"
+	"github.com/xuri/excelize/v2"
 )
 
 var GitlabPermissionLookup map[string]gitlab.AccessLevelValue = map[string]gitlab.AccessLevelValue {
@@ -34,20 +35,31 @@ func UpdateTeamDomainFromCSVNext(git *gitlab.Client, filename string) {
 	csvReader := csv.NewReader(csvFile)
 	if lines, err := csvReader.ReadAll(); err == nil {
 		for idx, l := range lines {
-			if idx == 0 {continue}
-			//team_name,domain name, access level
-			if l[0] == "" || l[1] == "" || l[2] == ""  { continue }
-			t := TeamNew(l[0])
-			if t.GitlabNamespaceId == 0 { CreateGitlabTeam(git, &t) }
-			d := DomainNew(l[1])
-			if d.GitlabNamespaceId == 0 { CreateGitlabDomain(git, &d) }
-			td := TeamDomainNew(t.GitlabNamespaceId, d.GitlabNamespaceId)
-			td.Permission = l[2]
-			td.Update()
-			log.Printf("[DEBUG] %s\n", u.JsonDump(td, "  "))
-			AddGitlabTeamToDomain(git, &d)
+			UpdateTeamDomainOneRow(git, idx, l)
 		}
 	}
+}
+func UpdateTeamDomainFromExelNext(git *gitlab.Client, filename string) {
+	f, err := excelize.OpenFile(filename)
+	u.CheckErr(err, "UpdateTeamDomainFromExelNext OpenFile")
+	lines, err := f.GetRows("Team_Domain"); u.CheckErr(err, "UpdateTeamDomainFromExelNext GetRows")
+	for idx, l := range lines {
+		UpdateTeamDomainOneRow(git, idx, l)
+	}
+}
+func UpdateTeamDomainOneRow(git *gitlab.Client, idx int, l []string) {
+	if idx == 0 {return}
+	//team_name,domain name, access level
+	if l[0] == "" || l[1] == "" || l[2] == ""  { return }
+	t := TeamNew(l[0])
+	if t.GitlabNamespaceId == 0 { CreateGitlabTeam(git, &t) }
+	d := DomainNew(l[1])
+	if d.GitlabNamespaceId == 0 { CreateGitlabDomain(git, &d) }
+	td := TeamDomainNew(t.GitlabNamespaceId, d.GitlabNamespaceId)
+	td.Permission = l[2]
+	td.Update()
+	log.Printf("[DEBUG] %s\n", u.JsonDump(td, "  "))
+	AddGitlabTeamToDomain(git, &d)
 }
 // One day I will make the two func into one only :)
 func CreateGitlabDomain(git *gitlab.Client, d *Domain) {

@@ -19,3 +19,4 @@
 *.sqlite3
 *.csv
 gitlab/projects/data/*
+gitlab/projects/log/*
