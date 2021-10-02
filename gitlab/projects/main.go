@@ -218,7 +218,7 @@ func main() {
 		UpdateTeam()
 		UpdateProjectDomainFromCSV("data/MigrationServices.csv")
 		UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv")
-		u.RunSystemCommand("rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/GitlabProject-Domain-Status.xlsx", false)
+		u.RunSystemCommand("rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", false)
 		UpdateProjectDomainFromExcelNext("data/GitlabProject-Domain-Status.xlsx")
 		UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 	case "update-project":
