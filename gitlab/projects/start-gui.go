@@ -49,8 +49,9 @@ func UpdateAllWrapper(git *gitlab.Client, SearchStr string) {
 	UpdateTeam()
 	UpdateProjectDomainFromCSV("data/MigrationServices.csv")
 	UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv")
-	UpdateProjectDomainFromCSVNext("data/UpdateProjectDomainFromCSVNext.csv")
-	UpdateTeamDomainFromCSVNext(git, "data/UpdateTeamDomainFromCSVNext")
+	u.RunSystemCommand("rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/GitlabProject-Domain-Status.xlsx", false)
+	UpdateProjectDomainFromExcelNext("data/GitlabProject-Domain-Status.xlsx")
+	UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 }
 
 func RunFunction(w http.ResponseWriter, r *http.Request) {
@@ -96,10 +97,16 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
         go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv"); os.Remove(lockFileName) }()
 	case "UpdateProjectMigrationStatus":
 		go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); UpdateProjectMigrationStatus(git); os.Remove(lockFileName) }()
-	case "UpdateProjectDomainFromCSVNext":
-		go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout);UpdateProjectDomainFromCSVNext("data/UpdateProjectDomainFromCSVNext.csv"); os.Remove(lockFileName) }()
-	case "UpdateTeamDomainFromCSVNext":
-		go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout);UpdateTeamDomainFromCSVNext(git, "data/UpdateTeamDomainFromCSVNext"); os.Remove(lockFileName) }()
+	case "UpdateProjectDomainFromExcelNext":
+		go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout)
+			u.RunSystemCommand("rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/GitlabProject-Domain-Status.xlsx", false)
+			UpdateProjectDomainFromExcelNext("data/GitlabProject-Domain-Status.xlsx")
+			os.Remove(lockFileName) }()
+	case "UpdateTeamDomainFromExelNext":
+		go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout)
+			u.RunSystemCommand("rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/GitlabProject-Domain-Status.xlsx", false)
+			UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
+			os.Remove(lockFileName) }()
 	}
 	fmt.Fprintf(w, "<p>Process %s started. You can see the log <a href='/log/%s'>here</a></p>", func_name, logFile)
 }

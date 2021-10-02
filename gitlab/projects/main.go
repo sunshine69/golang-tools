@@ -239,10 +239,10 @@ func main() {
         UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv")
 	case "UpdateProjectMigrationStatus":
 		UpdateProjectMigrationStatus(git)
-	case "UpdateProjectDomainFromCSVNext":
-		UpdateProjectDomainFromCSVNext("data/UpdateProjectDomainFromCSVNext.csv")
-	case "UpdateTeamDomainFromCSVNext":
-		UpdateTeamDomainFromCSVNext(git, "data/UpdateTeamDomainFromCSVNext")
+	case "UpdateProjectDomainFromExcelNext":
+		UpdateProjectDomainFromExcelNext("data/GitlabProject-Domain-Status.xlsx")
+	case "UpdateTeamDomainFromExelNext":
+		UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 	case "StartWebGUI":
 		StartWebGUI()
 	default:
