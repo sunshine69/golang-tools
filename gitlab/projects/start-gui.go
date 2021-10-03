@@ -103,6 +103,7 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 			u.RunSystemCommand("rm -f data/GitlabProject-Domain-Status.xlsx; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", false)
 			UpdateProjectDomainFromExcelNext("data/GitlabProject-Domain-Status.xlsx")
             UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
+			UpdateProjectMigrationStatus(git)
 			os.Remove(lockFileName) }()
 	}
 	fmt.Fprintf(w, "<p>Process %s started. You can see the log <a href='/log/%s'>here</a></p>", func_name, logFile)
