@@ -7,7 +7,6 @@ import (
 	"encoding/csv"
 	"os"
 	u "localhost.com/utils"
-	_ "github.com/mattn/go-sqlite3"
 	. "localhost.com/gitlab/model"
 	"github.com/xanzy/go-gitlab"
 	"github.com/xuri/excelize/v2"

@@ -156,3 +156,11 @@ func TestRunSystemCmd(t *testing.T) {
 	log.SetOutput(os.Stdout)
 	log.Printf("REACH HERE\n")
 }
+func TestGitlabGroupVar(t *testing.T) {
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
+	ParseConfig()
+	git := GetGitlabClient()
+	gv, _, err := git.GroupVariables.GetVariable(463, "DEPLOYMENT_APP_ID", nil)
+	u.CheckErr(err, "TestGitlabGroupVar")
+	log.Printf("%s\n",u.JsonDump(gv, "  "))
+}
