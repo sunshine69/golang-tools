@@ -40,5 +40,7 @@
         <input type="hidden" name="token" value="{{ .token }}"/>
         <hr/><h4>Log</h4>
         <div id="output" name="output"></div>
+        <div id="list_running_procs"><pre>Current running procs: (hit reload browser to refresh)
+            {{ .running_procs }}</pre></div>
     </body>
 </html>

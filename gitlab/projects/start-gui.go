@@ -33,6 +33,7 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 		"user":    session.Values["user"],
 		"token": session.Values["token"],
 		"page_offset": u.Ternary(session.Values["page_offset"] != nil, session.Values["page_offset"], "0"),
+		"running_procs": u.RunSystemCommand("ls -lha /tmp/*.lock 2>/dev/null || true", false),
 	})
 	u.CheckErr(err, "homePage t.Execute")
 }
