@@ -20,3 +20,6 @@
 *.csv
 gitlab/projects/data/*
 gitlab/projects/log/*
+*.crt
+*.csr
+*.key

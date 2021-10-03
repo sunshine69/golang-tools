@@ -25,12 +25,13 @@ func UpdateProjectDomainFromCSVNext(filename string) {
 	}
 }
 func UpdateProjectDomainOneRow(idx int, l []string) {
-	if idx == 0 {return }
+	if idx == 0 || len(l) < 4 {return }
 	//project name,path_with_namespace,weburl,domain name
-	if l[0] == "" || l[1] == "" || l[2] == ""  { return  }
+    if l[3] != "" { log.Printf("DEBUG %s\n", u.JsonDump(l, "  ")) }
+	if l[0] == "" || l[1] == "" || l[3] == ""  { return  }
 	p := ProjectNew(l[0])
 	if p.Pid == 0 {return }
-	d := DomainNew(l[2])
+	d := DomainNew(l[3])
 	if d.GitlabNamespaceId == 0 {return }
 	pd := ProjectDomainNew(p.Pid, d.GitlabNamespaceId)
 	log.Printf("[DEBUG] %s\n", u.JsonDump(pd, "  "))
