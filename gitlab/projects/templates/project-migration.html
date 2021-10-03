@@ -29,7 +29,7 @@
         <script type="text/javascript" src='https://note.kaykraft.org:6919/assets/media/js/ajax.js'></script>
         <script language="javascript">
         function run_migrate(projectID, projectName) {
-            if (confirm("Are you sure you want to start migration this project\nid: "+projectID+"\nname: "+ projectName+" ?")) {
+            if (confirm("THIS IS REAL NOW - Are you sure you want to start migration this project\nid: "+projectID+"\nname: "+ projectName+" ?")) {
                 AJAX.postText("/runmigrate/"+projectID,
                 "",
                 function(r) {

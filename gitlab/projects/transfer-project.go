@@ -78,9 +78,14 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int) {
 	gitlabDomainGroup, _, err := git.Groups.GetGroup(d.GitlabNamespaceId, nil)
 	u.CheckErr(err, "TransferProject GetGroup")
 
-	log.Println("Copy the existing group vars of the project to the new DomainGroup")
 	existingGroup,_,err := git.Groups.GetGroup(gitlabProject.Namespace.ID, nil)
 	u.CheckErr(err, "TransferProject GetGroup")
+	log.Printf("Check if existing group %s is the same as the new group %s\n", existingGroup.FullPath, gitlabDomainGroup.FullPath)
+	if existingGroup.FullPath == gitlabDomainGroup.FullPath {
+		log.Printf("Matched - Project already be in correct group, do nothing\n")
+		return
+	}
+	log.Println("Copy the existing group vars of the project to the new DomainGroup")
 	TransferGroupVars(git, existingGroup, gitlabDomainGroup)
 
 	// Transfer project won't work if the current project still have registry tag. We need to delete them

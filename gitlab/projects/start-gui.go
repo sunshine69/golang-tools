@@ -115,7 +115,7 @@ func DisplayTransferProjectConsole(w http.ResponseWriter, r *http.Request) {
 	searchName := r.FormValue("keyword")
 	currentOffsetStr := u.Ternary( vars["page_offset"] != "" && searchName == "", vars["page_offset"], "0" ).(string)
 	currentOffset, _ := strconv.Atoi(currentOffsetStr)
-	sqlwhere := fmt.Sprintf(`project.namespace_kind = 'group' AND project.labels not like '%%personal%%' AND is_active = 1 AND domain_ownership_confirmed = 0 AND project.name like '%%%s%%' AND project.pid NOT in (SELECT p.pid from project AS p, project_domain AS pd, domain AS d WHERE p.pid = pd.project_id AND pd.domain_id = d.gitlab_ns_id) ORDER BY ts LIMIT 25 OFFSET %d`, searchName, currentOffset)
+	sqlwhere := fmt.Sprintf(`project.namespace_kind = 'group' AND project.labels not like '%%personal%%' AND is_active = 1 AND domain_ownership_confirmed = 1 AND project.name like '%%%s%%' AND project.pid NOT in (SELECT p.pid from project AS p, project_domain AS pd, domain AS d WHERE p.pid = pd.project_id AND pd.domain_id = d.gitlab_ns_id) ORDER BY ts LIMIT 25 OFFSET %d`, searchName, currentOffset)
 	projectList := ProjectGet(map[string]string{"where": sqlwhere})
 	t := template.Must(template.New("project-migration.html").ParseFiles("templates/project-migration.html"))
 	currentOffset = currentOffset + 25
@@ -143,11 +143,11 @@ func RunTransferProject(w http.ResponseWriter, r *http.Request) {
 	f, _ := os.OpenFile("log/" + logFile, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
 	go func() {
 		log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout)
-		// git := GetGitlabClient()
+		git := GetGitlabClient()
 		project_id, _ := strconv.Atoi( vars["project_id"])
 		u.Sleep("1m")
-		log.Printf("Fake Started with is %d - \n", project_id)
-		// TransferProject(git, project_id)
+		// log.Printf("Fake Started with is %d - \n", project_id)
+		TransferProject(git, project_id)
 		os.Remove(lockFileName)
 	}()
 	fmt.Fprintf(w, "Started Project ID %s - <a href='/log/%s'>Log</a>", vars["project_id"], logFile)
