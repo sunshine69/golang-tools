@@ -27,7 +27,6 @@
                         <option value="update-project">update-project</option>
                         <option value="update-namespace">update-namespace</option>
                         <option value="update-team">update-team</option>
-                        <option value="UpdateGroupMember">UpdateGroupMember</option>
                         <option value="UpdateProjectDomainFromExcelNext">UpdateProjectDomainFromExcelNext</option>
                     </select>
                 </td>
@@ -35,7 +34,9 @@
             </tr>
         </table>
         <hr/>
-        <a href="/transferproject/{{.page_offset}}">Project Migration Console</a>
+        <h3>Project Migration Console</h3>
+        <a href="/transferproject/{{.page_offset}}?migrated=0">List projects need to be migrated</a><br/>
+        <a href="/transferproject/{{.page_offset}}?migrated=1">List projects already migrated</a><br/>
         <input type="hidden" name="user" value="{{ .user }}"/>
         <input type="hidden" name="token" value="{{ .token }}"/>
         <hr/><h4>Log</h4>

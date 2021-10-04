@@ -46,8 +46,8 @@
     <body>
         <h1>Go1 Gitlab Domain Console</h1>
         <h3>User: {{.user}}</h3>
-        <p><form action="/transferproject/0" method="GET">Seach by project name: <input type="text" name="keyword" value=""><input value="submit" type="submit"></form></p>
-        <div style="text-align: center;"> <a href="/transferproject/{{.page_offset}}">Next 25</a>&nbsp;&nbsp;<a href="/transferproject/0">Reset offset</a>&nbsp;&nbsp;<a href="/">Home</a></div>
+        <p><form action="/transferproject/0?migrated={{.migrated}}" method="GET">Seach by project name: <input type="text" name="keyword" value=""><input value="submit" type="submit"></form></p>
+        <div style="text-align: center;"> <a href="/transferproject/{{.page_offset}}?migrated={{.migrated}}">Next 25</a>&nbsp;&nbsp;<a href="/transferproject/0?migrated={{.migrated}}">Reset offset</a>&nbsp;&nbsp;<a href="/">Home</a></div>
         <table id="customers">
             <tr>
                 <th>created_date</th><th>project_name</th><th>full_path</th><th>current_domain</th><th>action</th><th>view log link</th>

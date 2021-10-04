@@ -53,6 +53,8 @@ func UpdateAllWrapper(git *gitlab.Client, SearchStr string) {
 	u.RunSystemCommand("rm -f data/GitlabProject-Domain-Status.xlsx; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", false)
 	UpdateProjectDomainFromExcelNext("data/GitlabProject-Domain-Status.xlsx")
 	UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
+	UpdateGroupMember(git)
+	UpdateProjectMigrationStatus(git)
 }
 
 func RunFunction(w http.ResponseWriter, r *http.Request) {
@@ -103,6 +105,7 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 			u.RunSystemCommand("rm -f data/GitlabProject-Domain-Status.xlsx; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", false)
 			UpdateProjectDomainFromExcelNext("data/GitlabProject-Domain-Status.xlsx")
             UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
+			UpdateGroupMember(git)
 			UpdateProjectMigrationStatus(git)
 			os.Remove(lockFileName) }()
 	}
@@ -110,19 +113,23 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 }
 func DisplayTransferProjectConsole(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
+	ses, _ := SessionStore.Get(r, SessionName)
 	searchName := r.FormValue("keyword")
+	migrated := r.FormValue("migrated")
+	// ses.Values["migrated"] = migrated
 	currentOffsetStr := u.Ternary( vars["page_offset"] != "" && searchName == "", vars["page_offset"], "0" ).(string)
 	currentOffset, _ := strconv.Atoi(currentOffsetStr)
-	sqlwhere := fmt.Sprintf(`project.namespace_kind = 'group' AND project.labels not like '%%personal%%' AND is_active = 1 AND domain_ownership_confirmed = 1 AND project.name like '%%%s%%' AND project.pid NOT in (SELECT p.pid from project AS p, project_domain AS pd, domain AS d WHERE p.pid = pd.project_id AND pd.domain_id = d.gitlab_ns_id) ORDER BY ts LIMIT 25 OFFSET %d`, searchName, currentOffset)
+	sqlwhere := fmt.Sprintf(`project.namespace_kind = 'group' AND project.labels not like '%%personal%%' AND is_active = 1 AND domain_ownership_confirmed = %s AND project.name like '%%%s%%' AND project.pid NOT in (SELECT p.pid from project AS p, project_domain AS pd, domain AS d WHERE p.pid = pd.project_id AND pd.domain_id = d.gitlab_ns_id) ORDER BY ts LIMIT 25 OFFSET %d`, migrated, searchName, currentOffset)
 	projectList := ProjectGet(map[string]string{"where": sqlwhere})
 	t := template.Must(template.New("project-migration.html").ParseFiles("templates/project-migration.html"))
 	currentOffset = currentOffset + 25
-	ses, _ := SessionStore.Get(r, SessionName)
+
 	ses.Values["page_offset"] = currentOffset; ses.Save(r, w)
 	err := t.Execute(w, map[string]interface{}{
 		"projects":    projectList,
 		"page_offset": currentOffset,
 		"user": ses.Values["user"],
+		"migrated": migrated,
 	})
 	u.CheckErr(err, "homePage t.Execute")
 	// log.Printf("%v\n", projectList)

@@ -221,6 +221,8 @@ func main() {
 		u.RunSystemCommand("rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", false)
 		UpdateProjectDomainFromExcelNext("data/GitlabProject-Domain-Status.xlsx")
 		UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
+		UpdateGroupMember(git)
+		UpdateProjectMigrationStatus(git)
 	case "update-project":
 		DumpOrUpdateProject(git, SearchStr)
 	case "update-namespace":
