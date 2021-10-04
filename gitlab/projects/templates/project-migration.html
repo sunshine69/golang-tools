@@ -46,7 +46,7 @@
     <body>
         <h1>Go1 Gitlab Domain Console</h1>
         <h3>User: {{.user}}</h3>
-        <p><form action="/transferproject/0?migrated={{.migrated}}" method="GET">Seach by project name: <input type="text" name="keyword" value=""><input value="submit" type="submit"></form></p>
+        <p><form action="/transferproject/0" method="GET">Seach by project name: <input type="hidden" name="migrated" value="{{.migrated}}"/><input type="text" name="keyword" value=""><input value="submit" type="submit"></form></p>
         <div style="text-align: center;"> <a href="/transferproject/{{.page_offset}}?migrated={{.migrated}}">Next 25</a>&nbsp;&nbsp;<a href="/transferproject/0?migrated={{.migrated}}">Reset offset</a>&nbsp;&nbsp;<a href="/">Home</a></div>
         <table id="customers">
             <tr>
@@ -54,7 +54,12 @@
             </tr>
             {{ range $idx, $project := .projects }}
             <tr>
-                <td>{{$project.GitlabCreatedAt}}</td><td><a href="{{$project.Weburl}}">{{$project.Name}}</a></td><td>{{ $project.PathWithNamespace }}</td>  <td>{{$project.NamespaceName}}</td><td><input type="button" name="run_migrate" value="Migrate" onclick='return run_migrate({{ $project.Pid }},{{$project.Name}});'/></td>
+                <td>{{$project.GitlabCreatedAt}}</td><td><a href="{{$project.Weburl}}">{{$project.Name}}</a></td><td>{{ $project.PathWithNamespace }}</td>  <td>{{$project.NamespaceName}}</td>
+                <td>
+                    {{ if eq $project.DomainOwnershipConfirmed 0 }}
+                    <input type="button" name="run_migrate" value="Migrate" onclick='return run_migrate({{ $project.Pid }},{{$project.Name}});'/>
+                    {{ end }}
+                </td>
                 <td id="loglink_{{$project.Pid}}"></td>
             </tr>
             {{ end }}
