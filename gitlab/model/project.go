@@ -26,8 +26,20 @@ type Project struct {
     GitlabCreatedAt string `sql:"gitlab_created_at"`
     IsActive    int8 `sql:"is_active"`
     DomainOwnershipConfirmed    int8 `sql:"domain_ownership_confirmed"`
-    Labels string `sql:"labels"`
+    Labels     string `sql:"labels"`
     TS         string   `sql:"ts"`
+    NewDomainName string `sql:"-"`
+    RootNameSpace string `sql:"-"`
+}
+func (p *Project) UpdateNonSQLFields() {
+    pds := ProjectDomainGet(map[string]string{"where":fmt.Sprintf("project_id = %d", p.Pid)})
+    if len(pds) > 0 {
+        pd := pds[0]
+        d := DomainGet(map[string]string{"where":fmt.Sprintf("gitlab_ns_id = %d", pd.DomainId)})[0]
+        p.NewDomainName = d.Name
+    } else {
+        p.NewDomainName = "Unknown. Need to update sheet Project_Domain"
+    }
 }
 func ProjectNew(path_with_namespace string) Project {
     p := Project{}
@@ -55,6 +67,7 @@ func (p *Project) GetOne(inputmap map[string]string) {
         err = sqlstruct.Scan(p, rows)
         u.CheckErr(err, "Project GetOne query")
     }
+    p.UpdateNonSQLFields()
 }
 func ProjectGet(inputmap map[string]string) []Project {
     dbc := GetDBConn(); defer dbc.Close()
@@ -75,6 +88,7 @@ func ProjectGet(inputmap map[string]string) []Project {
         localp := Project{}
         err = sqlstruct.Scan(&localp, rows)
         u.CheckErr(err, "Get query")
+        localp.UpdateNonSQLFields()
         o = append(o, localp)
     }
     return o
@@ -206,6 +220,7 @@ func (p *Project) Update() {
         }
     }
     u.CheckErr( tx.Commit(), "tx.Commit" )
+    p.UpdateNonSQLFields()
 }
 func (p *Project) Delete(inputmap map[string]string) {
 	sql := ""

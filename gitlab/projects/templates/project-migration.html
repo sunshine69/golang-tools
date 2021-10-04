@@ -29,7 +29,7 @@
         <script type="text/javascript" src='https://note.kaykraft.org:6919/assets/media/js/ajax.js'></script>
         <script language="javascript">
         function run_migrate(projectID, projectName) {
-            if (confirm("THIS IS REAL NOW - Are you sure you want to start migration this project\nid: "+projectID+"\nname: "+ projectName+" ?")) {
+            if (confirm("THIS IS FAKE - Are you sure you want to start migration this project\nid: "+projectID+"\nname: "+ projectName+" ?")) {
                 AJAX.postText("/runmigrate/"+projectID,
                 "",
                 function(r) {
@@ -47,14 +47,17 @@
         <h1>Go1 Gitlab Domain Console</h1>
         <h3>User: {{.user}}</h3>
         <p><form action="/transferproject/0" method="GET">Seach by project name: <input type="hidden" name="migrated" value="{{.migrated}}"/><input type="text" name="keyword" value=""><input value="submit" type="submit"></form></p>
-        <div style="text-align: center;"> <a href="/transferproject/{{.page_offset}}?migrated={{.migrated}}">Next 25</a>&nbsp;&nbsp;<a href="/transferproject/0?migrated={{.migrated}}">Reset offset</a>&nbsp;&nbsp;<a href="/">Home</a></div>
+        <div style="text-align: center;">
+            <a href="/transferproject/{{.page_offset}}?migrated={{.migrated}}">Next 25</a>&nbsp;&nbsp;<a href="/transferproject/0?migrated={{.migrated}}">Reset offset</a>&nbsp;&nbsp;<a href="/">Home</a>
+        </div>
         <table id="customers">
             <tr>
-                <th>created_date</th><th>project_name</th><th>full_path</th><th>current_domain</th><th>action</th><th>view log link</th>
+                <th>created_date</th><th>project_name</th><th>full_path</th><th>current_domain</th><th>new_domain</th><th>action</th><th>view log link</th>
             </tr>
             {{ range $idx, $project := .projects }}
             <tr>
                 <td>{{$project.GitlabCreatedAt}}</td><td><a href="{{$project.Weburl}}">{{$project.Name}}</a></td><td>{{ $project.PathWithNamespace }}</td>  <td>{{$project.NamespaceName}}</td>
+                <td>{{ $project.NewDomainName }}</td>
                 <td>
                     {{ if eq $project.DomainOwnershipConfirmed 0 }}
                     <input type="button" name="run_migrate" value="Migrate" onclick='return run_migrate({{ $project.Pid }},{{$project.Name}});'/>
@@ -65,6 +68,8 @@
             {{ end }}
         </table>
         <hr/>
-        <div style="text-align: center;"> <a href="/transferproject/{{.page_offset}}">Next 25</a>&nbsp;&nbsp;<a href="/transferproject/0">Reset offset</a>&nbsp;&nbsp;<a href="/">Home</a></div>
+        <div style="text-align: center;">
+            <a href="/transferproject/{{.page_offset}}?migrated={{.migrated}}">Next 25</a>&nbsp;&nbsp;<a href="/transferproject/0?migrated={{.migrated}}">Reset offset</a>&nbsp;&nbsp;<a href="/">Home</a>
+        </div>
     </body>
 </html>
