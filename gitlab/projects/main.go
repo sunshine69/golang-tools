@@ -242,7 +242,7 @@ func main() {
 	case "UpdateProjectMigrationStatus":
 		UpdateProjectMigrationStatus(git)
 	case "UpdateProjectDomainFromExcelNext":
-        u.RunSystemCommand("rm -f data/GitlabProject-Domain-Status.xlsx ; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", true)
+        u.RunSystemCommand("rm -rf data/GitlabProject-Domain-Status.xlsx || true ; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", true)
 		UpdateProjectDomainFromExcelNext("data/GitlabProject-Domain-Status.xlsx")
 		UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 	case "StartWebGUI":

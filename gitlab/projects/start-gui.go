@@ -50,7 +50,7 @@ func UpdateAllWrapper(git *gitlab.Client, SearchStr string) {
 	UpdateTeam()
 	UpdateProjectDomainFromCSV("data/MigrationServices.csv")
 	UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv")
-	u.RunSystemCommand("rm -f data/GitlabProject-Domain-Status.xlsx; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", false)
+	u.RunSystemCommand("rm -rf data/GitlabProject-Domain-Status.xlsx || true; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", false)
 	UpdateProjectDomainFromExcelNext("data/GitlabProject-Domain-Status.xlsx")
 	UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 	UpdateGroupMember(git)
@@ -102,7 +102,7 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 		go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); UpdateProjectMigrationStatus(git); os.Remove(lockFileName) }()
 	case "UpdateProjectDomainFromExcelNext":
 		go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout)
-			u.RunSystemCommand("rm -f data/GitlabProject-Domain-Status.xlsx; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", false)
+			u.RunSystemCommand("rm -rf data/GitlabProject-Domain-Status.xlsx || true; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", false)
 			UpdateProjectDomainFromExcelNext("data/GitlabProject-Domain-Status.xlsx")
             UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 			UpdateGroupMember(git)
