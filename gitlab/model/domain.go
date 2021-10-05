@@ -21,6 +21,7 @@ type Domain struct {
 }
 func DomainNew(name string) Domain {
 	p := Domain{}
+	// A Domain should have the name unique (our rule, not gitlab rule). Should start with `Domain -`
 	p.GetOne(map[string]string{"where": fmt.Sprintf("name = '%s'", name)})
 	if p.ID == 0 {
 		p.New(name, false)

@@ -29,12 +29,12 @@ func UpdateProjectDomainOneRow(idx int, l []string) {
 	//project name,path_with_namespace,weburl,domain name
     if l[3] != "" { log.Printf("DEBUG %s\n", u.JsonDump(l, "  ")) }
 	if l[0] == "" || l[1] == "" || l[3] == ""  { return  }
-	p := ProjectNew(l[0])
+	p := ProjectNew(l[1])
 	if p.Pid == 0 {return }
 	d := DomainNew(l[3])
 	if d.GitlabNamespaceId == 0 {return }
 	pd := ProjectDomainNew(p.Pid, d.GitlabNamespaceId)
-	log.Printf("[DEBUG] %s\n", u.JsonDump(pd, "  "))
+	log.Printf("[DEBUG] ProjectDomainNew %s\n", u.JsonDump(pd, "  "))
 }
 func UpdateProjectDomainFromExcelNext(filename string) {
 	f, err := excelize.OpenFile(filename)
