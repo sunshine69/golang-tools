@@ -192,6 +192,18 @@ func GetGitlabClient() *gitlab.Client {
 	}
     return git
 }
+func UpdateAllWrapper(git *gitlab.Client, SearchStr string) {
+	DumpOrUpdateProject(git, SearchStr)
+	DumpOrUpdateNamespace(git, SearchStr)
+	UpdateTeam()
+	UpdateProjectDomainFromCSV("data/MigrationServices.csv")
+	UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv")
+	u.RunSystemCommand("rm -rf data/GitlabProject-Domain-Status.xlsx || true; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", false)
+	UpdateProjectDomainFromExcelNext("data/GitlabProject-Domain-Status.xlsx")
+	UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
+	UpdateGroupMember(git)
+	UpdateProjectMigrationStatus(git)
+}
 func main() {
 	flag.StringVar(&Logdbpath, "db", "", "db path")
 	flag.StringVar(&SearchStr, "s", "", "Project search Str. Empty means everything. If it is a integer then we use as project ID and search for it")
@@ -214,16 +226,7 @@ func main() {
 	defer dbc.Close()
 	switch action {
 	case "update-all":
-		DumpOrUpdateProject(git, SearchStr)
-		DumpOrUpdateNamespace(git, SearchStr)
-		UpdateTeam()
-		UpdateProjectDomainFromCSV("data/MigrationServices.csv")
-		UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv")
-		u.RunSystemCommand("rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", false)
-		UpdateProjectDomainFromExcelNext("data/GitlabProject-Domain-Status.xlsx")
-		UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
-		UpdateGroupMember(git)
-		UpdateProjectMigrationStatus(git)
+		UpdateAllWrapper(git, SearchStr)
 	case "update-project":
 		DumpOrUpdateProject(git, SearchStr)
 	case "update-namespace":

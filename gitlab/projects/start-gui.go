@@ -19,7 +19,6 @@ import (
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	"html/template"
-	"github.com/xanzy/go-gitlab"
 )
 var (
 	// AppConfig  map[string]interface{}
@@ -43,18 +42,6 @@ func ContainerStatus(w http.ResponseWriter, r *http.Request) {
 }
 func GetVersion(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, version)
-}
-func UpdateAllWrapper(git *gitlab.Client, SearchStr string) {
-	DumpOrUpdateProject(git, SearchStr)
-	DumpOrUpdateNamespace(git, SearchStr)
-	UpdateTeam()
-	UpdateProjectDomainFromCSV("data/MigrationServices.csv")
-	UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv")
-	u.RunSystemCommand("rm -rf data/GitlabProject-Domain-Status.xlsx || true; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", false)
-	UpdateProjectDomainFromExcelNext("data/GitlabProject-Domain-Status.xlsx")
-	UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
-	UpdateGroupMember(git)
-	UpdateProjectMigrationStatus(git)
 }
 
 func RunFunction(w http.ResponseWriter, r *http.Request) {
@@ -99,7 +86,8 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
     case "UpdateProjectDomainFromCSVSheet3":
         go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv"); os.Remove(lockFileName) }()
 	case "UpdateProjectMigrationStatus":
-		go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); UpdateProjectMigrationStatus(git); os.Remove(lockFileName) }()
+		go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout)
+			UpdateProjectMigrationStatus(git); os.Remove(lockFileName) }()
 	case "UpdateProjectDomainFromExcelNext":
 		go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout)
 			u.RunSystemCommand("rm -rf data/GitlabProject-Domain-Status.xlsx || true; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", false)
