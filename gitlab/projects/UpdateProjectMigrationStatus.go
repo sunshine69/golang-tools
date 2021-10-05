@@ -15,7 +15,7 @@ func UpdateProjectMigrationStatus(git *gitlab.Client) {
 	domains := GroupmemberGet(map[string]string{"where": "1 group by group_id"})
 	for _, row := range domains {
 		ps, _, err := git.Groups.ListGroupProjects(row.GroupId, nil)
-		u.CheckErr(err, "ReportProjectMigrationStatus ListGroupProjects")
+		u.CheckErr(err, "UpdateProjectMigrationStatus ListGroupProjects")
 		for _, p := range ps {
 			aP := ProjectNew(p.PathWithNamespace)
 			aP.DomainOwnershipConfirmed = 1

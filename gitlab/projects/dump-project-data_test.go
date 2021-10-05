@@ -13,21 +13,25 @@ import (
 //go test --tags "sqlite_stat4 sqlite_foreign_keys sqlite_json" -timeout 30s -run '^Test_XXXX' -v
 
 func TestGetGitlabProject(t *testing.T) {
-	ConfigFile = "/home/stevek/.dump-gitlab-project-data.json"
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
+	ParseConfig()
 	git := GetGitlabClient()
-	p, _, err := git.Projects.GetProject(1399, nil); u.CheckErr(err, "GetProject")
-	log.Printf("[DEBUG] %s\n", p.CreatedAt.Format(u.CleanStringDateLayout) )
+	p, _, err := git.Projects.GetProject(2084, nil); u.CheckErr(err, "GetProject")
+	log.Printf("[DEBUG] TestGetGitlabProject %s\n", u.JsonDump(p, "  "))
+
 }
 func TestGetGitlabGroup(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
-	// git := GetGitlabClient()
-	// childGroup := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("parent_id = %d AND name LIKE 'Team - %%'", 188)})
+	ParseConfig()
+
 	childGroup := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("parent_id = %d", 584)})
 	log.Printf("[DEBUG] %s\n",u.JsonDump(childGroup,"  "))
 }
 func TestGetGitlabProjects(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
+	ParseConfig()
 	git := GetGitlabClient()
+
 	ps, _, err := git.Projects.ListProjects(&gitlab.ListProjectsOptions{
 		ListOptions: gitlab.ListOptions{
 			Page:1, PerPage: 1,
@@ -44,7 +48,9 @@ func TestGetGitlabProjects(t *testing.T) {
 }
 func TestGitDomain(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
+	ParseConfig()
 	git := GetGitlabClient()
+
 	ns, _, err := git.Namespaces.SearchNamespace("Domain - Users", nil); u.CheckErr(err, "SearchNamespace")
 	for _, row := range ns {
 		mygroup, _, _ := git.Groups.GetGroup(row.ID, nil)
@@ -61,6 +67,8 @@ func TestGitDomain(t *testing.T) {
 }
 func TestGetProjectFromDomain(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
+	ParseConfig()
+
 	domains := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("name LIKE 'Domain - Recommendation'")})
 	for _, row := range domains {
 		if row.ParentId == 0 {//Root group, no parent
@@ -74,8 +82,10 @@ func TestGetProjectFromDomain(t *testing.T) {
 }
 func TestGetMemberFromDomain(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
-	domains := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("name LIKE 'Domain - Recommendation'")})
+	ParseConfig()
 	git := GetGitlabClient()
+
+	domains := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("name LIKE 'Domain - Recommendation'")})
 	for _, row := range domains {
 		log.Printf("%s\n", u.JsonDump(row, "  "))
 		if row.ParentId == 0 && row.MembersCountWithDescendants > 0 {
@@ -97,6 +107,7 @@ func TestGetMemberFromDomain(t *testing.T) {
 }
 func TestProjectMigrationStatus(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
+	ParseConfig()
 	git := GetGitlabClient()
 
 	dbc := GetDBConn()
@@ -117,6 +128,7 @@ func TestProjectMigrationStatus(t *testing.T) {
 }
 func TestRawSQL(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
+	ParseConfig()
 	gm := GroupmemberGet(map[string]string{"sql": "select group_id from groupmember where member_group_id =  544 group by group_id"})
 	log.Printf("%s\n",u.JsonDump(gm,"  "))
 }

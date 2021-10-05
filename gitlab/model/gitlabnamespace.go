@@ -229,3 +229,7 @@ func (p *GitlabNamespace) Delete(inputmap map[string]string) {
 		tx.Commit()
 	}
 }
+func GitlabNamespaceDeleteOne(gID int) {
+    p := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("gitlab_ns_id = %d", gID)})
+    p[0].Delete(nil)
+}

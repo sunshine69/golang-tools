@@ -5,10 +5,10 @@ import (
 	u "localhost.com/utils"
 	"github.com/xanzy/go-gitlab"
 )
-//Transfer (copy) all vars from one group to other if destination does not have the same vars
-func TransferGroupVars(git *gitlab.Client ,groupA, groupB *gitlab.Group) {
+//Copy all vars from one group to other if destination does not have the same vars
+func CopyGroupVars(git *gitlab.Client ,groupA, groupB *gitlab.Group) {
 	gvSrv := git.GroupVariables
-	gVars,_,err := gvSrv.ListVariables(groupA.ID, nil); u.CheckErr(err, "TransferGroupVars ListVariables")
+	gVars,_,err := gvSrv.ListVariables(groupA.ID, nil); u.CheckErr(err, "CopyGroupVars ListVariables")
 	for _, gv := range gVars {
 		gbv, _, err := gvSrv.GetVariable(groupB.ID, gv.Key, nil)
 		if err == nil {
@@ -27,7 +27,7 @@ func TransferGroupVars(git *gitlab.Client ,groupA, groupB *gitlab.Group) {
 			EnvironmentScope: &gv.EnvironmentScope,
 			Masked: &gv.Masked,
 			Protected: &gv.Protected,
-		}); u.CheckErr(err, "TransferGroupVars CreateVariable")
+		}); u.CheckErr(err, "CopyGroupVars CreateVariable")
 		log.Printf("Created new var in group %s\n%s\n", groupB.Name, u.JsonDump(gbv, "  "))
 	}
 }

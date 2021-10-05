@@ -133,3 +133,7 @@ func (p *Groupmember) Delete(inputmap map[string]string) {
 		tx.Commit()
 	}
 }
+func GroupmemberDeleteOne(gID int) {
+    p := GroupmemberGet(map[string]string{"where": fmt.Sprintf("group_id = %d", gID)})
+    p[0].Delete(nil)
+}

@@ -119,7 +119,7 @@ func DisplayTransferProjectConsole(w http.ResponseWriter, r *http.Request) {
 	// ses.Values["migrated"] = migrated
 	currentOffsetStr := u.Ternary( vars["page_offset"] != "" && searchName == "", vars["page_offset"], "0" ).(string)
 	currentOffset, _ := strconv.Atoi(currentOffsetStr)
-	sqlwhere := fmt.Sprintf(`project.namespace_kind = 'group' AND project.labels not like '%%personal%%' AND is_active = 1 AND domain_ownership_confirmed = %s AND project.name like '%%%s%%' AND project.pid IN (SELECT p.pid from project AS p, project_domain AS pd, domain AS d WHERE p.pid = pd.project_id AND pd.domain_id = d.gitlab_ns_id) ORDER BY ts LIMIT 25 OFFSET %d`, migrated, searchName, currentOffset)
+	sqlwhere := fmt.Sprintf(`project.namespace_kind = 'group' AND project.labels NOT LIKE '%%personal%%' AND is_active = 1 AND domain_ownership_confirmed = %s AND project.name LIKE '%%%s%%' AND project.pid IN (SELECT p.pid from project AS p, project_domain AS pd, domain AS d WHERE p.pid = pd.project_id AND pd.domain_id = d.gitlab_ns_id AND p.path_with_namespace NOT LIKE 'apps/%%' AND p.path_with_namespace NOT LIKE 'mirror/%%' ) ORDER BY ts LIMIT 25 OFFSET %d`, migrated, searchName, currentOffset)
 	projectList := ProjectGet(map[string]string{"where": sqlwhere})
 	t := template.Must(template.New("project-migration.html").ParseFiles("templates/project-migration.html"))
 	currentOffset = currentOffset + 25
@@ -130,6 +130,7 @@ func DisplayTransferProjectConsole(w http.ResponseWriter, r *http.Request) {
 		"page_offset": currentOffset,
 		"user": ses.Values["user"],
 		"migrated": migrated,
+		"sqlwhere": "SELECT * FROM project WHERE " + sqlwhere,
 	})
 	u.CheckErr(err, "homePage t.Execute")
 	// log.Printf("%v\n", projectList)

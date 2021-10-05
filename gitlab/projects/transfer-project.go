@@ -78,27 +78,56 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int) {
 	gitlabDomainGroup, _, err := git.Groups.GetGroup(d.GitlabNamespaceId, nil)
 	u.CheckErr(err, "TransferProject GetGroup")
 
-	existingGroup,_,err := git.Groups.GetGroup(gitlabProject.Namespace.ID, nil)
-	u.CheckErr(err, "TransferProject GetGroup")
-	log.Printf("Check if existing group %s is the same as the new group %s\n", existingGroup.FullPath, gitlabDomainGroup.FullPath)
-	if existingGroup.FullPath == gitlabDomainGroup.FullPath {
+	project := ProjectNew(gitlabProject.PathWithNamespace)
+
+	existingGroupList := project.GetDomainList(git)
+	existingRootGroup := existingGroupList[0]
+	log.Printf("Check if existing root group %s is the same as the new group %s\n", existingRootGroup.FullPath, gitlabDomainGroup.FullPath)
+	if existingRootGroup.FullPath == gitlabDomainGroup.FullPath {
 		log.Printf("Matched - Project already be in correct group, do nothing\n")
 		return
 	}
-	log.Println("Copy the existing group vars of the project to the new DomainGroup")
-	TransferGroupVars(git, existingGroup, gitlabDomainGroup)
 
+	parentID := gitlabDomainGroup.ID
+	lastNewGroup := gitlabDomainGroup
+	//Replicate group path from old project => new one
+	for idx, eg := range existingGroupList{
+		if idx == 0 {
+			log.Println("Copy the group vars - existingRootGroup => New Root Group")
+			CopyGroupVars(git, eg, gitlabDomainGroup)
+		} else {
+			log.Printf("Check if sub group exists in the new tree")
+			gs := GitlabNamespaceGet(map[string]string{"where":fmt.Sprintf("parent_id = %d AND path = '%s' ", parentID, eg.Path)})
+
+			if len(gs) == 0 {
+				log.Printf("Group does not exist, creating new group with parentID %d\n", parentID)
+				lastNewGroup, _, err = git.Groups.CreateGroup(&gitlab.CreateGroupOptions{
+					ParentID: &parentID,
+					Path: &eg.Path,
+					Name: &eg.Path, //Simplify, maybe search replace - with space and Captialize word?
+				}); u.CheckErr(err, "CreateGroup")
+			} else {
+				log.Printf("Group exist, copy vars over")
+				lastNewGroup,_,err = git.Groups.GetGroup(gs[0].GitlabNamespaceId, nil)
+				u.CheckErr(err, "TransferProject GetGroup")
+			}
+			CopyGroupVars(git, eg, lastNewGroup)
+			parentID = lastNewGroup.ID
+		}
+	}
 	// Transfer project won't work if the current project still have registry tag. We need to delete them
 	// all before. Delete/backup is handled in MoveProjectRegistryImages func
 	log.Println("Backup container reg and remove all existing tags")
 	tempPrj := BackupProjectRegistryImages(git, gitlabProject)
+
 	log.Printf("Transfer project to a new name space")
 	_, res, err := git.Projects.TransferProject(gitlabProject.ID, &gitlab.TransferProjectOptions{
-		Namespace: gitlabDomainGroup.ID,
+		Namespace: lastNewGroup.ID,
 	})
 	if u.CheckErrNonFatal(err, "TransferProject TransferGroup") != nil {
 		log.Fatalf("[ERROR] gitlab response is %s\n", u.JsonDump(res, "  "))
 	}
+
 	log.Println("Move container image from temp")
 	MoveProjectRegistryImages(git, tempPrj, gitlabProject)
 	log.Println("Delete temporary project")

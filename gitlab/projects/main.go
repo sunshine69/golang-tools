@@ -76,6 +76,7 @@ func DumpOrUpdateProject(git *gitlab.Client, SearchStr string) {
                     labelList = append(labelList, _label.Name)
                 }
 				p.Pid, p.Weburl, p.Name, p.NameWithSpace, p.Path, p.PathWithNamespace, p.NamespaceKind, p.NamespaceName, p.NamespaceId, p.GitlabCreatedAt, p.Labels = row.ID, row.WebURL, row.Name, row.NameWithNamespace, row.Path, row.PathWithNamespace, row.Namespace.Kind, row.Namespace.Name, row.Namespace.ID, row.CreatedAt.Format(u.CleanStringDateLayout), strings.Join(labelList, ",")
+				if ! strings.Contains(p.PathWithNamespace, "domain-") { p.DomainOwnershipConfirmed = 0 }
 				p.Update()
                 UpdateTeamProject(git, row)
 			}
