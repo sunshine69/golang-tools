@@ -262,7 +262,5 @@ func DatabaseMaintenance() {
 	_, err := conn.Exec(fmt.Sprintf(
 		`DELETE FROM log WHERE ts < "%s";
 	`, _startTime))
-	if err != nil {
-		log.Printf("[ERROR] - can not delete old data - %v\n", err)
-	}
+	u.CheckErrNonFatal(err, "DatabaseMaintenance can not delete old data")
 }

@@ -187,9 +187,7 @@ func GetGitlabClient() *gitlab.Client {
 		}
 	}
 	git, err := gitlab.NewClient(GitLabToken, gitlab.WithBaseURL(AppConfig["gitlabAPIBaseURL"].(string)))
-	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
-	}
+	u.CheckErr(err, "GetGitlabClient NewClient")
     return git
 }
 func UpdateAllWrapper(git *gitlab.Client, SearchStr string) {

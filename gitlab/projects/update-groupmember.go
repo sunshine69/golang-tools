@@ -14,15 +14,11 @@ func UpdateGroupMember(git *gitlab.Client) {
 	nsWithDomainPrefix := GitlabNamespaceGet(map[string]string{"where": `name LIKE 'Domain - %'`})
 	for _, ns := range nsWithDomainPrefix {
 		aGroup, _, err := git.Groups.GetGroup(ns.GitlabNamespaceId, nil)
-		if err != nil {
-			if strings.Contains(err.Error(), "404 Group Not Found") {
-				log.Printf("[DEBUG] stale group ID %d - need to clean up\n", ns.GitlabNamespaceId)
-				GitlabNamespaceDeleteOne(ns.GitlabNamespaceId)
-				GroupmemberDeleteOne(ns.GitlabNamespaceId)
-				continue
-			} else {
-				u.CheckErr(err, "UpdateGroupMember GetGroup")
-			}
+		if u.CheckNonErrIfMatch(err, "404 Group Not Found", "UpdateGroupMember GetGroup") != nil {
+			log.Printf("[DEBUG] stale group ID %d - need to clean up\n", ns.GitlabNamespaceId)
+			GitlabNamespaceDeleteOne(ns.GitlabNamespaceId)
+			GroupmemberDeleteOne(ns.GitlabNamespaceId)
+			continue
 		}
 		for _, sharedGroup := range aGroup.SharedWithGroups {
 			if strings.HasPrefix(sharedGroup.GroupName, "Team - ") {
@@ -33,5 +29,12 @@ func UpdateGroupMember(git *gitlab.Client) {
 				domain.Update()
 			}
 		}
+		adminUserId := int(AppConfig["admin_user_id"].(float64))
+		accessLevel := GitlabPermissionLookup["MaintainerPermissions"]
+		log.Printf("Allow user ID %d to be a maintainer of groupID %d required by the project transfer ops\n", adminUserId, aGroup.ID)
+		_, _, err = git.GroupMembers.AddGroupMember(aGroup.ID, &gitlab.AddGroupMemberOptions{
+			UserID: &adminUserId,
+			AccessLevel: &accessLevel,
+		}); u.CheckNonErrIfMatch(err, "Member already exists", "UpdateGroupMember AddGroupMember")
 	}
 }

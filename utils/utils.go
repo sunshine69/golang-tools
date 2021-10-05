@@ -293,7 +293,16 @@ func CheckErrNonFatal(err error, location string) error {
 	}
 	return err
 }
-
+func CheckNonErrIfMatch(err error, ptn, location string) error {
+	if err != nil {
+		if strings.Contains(err.Error(), ptn) {
+			return err
+		} else{
+			log.Fatalf("[ERROR] at %s - %v\n", location, err)
+		}
+	}
+	return nil
+}
 func Curl(method, url, data, savefilename string, headers []string) (string, error) {
 	client := http.Client{}
 	req, err := http.NewRequest(method, url, bytes.NewBuffer([]byte(data)))
