@@ -50,16 +50,18 @@ func TestGitDomain(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
 	ParseConfig()
 	git := GetGitlabClient()
-
-	ns, _, err := git.Namespaces.SearchNamespace("Domain - Users", nil); u.CheckErr(err, "SearchNamespace")
+	ns, _, err := git.Namespaces.SearchNamespace("Domain -", nil); u.CheckErr(err, "SearchNamespace")
 	for _, row := range ns {
 		mygroup, _, _ := git.Groups.GetGroup(row.ID, nil)
-		log.Printf("GROUP %s\n", u.JsonDump(mygroup, "  "))
+		// log.Printf("GROUP %s\n", u.JsonDump(mygroup, "  "))
 		if row.ParentID == 0 {//Root group, no parent
 			if row.MembersCountWithDescendants > 0 {//Having a subgroup or project/domain
 				//Find projects
-				ps := ProjectGet(map[string]string{"where": fmt.Sprintf("namespace_id = %d", row.ID)})
-				log.Printf("%s\n", u.JsonDump(ps, "  "))
+				// ps := ProjectGet(map[string]string{"where": fmt.Sprintf("namespace_id = %d", row.ID)})
+				// log.Printf("%s\n", u.JsonDump(ps, "  "))
+				if mygroup.Description == "autocreated" {
+					fmt.Printf("%s\n", mygroup.Path)
+				}
 			}
 		}
 		// log.Printf("%s\n", u.JsonDump(row, "    "))
