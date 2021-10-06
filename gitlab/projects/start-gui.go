@@ -91,10 +91,9 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 	case "UpdateProjectDomainFromExcelNext":
 		go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout)
 			u.RunSystemCommand("rm -rf data/GitlabProject-Domain-Status.xlsx || true; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", false)
-			UpdateProjectDomainFromExcelNext("data/GitlabProject-Domain-Status.xlsx")
-            UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
+			UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
+			UpdateProjectDomainFromExcelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 			UpdateGroupMember(git)
-			UpdateProjectMigrationStatus(git)
 			os.Remove(lockFileName) }()
 	}
 	fmt.Fprintf(w, "<p>Process %s started. You can see the log <a href='/log/%s'>here</a></p>", func_name, logFile)
