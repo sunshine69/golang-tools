@@ -265,9 +265,11 @@ func (p *Project) UpdateNonSQLFields() {
 }
 func (p *Project) GetDomainList(git *gitlab.Client) []*gitlab.Group {
 	paths := strings.Split(p.PathWithNamespace, "/")
+	paths = paths[:len(paths) -1] // Last one is the project name itself, not a group
 	o := []*gitlab.Group{}
 	parentID := 0
 	for _, path := range paths {
+		log.Printf("Get info from Gitlabnamespace table for path: %s, parent_id: %d, project: %s\n", path, parentID, u.JsonDump(p, "  "))
 		d := GitlabNamespaceGet(map[string]string{"where":fmt.Sprintf("path = '%s' AND parent_id = %d", path, parentID)})[0]
 		dg, _, err := git.Groups.GetGroup(d.GitlabNamespaceId, nil)
 		u.CheckErr(err, "GetDomainList GetGroup")
