@@ -127,7 +127,8 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int) {
 	if u.CheckErrNonFatal(err, "TransferProject TransferGroup") != nil {
 		log.Fatalf("[ERROR] gitlab response is %s\n", u.JsonDump(res, "  "))
 	}
-
+	project.DomainOwnershipConfirmed = 1; project.Update()
+	
 	log.Println("Move container image from temp")
 	MoveProjectRegistryImages(git, tempPrj, gitlabProject)
 	log.Println("Delete temporary project")
