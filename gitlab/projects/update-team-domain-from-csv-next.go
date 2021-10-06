@@ -38,27 +38,52 @@ func UpdateTeamDomainFromCSVNext(git *gitlab.Client, filename string) {
 		}
 	}
 }
+func UpdateTeamOneRow(git *gitlab.Client, idx int, row []string) *Team {
+	teamName := row[1]
+	if teamName == "" {return nil}
+	t := TeamNew(teamName)
+	if t.GitlabNamespaceId == 0 { CreateGitlabTeam(git, &t) }
+	return &t
+}
+func UpdateDomainOneRow(git *gitlab.Client, idx int, row []string) *Domain {
+	domainName := row[1]
+	if domainName == "" {return nil}
+	d := DomainNew(domainName)
+	if d.GitlabNamespaceId == 0 { CreateGitlabDomain(git, &d) }
+	return &d
+}
 func UpdateTeamDomainFromExelNext(git *gitlab.Client, filename string) {
 	f, err := excelize.OpenFile(filename)
 	u.CheckErr(err, "UpdateTeamDomainFromExelNext OpenFile")
-	lines, err := f.GetRows("Team_Domain"); u.CheckErr(err, "UpdateTeamDomainFromExelNext GetRows")
+	lines, err := f.GetRows("Team"); u.CheckErr(err, "UpdateTeamDomainFromExelNext GetRows")
 	for idx, l := range lines {
+		if idx == 0 {continue}
+		UpdateTeamOneRow(git, idx, l)
+	}
+	lines, err = f.GetRows("Domain"); u.CheckErr(err, "UpdateTeamDomainFromExelNext GetRows")
+	for idx, l := range lines {
+		if idx == 0 {continue}
+		UpdateDomainOneRow(git, idx, l)
+	}
+	lines, err = f.GetRows("Team_Domain"); u.CheckErr(err, "UpdateTeamDomainFromExelNext GetRows")
+	for idx, l := range lines {
+		if idx == 0 {continue}
 		UpdateTeamDomainOneRow(git, idx, l)
 	}
 }
-func UpdateTeamDomainOneRow(git *gitlab.Client, idx int, l []string) {
-	if idx == 0 {return}
+func UpdateTeamDomainOneRow(git *gitlab.Client, idx int, l []string) *TeamDomain {
 	//team_name,domain name, access level
-	if l[0] == "" || l[1] == "" || l[2] == ""  { return }
-	t := TeamNew(l[0])
-	if t.GitlabNamespaceId == 0 { CreateGitlabTeam(git, &t) }
-	d := DomainNew(l[1])
-	if d.GitlabNamespaceId == 0 { CreateGitlabDomain(git, &d) }
-	td := TeamDomainNew(t.GitlabNamespaceId, d.GitlabNamespaceId)
+	if l[0] == "" || l[1] == "" || l[2] == ""  { return nil }
+	ts := TeamGet(map[string]string{"where":fmt.Sprintf("name = '%s'", l[0])})
+	if ! u.Assert(len(ts) == 1, "Team should exists in Team table", false) { return nil }
+	ds := DomainGet(map[string]string{"where":fmt.Sprintf("name = '%s'", l[1])})
+	if ! u.Assert(len(ds) == 1, "Domain should exists in Domain table", false) {return nil}
+	td := TeamDomainNew(ts[0].GitlabNamespaceId, ds[0].GitlabNamespaceId)
 	td.Permission = l[2]
 	td.Update()
 	log.Printf("[DEBUG] %s\n", u.JsonDump(td, "  "))
-	AddGitlabTeamToDomain(git, &d)
+	AddGitlabTeamToDomain(git, &ds[0])
+	return &td
 }
 // One day I will make the two func into one only :)
 func CreateGitlabDomain(git *gitlab.Client, d *Domain) {

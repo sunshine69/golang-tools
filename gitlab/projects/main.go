@@ -142,7 +142,7 @@ func UpdateTeam() {
 		})
 		if ns.ID == 0 {
 			log.Printf("[DEBUG] %s\n", u.JsonDump(ns, "    "))
-			log.Printf("[WARN] unextected. Can not find the gitlab namespace table matching this team '%s' with id %d. Possibly the Team has not actually been created in gitlab group.\n", row.Name, row.GitlabNamespaceId)
+			log.Printf("[ERROR] unextected. Can not find the gitlab namespace table matching this team '%s' with id %d. Possibly the Team has not actually been created in gitlab group.\n", row.Name, row.GitlabNamespaceId)
 			continue
 		}
 		row.GitlabNamespaceId = ns.GitlabNamespaceId
@@ -152,7 +152,7 @@ func UpdateTeam() {
 }
 //For each group if it started with `Team ` then add a record to team table with data
 func GitlabGroup2Team(git *gitlab.Client, ns *GitlabNamespace) {
-    if strings.HasPrefix( ns.Name, "Team " ) {
+    if strings.HasPrefix( ns.Name, "Team -" ) {
         log.Printf("[DEBUG] Found gitlab namespace '%s' started with Team. Create - Update Team\n", ns.Name)
         newTeam := TeamNew(ns.Name)
         log.Printf("[DEBUG] %s\n",u.JsonDump(ns, "  "))
@@ -165,7 +165,7 @@ func GitlabGroup2Team(git *gitlab.Client, ns *GitlabNamespace) {
 //For each group if it started with `Domain ` then add a record to domain table with data
 // Maybe we need to check if it has at least a member named started with `Team -` ?
 func GitlabGroup2Domain(git *gitlab.Client, ns *GitlabNamespace) {
-    if strings.HasPrefix( ns.Name, "Domain " ) && (ns.MembersCountWithDescendants > 0)  {
+    if strings.HasPrefix( ns.Name, "Domain -" ) && (ns.MembersCountWithDescendants > 0)  {
         childGroup := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("parent_id = %d AND name LIKE 'Team - %%'", ns.GitlabNamespaceId)})
         newDomain := DomainNew(ns.Name)
         if len(childGroup) > 0 {

@@ -303,6 +303,18 @@ func CheckNonErrIfMatch(err error, ptn, location string) error {
 	}
 	return nil
 }
+func Assert(cond bool, msg string, fatal bool) bool {
+	if cond {
+		log.Printf("Assert Passed - %s\n", msg)
+	} else {
+		if fatal {
+			log.Fatalf("[ERROR] Assert FAILED - %s\n", msg)
+		} else {
+			log.Printf("[ERROR] Assert FAILED - %s\n", msg)
+		}
+	}
+	return cond
+}
 func Curl(method, url, data, savefilename string, headers []string) (string, error) {
 	client := http.Client{}
 	req, err := http.NewRequest(method, url, bytes.NewBuffer([]byte(data)))
