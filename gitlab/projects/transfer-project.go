@@ -20,9 +20,9 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, tempPrj *gitlab.P
 
 	oldImagesList := []string{}
 	for _, repoReg := range registryRepos {
-		location, tags := repoReg.Location, repoReg.Tags
+		_, tags := repoReg.Location, repoReg.Tags
 		for _, t := range tags{
-			oldImage := fmt.Sprintf(`%s:%s`, location, t)
+			oldImage := t.Location
 			oldImagesList = append(oldImagesList, oldImage)
 			extraName := u.Ternary( repoReg.Name == "", "", "/" + repoReg.Name )
 			newImage := fmt.Sprintf(`%s%s:%s`, GetContainerRegistryBaseLocation(git, tempPrj.ID), extraName, t )
