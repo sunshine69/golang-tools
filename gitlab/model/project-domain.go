@@ -52,7 +52,6 @@ func ProjectDomainGet(inputmap map[string]string) []ProjectDomain {
 	} else {
 		sql = inputmap["sql"]
 	}
-	sql = sql + ` ORDER BY id DESC`
 	stmt, err := dbc.Prepare(sql)
 	u.CheckErr(err, "ProjectDomain GetOne")
 	defer stmt.Close()

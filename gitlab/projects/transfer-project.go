@@ -67,10 +67,7 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int) {
 	// Get the domain for this project from Project_Domain relationship
 	pd := ProjectDomainGet(map[string]string{"where": fmt.Sprintf("project_id = %d ORDER BY ts DESC LIMIT 1", gitlabProject.ID)})
 	d := Domain{}
-	d.GetOne(map[string]string{"where": fmt.Sprintf("id = %d", pd[0].DomainId)})
-	if d.GitlabNamespaceId == 0 {
-		log.Fatalf("[ERROR] Domain not created yet. You have to run this UpdateTeamDomainFromCSVNext first. Domain %s\n", u.JsonDump( d, "  "))
-	}
+	d.GetOne(map[string]string{"where": fmt.Sprintf("gitlab_ns_id = %d", pd[0].DomainId)})
 	gitlabDomainGroup, _, err := git.Groups.GetGroup(d.GitlabNamespaceId, nil)
 	u.CheckErr(err, "TransferProject GetGroup")
 
