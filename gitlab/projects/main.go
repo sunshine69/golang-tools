@@ -92,8 +92,11 @@ func DumpOrUpdateProject(git *gitlab.Client, SearchStr string) {
 	//Update database for project that is no longer in gitlab
 	projects := ProjectGet(map[string]string{"where":"1 ORDER BY ts DESC"})
 	for _, p := range projects {
-		_, _, err := projectService.GetProject(p.Pid, nil)
+		gp, _, err := projectService.GetProject(p.Pid, nil)
 		if u.CheckNonErrIfMatch(err, "404 Project Not Found", "") != nil {
+			p.Delete(nil)
+		}
+		if p.PathWithNamespace != gp.PathWithNamespace { //This entry in the DB no longer up-to-date
 			p.Delete(nil)
 		}
 	}
