@@ -178,3 +178,27 @@ func TestGitlabGroupVar(t *testing.T) {
 	u.CheckErr(err, "TestGitlabGroupVar")
 	log.Printf("%s\n",u.JsonDump(gv, "  "))
 }
+func TestCreateProject(t *testing.T) {
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
+	ParseConfig()
+	git := GetGitlabClient()
+	path,newNameSpaceId := "stevek-test-temp", 558
+	_, _, err := git.Projects.CreateProject(&gitlab.CreateProjectOptions{
+		Path: &path,
+		NamespaceID: &newNameSpaceId,
+	})
+	log.Printf("DEBUG: %s\n", err.Error())
+	// u.CheckErr(err, "Test CreateProject")
+}
+func TestSearchProject(t *testing.T) {
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
+	ParseConfig()
+	git := GetGitlabClient()
+	path := "stevek-test-temp"
+	ps, _, err := git.Projects.ListProjects(&gitlab.ListProjectsOptions {
+		Search: &path,
+	})
+	u.CheckErrNonFatal(err, "")
+	log.Printf("DEBUG: %s\n", u.JsonDump(ps, "  "))
+	// u.CheckErr(err, "Test CreateProject")
+}

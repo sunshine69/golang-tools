@@ -25,7 +25,7 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, tempPrj *gitlab.P
 			oldImage := t.Location
 			oldImagesList = append(oldImagesList, oldImage)
 			extraName := u.Ternary( repoReg.Name == "", "", "/" + repoReg.Name )
-			newImage := fmt.Sprintf(`%s%s:%s`, GetContainerRegistryBaseLocation(git, tempPrj.ID), extraName, t )
+			newImage := fmt.Sprintf(`%s%s:%s`, GetContainerRegistryBaseLocation(git, tempPrj.ID), extraName, t.Name )
 			u.RunSystemCommand( fmt.Sprintf("docker pull %s", oldImage) , true)
 			u.RunSystemCommand(fmt.Sprintf("docker tag %s  %s", oldImage, newImage ), true)
 			u.RunSystemCommand( fmt.Sprintf("docker push %s", newImage), true )
@@ -46,7 +46,13 @@ func BackupProjectRegistryImages(git *gitlab.Client, p *gitlab.Project) *gitlab.
 	tempPrj, _, err := git.Projects.CreateProject(&gitlab.CreateProjectOptions{
 		Path: &tempPrjPath,
 		NamespaceID: &newNameSpaceId,
-	}); u.CheckErr(err, "BackupProjectRegistryImages CreateProject")
+	})
+	if u.CheckNonErrIfMatch(err, "has already been taken", "BackupProjectRegistryImages") != nil {
+		ps, _, err := git.Projects.ListProjects(&gitlab.ListProjectsOptions{
+			Search: &tempPrjPath,
+		}); u.CheckErr(err, "BackupProjectRegistryImages ListProjects")
+		tempPrj = ps[0]
+	}
 	MoveProjectRegistryImages(git, p, tempPrj)
 	return tempPrj
 }
@@ -98,12 +104,21 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int) {
 					ParentID: &parentID,
 					Path: &eg.Path,
 					Name: &eg.Path, //Simplify, maybe search replace - with space and Captialize word?
-				}); u.CheckErr(err, "CreateGroup")
+				})
+				if u.CheckNonErrIfMatch(err, "has already been taken", "") != nil {
+					_gs,_,err := git.Groups.ListGroups(&gitlab.ListGroupsOptions{
+						Search: &eg.Path,
+						SkipGroups: []int{eg.ID},
+					}); u.CheckErr(err, "TransferProject CreateGroup")
+					lastNewGroup = _gs[0]
+				}
+				GitlabNamespaceNew(lastNewGroup.FullPath) //Update the table so re-run will detect that
 			} else {
 				log.Printf("Group exist, copy vars over")
 				lastNewGroup,_,err = git.Groups.GetGroup(gs[0].GitlabNamespaceId, nil)
 				u.CheckErr(err, "TransferProject GetGroup")
 			}
+			log.Printf("[DEBUG] lastNewGroup %s\n", u.JsonDump(lastNewGroup, "  "))
 			CopyGroupVars(git, eg, lastNewGroup)
 			parentID = lastNewGroup.ID
 		}

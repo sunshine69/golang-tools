@@ -55,7 +55,7 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, err := os.Create(lockFileName); u.CheckErr(err, "UpdateAllWrapper create clock file")
-	logFile := "RunFunction"+func_name+"-"+ses.Values["user"].(string)+"-"+time.Now().Format(u.CleanStringDateLayout)+".txt"
+	logFile := "RunFunction-"+func_name+"-"+ses.Values["user"].(string)+"-"+time.Now().Format(u.CleanStringDateLayout)+".txt"
 	f, err := os.OpenFile("log/" + logFile, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
 	u.CheckErr(err, "OpenFile Log") // Close file inside each go routine
 
@@ -126,7 +126,7 @@ func RunTransferProject(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	ses, _ := SessionStore.Get(r, SessionName)
 	lockFileName := fmt.Sprintf("/tmp/RunTransferProject_%s.lock", vars["project_id"])
-	logFile := "RunFunction RunTransferProject"+"-"+ses.Values["user"].(string)+"-"+time.Now().Format(u.CleanStringDateLayout)+".txt"
+	logFile := "RunFunction-RunTransferProject"+"-"+ses.Values["user"].(string)+"-"+time.Now().Format(u.CleanStringDateLayout)+".txt"
 	if ok, err := u.FileExists(lockFileName); ok && (err == nil) {
 		previousLogfile, _ := ioutil.ReadFile(lockFileName)
 		fmt.Fprintf(w, "RunTransferProject already running - lock file %s - <a href='/log/%s'>Log</a>", lockFileName, string(previousLogfile))
@@ -138,7 +138,7 @@ func RunTransferProject(w http.ResponseWriter, r *http.Request) {
 		log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout)
 		git := GetGitlabClient()
 		project_id, _ := strconv.Atoi( vars["project_id"])
-		log.Printf("Fake Started with is %d - \n", project_id)
+		log.Printf("TransferProject Started with is %d - \n", project_id)
 		TransferProject(git, project_id)
 		u.Sleep("1m")
 		os.Remove(lockFileName)
