@@ -16,7 +16,7 @@ func TestGetGitlabProject(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
 	ParseConfig()
 	git := GetGitlabClient()
-	p, _, err := git.Projects.GetProject(2084, nil); u.CheckErr(err, "GetProject")
+	p, _, err := git.Projects.GetProject(208000, nil); u.CheckErr(err, "GetProject")
 	log.Printf("[DEBUG] TestGetGitlabProject %s\n", u.JsonDump(p, "  "))
 
 }
