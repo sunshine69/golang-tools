@@ -65,11 +65,7 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int) {
 	gitlabProject, _, err := git.Projects.GetProject(gitlabProjectId, nil)
 	u.CheckErr(err, "TransferProject Projects.GetProject")
 	// Get the domain for this project from Project_Domain relationship
-	pd := ProjectDomainGet(map[string]string{"where": fmt.Sprintf("project_id = %d", gitlabProject.ID)})
-	// Make sure One project only link with One root domain
-	if len(pd) > 1 {
-		log.Fatalf("[ERROR] A project should not have more than one domains. Project %s\n", u.JsonDump( ProjectGet(map[string]string{"where":fmt.Sprintf("pid = %d", gitlabProjectId)}), "  "))
-	}
+	pd := ProjectDomainGet(map[string]string{"where": fmt.Sprintf("project_id = %d ORDER BY ts DESC LIMIT 1", gitlabProject.ID)})
 	d := Domain{}
 	d.GetOne(map[string]string{"where": fmt.Sprintf("id = %d", pd[0].DomainId)})
 	if d.GitlabNamespaceId == 0 {
@@ -128,7 +124,7 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int) {
 		log.Fatalf("[ERROR] gitlab response is %s\n", u.JsonDump(res, "  "))
 	}
 	project.DomainOwnershipConfirmed = 1; project.Update()
-	
+
 	log.Println("Move container image from temp")
 	MoveProjectRegistryImages(git, tempPrj, gitlabProject)
 	log.Println("Delete temporary project")

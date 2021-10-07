@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"encoding/csv"
 	"os"
@@ -31,13 +32,15 @@ func UpdateProjectDomainOneRow(git *gitlab.Client, idx int, l []string) {
     if l[3] != "" { log.Printf("DEBUG %s\n", u.JsonDump(l, "  ")) }
 	if l[0] == "" || l[1] == "" || l[3] == ""  { return  }
 	p := ProjectNew(l[1])
-	if p.Pid == 0 {return }
+	if p.Pid == 0 { return }
 	d := DomainNew(l[3])
 	if d.GitlabNamespaceId == 0 {return }
 	pd := ProjectDomainNew(p.Pid, d.GitlabNamespaceId)
 	//Update project migration here so we don't have to run full update often
 	UpdateProjectMigrationStatusOneRow(git, &p)
 	log.Printf("[DEBUG] ProjectDomainNew %s\n", u.JsonDump(pd, "  "))
+	log.Printf("Cleaning up table and only keep last 10 rows")
+	pd.Delete(map[string]string{"where":fmt.Sprintf("project_id = %d AND id not in (SELECT id FROM project_domain WHERE project_id = %d ORDER BY ts DESC LIMIT 10)", p.Pid, p.Pid)})
 }
 func UpdateProjectDomainFromExcelNext(git *gitlab.Client, filename string) {
 	f, err := excelize.OpenFile(filename)
