@@ -86,7 +86,6 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int) {
 		log.Printf("Matched - Project already be in correct group, do nothing\n")
 		return
 	}
-
 	parentID := gitlabDomainGroup.ID
 	lastNewGroup := gitlabDomainGroup
 	//Replicate group path from old project => new one
@@ -127,7 +126,23 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int) {
 	// all before. Delete/backup is handled in MoveProjectRegistryImages func
 	log.Println("Backup container reg and remove all existing tags")
 	tempPrj := BackupProjectRegistryImages(git, gitlabProject)
-
+	//Check the current project and be sure we don't have any image tags exists before transferring
+	for {
+		returnTag := true
+		registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(gitlabProject.ID, &gitlab.ListRegistryRepositoriesOptions{
+			ListOptions: gitlab.ListOptions{
+				Page: 1, PerPage: 500,
+			},
+			Tags: &returnTag,
+			TagsCount: &returnTag,
+		}); u.CheckErr(err, "MoveProjectRegistryImages ListRegistryRepositories")
+		if len(registryRepos) == 0 {
+			log.Printf("No repo, no tags")
+			break
+		} else {
+			u.Sleep("15s")
+		}
+	}
 	log.Printf("Transfer project to a new name space")
 	_, res, err := git.Projects.TransferProject(gitlabProject.ID, &gitlab.TransferProjectOptions{
 		Namespace: lastNewGroup.ID,

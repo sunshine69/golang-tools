@@ -26,6 +26,9 @@ func ParseConfig() {
 	if SearchStr == "" && AppConfig["SearchStr"].(string) != "" {
 		SearchStr = AppConfig["SearchStr"].(string)
 	}
+	if SENDGRID_API_KEY, ok := AppConfig["SENDGRID_API_KEY"].(string); ok {
+		os.Setenv("SENDGRID_API_KEY", SENDGRID_API_KEY)
+	}
 }
 func DumpOrUpdateProject(git *gitlab.Client, SearchStr string) {
 	log.Printf("DumpOrUpdateProject Started\n")
@@ -95,9 +98,10 @@ func DumpOrUpdateProject(git *gitlab.Client, SearchStr string) {
 		gp, _, err := projectService.GetProject(p.Pid, nil)
 		if u.CheckNonErrIfMatch(err, "404 Project Not Found", "") != nil {
 			p.Delete(nil)
-		}
-		if p.PathWithNamespace != gp.PathWithNamespace { //This entry in the DB no longer up-to-date
-			p.Delete(nil)
+		} else{
+			if p.PathWithNamespace != gp.PathWithNamespace { //This entry in the DB no longer up-to-date
+				p.Delete(nil)
+			}
 		}
 	}
 	log.Printf("DumpOrUpdateProject Done\n")

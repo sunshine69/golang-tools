@@ -31,6 +31,11 @@ import (
 	"gopkg.in/yaml.v2"
 	"database/sql"
 	mr "math/rand"
+	"encoding/base64"
+	nm "net/mail"
+	"github.com/sendgrid/sendgrid-go"
+	"github.com/sendgrid/sendgrid-go/helpers/mail"
+	"path"
 )
 
 //TimeISO8601LayOut
@@ -44,6 +49,43 @@ const (
 var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
+func ReadFileToBase64Content(filename string) string {
+	f, _ := os.Open(filename)
+    reader := bufio.NewReader(f)
+    content, _ := ioutil.ReadAll(reader)
+    // Encode as base64.
+    return base64.StdEncoding.EncodeToString(content)
+}
+func SendMailSendGrid(from, to, subject, plainTextContent, htmlContent string, attachments []string) error {
+	addr, err := nm.ParseAddress(from)
+	if err != nil {
+		return err
+	}
+	mailfrom := mail.NewEmail(addr.Name, addr.Address)
+	addr, err = nm.ParseAddress(to)
+	if err != nil {
+		return err
+	}
+	mailto := mail.NewEmail(addr.Name, addr.Address)
+	message := mail.NewSingleEmail(mailfrom, subject, mailto, plainTextContent, htmlContent)
+	for _, filepath := range attachments{
+		filename := path.Base(filepath)
+		message = message.AddAttachment(&mail.Attachment{
+			Filename: filename,
+			Content: ReadFileToBase64Content(filepath),
+		} )
+	}
+	client := sendgrid.NewSendClient(os.Getenv("SENDGRID_API_KEY"))
+	response, err := client.Send(message)
+	if err != nil {
+		log.Printf("[DEBUG] %v", err)
+	} else {
+		fmt.Printf("[DEBUG] %v", response.StatusCode)
+		fmt.Printf("[DEBUG] %v", response.Body)
+		fmt.Printf("[DEBUG] %v", response.Headers)
+	}
+	return err
+}
 func FileTouch(fileName string) error {
 	_, err := os.Stat(fileName)
     if os.IsNotExist(err) {

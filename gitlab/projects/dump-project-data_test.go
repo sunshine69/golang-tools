@@ -202,3 +202,24 @@ func TestSearchProject(t *testing.T) {
 	log.Printf("DEBUG: %s\n", u.JsonDump(ps, "  "))
 	// u.CheckErr(err, "Test CreateProject")
 }
+func TestWaitProjectContainerRegistryTagsCountEqualZero(t *testing.T) {
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
+	ParseConfig()
+	git := GetGitlabClient()
+	returnTag := true
+	for {
+		registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(2414, &gitlab.ListRegistryRepositoriesOptions{
+			ListOptions: gitlab.ListOptions{
+				Page: 1, PerPage: 500,
+			},
+			Tags: &returnTag,
+			TagsCount: &returnTag,
+		}); u.CheckErr(err, "MoveProjectRegistryImages ListRegistryRepositories")
+		if len(registryRepos) == 0 {
+			log.Printf("No repo, no tags")
+			break
+		} else {
+			u.Sleep("15s")
+		}
+	}
+}

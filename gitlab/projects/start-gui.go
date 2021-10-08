@@ -125,8 +125,9 @@ func DisplayTransferProjectConsole(w http.ResponseWriter, r *http.Request) {
 func RunTransferProject(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	ses, _ := SessionStore.Get(r, SessionName)
+	user := ses.Values["user"].(string)
 	lockFileName := fmt.Sprintf("/tmp/RunTransferProject_%s.lock", vars["project_id"])
-	logFile := "RunFunction-RunTransferProject"+"-"+ses.Values["user"].(string)+"-"+time.Now().Format(u.CleanStringDateLayout)+".txt"
+	logFile := "RunFunction-RunTransferProject"+"-"+user+"-"+time.Now().Format(u.CleanStringDateLayout)+".txt"
 	if ok, err := u.FileExists(lockFileName); ok && (err == nil) {
 		previousLogfile, _ := ioutil.ReadFile(lockFileName)
 		fmt.Fprintf(w, "RunTransferProject already running - lock file %s - <a href='/log/%s'>Log</a>", lockFileName, string(previousLogfile))
@@ -140,7 +141,8 @@ func RunTransferProject(w http.ResponseWriter, r *http.Request) {
 		project_id, _ := strconv.Atoi( vars["project_id"])
 		log.Printf("TransferProject Started with is %d - \n", project_id)
 		TransferProject(git, project_id)
-		u.Sleep("1m")
+
+		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("ProjectID %d Migration Status", project_id), "", fmt.Sprintf("Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{"log/"+logFile} )
 		os.Remove(lockFileName)
 	}()
 	fmt.Fprintf(w, "Started Project ID %s - <a href='/log/%s'>Log</a>", vars["project_id"], logFile)
