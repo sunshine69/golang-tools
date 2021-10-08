@@ -29,7 +29,8 @@ func UpdateGroupMember(git *gitlab.Client) {
 				domain.Update()
 			}
 		}
-		adminUserId := int(AppConfig["admin_user_id"].(float64))
+		// adminUserId := int(AppConfig["admin_user_id"].(float64)) // not sure at one time it says float and now says int <yuk>
+		adminUserId := AppConfig["admin_user_id"].(int)
 		accessLevel := GitlabPermissionLookup["MaintainerPermissions"]
 		log.Printf("Allow user ID %d to be a maintainer of groupID %d required by the project transfer ops\n", adminUserId, aGroup.ID)
 		_, _, err = git.GroupMembers.AddGroupMember(aGroup.ID, &gitlab.AddGroupMemberOptions{
