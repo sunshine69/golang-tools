@@ -250,11 +250,22 @@ func BasicAuth(handler http.HandlerFunc, username, password, realm string) http.
 func RunScheduleTasks() {
 	ctab := crontab.New() // create cron table
 	// AddJob and test the errors
-	if err := ctab.AddJob("1 0 1 * *", DatabaseMaintenance); err != nil {
+	if err := ctab.AddJob("1 0 1 * *", CronUpdateAllWrapper); err != nil {
 		log.Printf("[WARN] - Can not add maintanance job - %v\n", err)
 	}
 }
-// TODO
+func CronUpdateAllWrapper() {
+	func_name := "update-all"
+	lockFileName := fmt.Sprintf("/tmp/%s.lock", func_name)
+	if ok, err := u.FileExists(lockFileName); ok && (err == nil) {
+		return
+	}
+	_, err := os.Create(lockFileName); u.CheckErr(err, "UpdateAllWrapper create clock file")
+	logFile := "RunFunction-"+func_name+"-"+"cron-user"+"-"+time.Now().Format(u.CleanStringDateLayout)+".txt"
+	f, err := os.OpenFile("log/" + logFile, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+	u.CheckErr(err, "OpenFile Log")
+	log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); UpdateAllWrapper(GetGitlabClient(), ""); os.Remove(lockFileName)
+}
 func DatabaseMaintenance() {
 	conn := GetDBConn()
 	defer conn.Close()
