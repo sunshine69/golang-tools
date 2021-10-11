@@ -40,7 +40,37 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, tempPrj *gitlab.P
 		u.RunSystemCommand(fmt.Sprintf(`docker rmi %s`, _oldImage), false)
 	}
 }
-func BackupProjectRegistryImages(git *gitlab.Client, p *gitlab.Project) *gitlab.Project {
+func MoveProjectRegistryImagesUseShell(git *gitlab.Client, currentPrj, tempPrj *gitlab.Project, user string ) {
+	returnTag := true
+	registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(currentPrj.ID, &gitlab.ListRegistryRepositoriesOptions{
+		ListOptions: gitlab.ListOptions{
+			Page: 1, PerPage: 500,
+		},
+		Tags: &returnTag,
+		TagsCount: &returnTag,
+	}); u.CheckErr(err, "MoveProjectRegistryImages ListRegistryRepositories")
+	for _, repoReg := range registryRepos {
+		repoImage := repoReg.Location
+		extraName := u.Ternary( repoReg.Name == "", "", "/" + repoReg.Name )
+		newImage := fmt.Sprintf(`%s%s`, GetContainerRegistryBaseLocation(git, tempPrj.ID), extraName)
+		u.RunSystemCommand(fmt.Sprintf("docker pull %s -a", repoImage), true)
+		log.Printf("Pull %s completed\nStart to push ...\n", repoImage)
+
+		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), fmt.Sprintf("We are going to push images From %s => %s", currentPrj.NameWithNamespace, tempPrj.NameWithNamespace), "", []string{} )
+
+		u.RunSystemCommand(fmt.Sprintf(`docker images %s --format "docker tag {{.Repository}}:{{.Tag}} %s:{{.Tag}} && docker push %s:{{.Tag}}" | bash `, repoImage, newImage, newImage ), true)
+		log.Printf("Push %s completed\nStart to clean up ...\n", newImage)
+
+		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), fmt.Sprintf("We are going to delete the repository of the project name %s, ID %d", currentPrj.NameWithNamespace, currentPrj.ID), "", []string{} )
+
+		_, err := git.ContainerRegistry.DeleteRegistryRepository(currentPrj.ID, repoReg.ID, nil)
+		u.CheckErr(err, "MoveProjectRegistryImages DeleteRegistryRepository " + repoReg.String())
+
+		u.RunSystemCommand(fmt.Sprintf(`docker images %s --format "docker rmi {{.Repository}}:{{.Tag}}" | bash`, repoImage), true)
+		log.Printf("Cleanup %s completed\n", repoImage)
+	}
+}
+func BackupProjectRegistryImages(git *gitlab.Client, p *gitlab.Project, user string) *gitlab.Project {
 	tempPrjPath := fmt.Sprintf("%s-temp", p.Path)
 	newNameSpaceId := ProjectDomainGet(map[string]string{"where": fmt.Sprintf("project_id = %d", p.ID)})[0].DomainId
 	tempPrj, _, err := git.Projects.CreateProject(&gitlab.CreateProjectOptions{
@@ -53,7 +83,7 @@ func BackupProjectRegistryImages(git *gitlab.Client, p *gitlab.Project) *gitlab.
 		}); u.CheckErr(err, "BackupProjectRegistryImages ListProjects")
 		tempPrj = ps[0]
 	}
-	MoveProjectRegistryImages(git, p, tempPrj)
+	MoveProjectRegistryImagesUseShell(git, p, tempPrj, user)
 	return tempPrj
 }
 // Take a project_id and automate the transfer process. This should be run on a dashboard manually per project
@@ -66,7 +96,7 @@ func BackupProjectRegistryImages(git *gitlab.Client, p *gitlab.Project) *gitlab.
 
 // This should run after the domain creation - that is no domain in the domain table having the gitlab_ns_id is 0 and has_team is 0. The func UpdateTeamDomainFromCSVNext should satisfy that.
 
-func TransferProject(git *gitlab.Client, gitlabProjectId int) {
+func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 	log.Printf("TransferProject ID %d started\n", gitlabProjectId)
 	gitlabProject, _, err := git.Projects.GetProject(gitlabProjectId, nil)
 	u.CheckErr(err, "TransferProject Projects.GetProject")
@@ -125,7 +155,7 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int) {
 	// Transfer project won't work if the current project still have registry tag. We need to delete them
 	// all before. Delete/backup is handled in MoveProjectRegistryImages func
 	log.Println("Backup container reg and remove all existing tags")
-	tempPrj := BackupProjectRegistryImages(git, gitlabProject)
+	tempPrj := BackupProjectRegistryImages(git, gitlabProject, user)
 	//Check the current project and be sure we don't have any image tags exists before transferring
 	for {
 		returnTag := true
@@ -153,7 +183,7 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int) {
 	project.DomainOwnershipConfirmed = 1; project.Update()
 
 	log.Println("Move container image from temp")
-	MoveProjectRegistryImages(git, tempPrj, gitlabProject)
+	MoveProjectRegistryImagesUseShell(git, tempPrj, gitlabProject, user)
 	log.Println("Delete temporary project")
 	_, err = git.Projects.DeleteProject(tempPrj.ID, nil)
 	u.CheckErr(err, "TransferProject DeleteProject")

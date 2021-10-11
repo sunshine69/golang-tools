@@ -140,7 +140,10 @@ func RunTransferProject(w http.ResponseWriter, r *http.Request) {
 		git := GetGitlabClient()
 		project_id, _ := strconv.Atoi( vars["project_id"])
 		log.Printf("TransferProject Started with is %d - \n", project_id)
-		TransferProject(git, project_id)
+
+		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("ProjectID %d Migration Started", project_id), "", fmt.Sprintf("Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{"log/"+logFile} )
+
+		TransferProject(git, project_id, user)
 
 		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("ProjectID %d Migration Status", project_id), "", fmt.Sprintf("Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{"log/"+logFile} )
 		os.Remove(lockFileName)

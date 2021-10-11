@@ -223,3 +223,8 @@ func TestWaitProjectContainerRegistryTagsCountEqualZero(t *testing.T) {
 		}
 	}
 }
+func TestParsingConfig(t *testing.T) {
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
+	AppConfig := u.ParseConfig(ConfigFile)
+	log.Printf("%d\n", AppConfig["admin_user_id"])
+}
