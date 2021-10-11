@@ -278,7 +278,7 @@ func BasicAuthHandler(handler http.Handler, username, password, realm string) ht
 func RunScheduleTasks() {
 	ctab := crontab.New() // create cron table
 	// AddJob and test the errors
-	if err := ctab.AddJob("1 0 1 * *", CronUpdateAllWrapper); err != nil {
+	if err := ctab.AddJob("1 0 * * *", CronUpdateAllWrapper); err != nil {
 		log.Printf("[WARN] - Can not add maintanance job - %v\n", err)
 	}
 }
