@@ -250,7 +250,7 @@ func BasicAuth(handlerFunc http.HandlerFunc, username, password, realm string) h
     }
 }
 //The http.Handler wrapper technique. I feel awkward but not yet having time to reduce duplicate code here
-//Maybe should get the user and password, realm via session instead.
+//Maybe should get the user and password, realm via session or database instead.
 func BasicAuthHandler(handler http.Handler, username, password, realm string) http.Handler {
     return http.HandlerFunc( func(w http.ResponseWriter, r *http.Request) {
         user, pass, ok := r.BasicAuth()
