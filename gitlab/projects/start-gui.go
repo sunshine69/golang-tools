@@ -155,7 +155,7 @@ func HandleRequests() {
 	router := mux.NewRouter()
 
 	staticFS := http.FileServer(http.Dir("./log"))
-    router.PathPrefix("/log/").Handler(http.StripPrefix("/log/", staticFS))
+    router.PathPrefix("/log/").Handler( BasicAuthHandler(http.StripPrefix("/log/", staticFS), AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm") )
 
 	router.HandleFunc("/", BasicAuth(homePage, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("GET")
 	router.HandleFunc("/run/{func_name}", BasicAuth(RunFunction, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("POST")
@@ -225,7 +225,7 @@ func isAuthorized(endpoint func(http.ResponseWriter, *http.Request)) http.Handle
 	})
 }
 //This func is used to load the home page and generate tempo token for the ajax post
-func BasicAuth(handler http.HandlerFunc, username, password, realm string) http.HandlerFunc {
+func BasicAuth(handlerFunc http.HandlerFunc, username, password, realm string) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
         user, pass, ok := r.BasicAuth()
         if !ok || subtle.ConstantTimeCompare([]byte(pass), []byte(password)) != 1 {
@@ -246,10 +246,35 @@ func BasicAuth(handler http.HandlerFunc, username, password, realm string) http.
 		session.Values["user"] = user
 		session.Values["token"] = tempToken
 		u.CheckErr( session.Save(r, w), "BasicAuth session.Save" )
-        handler(w, r)
+        handlerFunc(w, r)
     }
 }
-// TODO
+//The http.Handler wrapper technique. I feel awkward but not yet having time to reduce duplicate code here
+//Maybe should get the user and password, realm via session instead.
+func BasicAuthHandler(handler http.Handler, username, password, realm string) http.Handler {
+    return http.HandlerFunc( func(w http.ResponseWriter, r *http.Request) {
+        user, pass, ok := r.BasicAuth()
+        if !ok || subtle.ConstantTimeCompare([]byte(pass), []byte(password)) != 1 {
+            w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
+            w.WriteHeader(401)
+            w.Write([]byte("Unauthorised.\n"))
+            return
+        }
+		//This is used in Ajax Post auth header. See func isAuthorized
+		tempToken := u.GenRandomString(32)
+		// ioutil.WriteFile("/tmp/" + fmt.Sprintf("%x", userHash), []byte(tempToken), 0750)
+		session, _ := SessionStore.Get(r, SessionName)
+		session.Options = &sessions.Options{
+			// Path:     "/",
+			MaxAge:   3600,
+			HttpOnly: true,
+		}
+		session.Values["user"] = user
+		session.Values["token"] = tempToken
+		u.CheckErr( session.Save(r, w), "BasicAuth session.Save" )
+		handler.ServeHTTP(w, r)
+    })
+}
 func RunScheduleTasks() {
 	ctab := crontab.New() // create cron table
 	// AddJob and test the errors
