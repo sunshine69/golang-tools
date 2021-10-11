@@ -61,7 +61,7 @@ func MoveProjectRegistryImagesUseShell(git *gitlab.Client, currentPrj, tempPrj *
 		u.RunSystemCommand(fmt.Sprintf(`docker images %s --format "docker tag {{.Repository}}:{{.Tag}} %s:{{.Tag}} && docker push %s:{{.Tag}}" | bash `, repoImage, newImage, newImage ), true)
 		log.Printf("Push %s completed\nStart to clean up ...\n", newImage)
 
-		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), fmt.Sprintf("We are going to delete the repository of the project name %s, ID %d", currentPrj.NameWithNamespace, currentPrj.ID), "", []string{} )
+		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), fmt.Sprintf("We are going to delete the container registry repository of the project name %s, ID %d", currentPrj.NameWithNamespace, currentPrj.ID), "", []string{} )
 
 		_, err := git.ContainerRegistry.DeleteRegistryRepository(currentPrj.ID, repoReg.ID, nil)
 		u.CheckErr(err, "MoveProjectRegistryImages DeleteRegistryRepository " + repoReg.String())
