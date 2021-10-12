@@ -118,11 +118,12 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 	}
 	parentID := gitlabDomainGroup.ID
 	lastNewGroup := gitlabDomainGroup
+	nonCopyableVars := []*gitlab.GroupVariable{}
 	//Replicate group path from old project => new one
 	for idx, eg := range existingGroupList{
 		if idx == 0 {
 			log.Println("Copy the group vars - existingRootGroup => New Root Group")
-			CopyGroupVars(git, eg, gitlabDomainGroup)
+			nonCopyableVars = append(nonCopyableVars, CopyGroupVars(git, eg, gitlabDomainGroup)... )
 		} else {
 			log.Printf("Check if sub group exists in the new tree")
 			gs := GitlabNamespaceGet(map[string]string{"where":fmt.Sprintf("parent_id = %d AND path = '%s' ", parentID, eg.Path)})
@@ -148,10 +149,11 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 				u.CheckErr(err, "TransferProject GetGroup")
 			}
 			log.Printf("[DEBUG] lastNewGroup %s\n", u.JsonDump(lastNewGroup, "  "))
-			CopyGroupVars(git, eg, lastNewGroup)
+			nonCopyableVars = append(nonCopyableVars,  CopyGroupVars(git, eg, lastNewGroup)... )
 			parentID = lastNewGroup.ID
 		}
 	}
+	log.Printf("[DEBUG] nonCopyableVars: %s\n", u.JsonDump(nonCopyableVars, "  "))
 	// Transfer project won't work if the current project still have registry tag. We need to delete them
 	// all before. Delete/backup is handled in MoveProjectRegistryImages func
 	log.Println("Backup container reg and remove all existing tags")
@@ -181,6 +183,12 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 		log.Fatalf("[ERROR] gitlab response is %s\n", u.JsonDump(res, "  "))
 	}
 	project.DomainOwnershipConfirmed = 1; project.Update()
+
+	log.Printf("[DEBUG] Copy nonCopyableVars into project\n")
+	nonCopyableVars1 := CopyGroupVarIntoProject(git, nonCopyableVars, gitlabProject)
+	if len(nonCopyableVars1) > 0 {
+		log.Printf("[WARN] Can not copy these vars, it does exist but having different values\n%s\n", u.JsonDump(nonCopyableVars1, "  "))
+	}
 
 	log.Println("Move container image from temp")
 	MoveProjectRegistryImagesUseShell(git, tempPrj, gitlabProject, user)

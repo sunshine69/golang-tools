@@ -6,8 +6,10 @@ import (
 	"github.com/xanzy/go-gitlab"
 )
 //Copy all vars from one group to other if destination does not have the same vars
-func CopyGroupVars(git *gitlab.Client ,groupA, groupB *gitlab.Group) {
+//Return the list of keys that can not be copied because target exists but having different value
+func CopyGroupVars(git *gitlab.Client ,groupA, groupB *gitlab.Group) []*gitlab.GroupVariable {
 	gvSrv := git.GroupVariables
+	output := []*gitlab.GroupVariable{}
 	gVars,_,err := gvSrv.ListVariables(groupA.ID, nil); u.CheckErr(err, "CopyGroupVars ListVariables")
 	for _, gv := range gVars {
 		gbv, _, err := gvSrv.GetVariable(groupB.ID, gv.Key, nil)
@@ -15,6 +17,7 @@ func CopyGroupVars(git *gitlab.Client ,groupA, groupB *gitlab.Group) {
 			log.Printf("Target group var key: %s val: %s exists\n", gbv.Key, gbv.Value)
 			if gv.Value != gbv.Value {
 				log.Printf("[WARNING] Key exists but value are different\n")
+				output = append(output, gv)
 			} else {
 				log.Printf("Value match, skipping")
 			}
@@ -30,4 +33,35 @@ func CopyGroupVars(git *gitlab.Client ,groupA, groupB *gitlab.Group) {
 		}); u.CheckErr(err, "CopyGroupVars CreateVariable")
 		log.Printf("Created new var in group %s\n%s\n", groupB.Name, u.JsonDump(gbv, "  "))
 	}
+	return output
+}
+// Copy vars from one project to other. If onlyKeyList is provided then only copy these keys
+// otherwise copy all.
+// Return list of key that can not be copied because target key exists and having different values
+func CopyGroupVarIntoProject(git *gitlab.Client, varList []*gitlab.GroupVariable, p *gitlab.Project) []*gitlab.GroupVariable {
+	pvSrv := git.ProjectVariables
+	output := []*gitlab.GroupVariable{}
+	for _, gv := range varList {
+		gbv, _, err := pvSrv.GetVariable(p.ID, gv.Key, nil)
+		if err == nil {
+			log.Printf("Target project var key: %s val: %s exists\n", gbv.Key, gbv.Value)
+			if gv.Value != gbv.Value {
+				log.Printf("[WARNING] Key exists but value are different\n")
+				output = append(output, gv)
+			} else {
+				log.Printf("Value match, skipping")
+			}
+			continue
+		}
+		gbv, _, err = pvSrv.CreateVariable(p.ID, &gitlab.CreateProjectVariableOptions {
+			Key: &gv.Key,
+			Value: &gv.Value,
+			VariableType: &gv.VariableType,
+			EnvironmentScope: &gv.EnvironmentScope,
+			Masked: &gv.Masked,
+			Protected: &gv.Protected,
+		}); u.CheckErr(err, "CopyProjectVars CreateVariable")
+		log.Printf("Created new var in project %s\n%s\n", p.Name, u.JsonDump(gbv, "  "))
+	}
+	return output
 }
