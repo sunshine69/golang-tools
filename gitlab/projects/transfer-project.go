@@ -61,12 +61,12 @@ func MoveProjectRegistryImagesUseShell(git *gitlab.Client, currentPrj, tempPrj *
 		u.RunSystemCommand(fmt.Sprintf(`docker images %s --format "docker tag {{.Repository}}:{{.Tag}} %s:{{.Tag}} && docker push %s:{{.Tag}}" | bash `, repoImage, newImage, newImage ), true)
 		log.Printf("Push %s completed\nStart to clean up ...\n", newImage)
 
-		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), fmt.Sprintf("We are going to delete the container registry repository of the project name %s, ID %d", currentPrj.NameWithNamespace, currentPrj.ID), "", []string{} )
+		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", fmt.Sprintf("We are going to delete the container registry repository of the project name %s, ID %d. <b>This means your production k8s if using the old image will get errors. To minimize the outage of scaling please keep an eye for next email for action</b>", currentPrj.NameWithNamespace, currentPrj.ID), []string{} )
 
 		_, err := git.ContainerRegistry.DeleteRegistryRepository(currentPrj.ID, repoReg.ID, nil)
 		u.CheckErr(err, "MoveProjectRegistryImages DeleteRegistryRepository " + repoReg.String())
 
-		u.RunSystemCommand(fmt.Sprintf(`docker images %s --format "docker rmi {{.Repository}}:{{.Tag}}" | bash`, repoImage), true)
+		go u.RunSystemCommand(fmt.Sprintf(`docker images %s --format "docker rmi {{.Repository}}:{{.Tag}}" | bash`, repoImage), true)
 		log.Printf("Cleanup %s completed\n", repoImage)
 	}
 }
@@ -189,6 +189,8 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 	if len(nonCopyableVars1) > 0 {
 		log.Printf("[WARN] Can not copy these vars, it does exist but having different values\n%s\n", u.JsonDump(nonCopyableVars1, "  "))
 	}
+
+	u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", gitlabProject.NameWithNamespace), "", fmt.Sprintf("<h2>Migration %s completed</h2> However we still need to move the images back. <b>You can start to rebuild and deploy now</b>. If you do not want to rebuild and just want to re-deploy qa and prod, check the container registry to be sure the latest image tag has been copied over and you can run the deploy job manualy.", gitlabProject.NameWithNamespace ), []string{} )
 
 	log.Println("Move container image from temp")
 	MoveProjectRegistryImagesUseShell(git, tempPrj, gitlabProject, user)

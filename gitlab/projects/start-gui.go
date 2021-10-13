@@ -145,10 +145,10 @@ func RunTransferProject(w http.ResponseWriter, r *http.Request) {
 
 		TransferProject(git, project_id, user)
 
-		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("ProjectID %d Migration Status", project_id), "", fmt.Sprintf("Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{"log/"+logFile} )
+		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("ProjectID %d Migration Status", project_id), "", fmt.Sprintf("Migration fully completed. Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{"log/"+logFile} )
 		os.Remove(lockFileName)
 	}()
-	fmt.Fprintf(w, "Started Project ID %s - <a href='/log/%s'>Log</a>", vars["project_id"], logFile)
+	fmt.Fprintf(w, "Started Project ID %s - <a href='/log/%s'>Log</a><br/>Also check your email for notification.", vars["project_id"], logFile)
 }
 //HandleRequests -
 func HandleRequests() {
