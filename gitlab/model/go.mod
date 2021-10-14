@@ -6,8 +6,9 @@ replace localhost.com/utils => ../../utils
 
 require (
 	github.com/mattn/go-sqlite3 v1.14.8
+	github.com/sunshine69/golang-tools/utils v0.0.0-20211013131004-c7ad428806b2
 	github.com/sunshine69/sqlstruct v0.0.0-20210630145711-dae28ed37023
-	localhost.com/utils v0.0.0-00010101000000-000000000000
+	github.com/xanzy/go-gitlab v0.51.1
 )
 
 require (
@@ -19,7 +20,8 @@ require (
 	github.com/json-iterator/go v1.1.11 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
-	github.com/xanzy/go-gitlab v0.51.1 // indirect
+	github.com/sendgrid/rest v2.6.5+incompatible // indirect
+	github.com/sendgrid/sendgrid-go v3.10.2+incompatible // indirect
 	golang.org/x/net v0.0.0-20210903162142-ad29c8ab022f // indirect
 	golang.org/x/oauth2 v0.0.0-20181106182150-f42d05182288 // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect

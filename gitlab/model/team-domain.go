@@ -5,7 +5,7 @@ import (
 	"log"
 	"strings"
 	"github.com/sunshine69/sqlstruct"
-	u "localhost.com/utils"
+	u "github.com/sunshine69/golang-tools/utils"
 )
 
 type TeamDomain struct {

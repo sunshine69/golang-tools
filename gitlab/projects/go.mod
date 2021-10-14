@@ -34,6 +34,7 @@ require (
 	github.com/richardlehane/msoleps v1.0.1 // indirect
 	github.com/sendgrid/rest v2.6.5+incompatible // indirect
 	github.com/sendgrid/sendgrid-go v3.10.2+incompatible // indirect
+	github.com/sunshine69/golang-tools/utils v0.0.0-20211013131004-c7ad428806b2 // indirect
 	github.com/sunshine69/sqlstruct v0.0.0-20210630145711-dae28ed37023 // indirect
 	github.com/xuri/efp v0.0.0-20210322160811-ab561f5b45e3 // indirect
 	golang.org/x/net v0.0.0-20210903162142-ad29c8ab022f // indirect

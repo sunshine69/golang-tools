@@ -7,7 +7,7 @@ import (
 
 	"github.com/sunshine69/sqlstruct"
 	"github.com/xanzy/go-gitlab"
-	u "localhost.com/utils"
+	u "github.com/sunshine69/golang-tools/utils"
 )
 
 type Project struct {

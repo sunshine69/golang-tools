@@ -50,6 +50,8 @@ github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UV
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=
 github.com/stretchr/testify v1.6.1 h1:hDPOHmpOpP40lSULcqw7IrRb/u7w6RpDC9399XyoNd0=
 github.com/stretchr/testify v1.6.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
+github.com/sunshine69/golang-tools/utils v0.0.0-20211013131004-c7ad428806b2 h1:OgQ9gaZ1Y/Ut4zoHTIMs2/2hGybxbOipJbqOEUcJvfU=
+github.com/sunshine69/golang-tools/utils v0.0.0-20211013131004-c7ad428806b2/go.mod h1:Seq3Qx5Fq9vOGEbEWceLhBOhvcFno88dTYoyGK+9T/w=
 github.com/sunshine69/sqlstruct v0.0.0-20210630145711-dae28ed37023 h1:gkkeu2JIwK8JTRvcMsSMLzkohFv1hB74KntC8JZsvnI=
 github.com/sunshine69/sqlstruct v0.0.0-20210630145711-dae28ed37023/go.mod h1:gDqFU1UiRUkY6Ql15x6VdJ1XO2ItpYfjqje+/7nsV8o=
 github.com/xanzy/go-gitlab v0.51.1 h1:wWKLalwx4omxFoHh3PLs9zDgAD4GXDP/uoxwMRCSiWM=

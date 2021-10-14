@@ -4,7 +4,7 @@ import (
 	"log"
 	"github.com/sunshine69/sqlstruct"
     "fmt"
-    u "localhost.com/utils"
+    u "github.com/sunshine69/golang-tools/utils"
     "strings"
 )
 
