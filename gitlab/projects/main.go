@@ -222,10 +222,16 @@ func main() {
 	flag.StringVar(&SearchStr, "s", "", "Project search Str. Empty means everything. If it is a integer then we use as project ID and search for it")
 	flag.StringVar(&ConfigFile, "f", "", `Config file. A json file in the format
     {
-        "gitlabAPIBaseURL": "https://code.go1.com.au/api/v4",
-        "gitlabToken": "changeme",
-        "SearchStr": "",
-    }`)
+		"Port": "8080",
+		"AuthUser": "go1",
+		"SessionKey": "RANDOM-KEY",
+		"SharedToken": "WEB-AUTH-SHARED-TOKEN",
+		"gitlabAPIBaseURL": "https://code.go1.com.au/api/v4",
+		"gitlabToken": "YOUR-GITLAB-API-TOKEN",
+		"admin_user_id": <YOUR GILAB USER ID AS ADMIN TO USE IN THE APP>,
+		"SearchStr": "",
+		"SENDGRID_API_KEY": "YOUR SENDGRID API KEY USED TO SEND EMAIL NOTIFICATION"
+   }`)
 	flag.StringVar(&GitLabToken, "tok", "", "GitLabToken if empty then read from env var GITLAB_TOKEN")
 	flag.StringVar(&action, "a", "", "Action. Default is update-all. Can be: update-project|update-namespace|update-team|xxx where xxx is the function name")
 	flag.Parse()
