@@ -2,7 +2,7 @@ module github.com/sunshine69/golang-tools/gitlab/model
 
 go 1.17
 
-replace localhost.com/utils => ../../utils
+// replace localhost.com/utils => ../../utils
 
 require (
 	github.com/mattn/go-sqlite3 v1.14.8

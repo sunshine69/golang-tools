@@ -3,7 +3,7 @@ package gitlabutils
 import (
 	"testing"
 	"github.com/xanzy/go-gitlab"
-	u "localhost.com/utils"
+	u "github.com/sunshine69/golang-tools/utils"
 )
 
 func TestGetNameSpace(t *testing.T) {

@@ -2,7 +2,7 @@ package gitlabutils
 
 import (
 	"fmt"
-	u "localhost.com/utils"
+	u "github.com/sunshine69/golang-tools/utils"
 	"github.com/xanzy/go-gitlab"
 
 )
