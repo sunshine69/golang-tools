@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"html/template"
+	"path/filepath"
 	"errors"
 	"bufio"
 	"bytes"
@@ -49,6 +51,34 @@ const (
 var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
+func FindAndParseTemplates(rootDir, fileExtention string,funcMap template.FuncMap) (*template.Template, []string, error) {
+    cleanRoot := filepath.Clean(rootDir)
+	if fileExtention == "" { fileExtention = ".html" }
+    pfx := len(cleanRoot)+1
+    root := template.New("")
+	templateNameList := []string{}
+
+    err := filepath.Walk(cleanRoot, func(path string, info os.FileInfo, e1 error) error {
+        if !info.IsDir() && strings.HasSuffix(path, fileExtention) {
+            if e1 != nil {
+                return e1
+            }
+            b, e2 := ioutil.ReadFile(path)
+            if e2 != nil {
+                return e2
+            }
+            name := path[pfx:]
+            t := root.New(name).Funcs(funcMap)
+            _, e2 = t.Parse(string(b))
+            if e2 != nil {
+                return e2
+            }
+			templateNameList = append(templateNameList, name)
+        }
+        return nil
+    })
+    return root, templateNameList, err
+}
 func ReadFileToBase64Content(filename string) string {
 	f, _ := os.Open(filename)
     reader := bufio.NewReader(f)
