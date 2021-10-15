@@ -1,37 +1,41 @@
 package main
 
 import (
-	"io/ioutil"
-	"strconv"
-	"os"
-	"crypto/tls"
 	"crypto/subtle"
+	"crypto/tls"
 	"fmt"
+	"html/template"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"regexp"
+	"strconv"
 	"time"
-	. "localhost.com/gitlab/model"
-	u "localhost.com/utils"
+
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mileusna/crontab"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
-	"html/template"
+	. "localhost.com/gitlab/model"
+	u "localhost.com/utils"
 )
+
 var (
 	// AppConfig  map[string]interface{}
 	version, SessionKey, SessionName string
-	SessionStore *sessions.CookieStore
+	SessionStore                     *sessions.CookieStore
 )
+
 func homePage(w http.ResponseWriter, r *http.Request) {
 	session, _ := SessionStore.Get(r, SessionName) //; u.CheckErr(err, "homePage store.Get")
 	t := template.Must(template.New("home.html").ParseFiles("templates/home.html"))
 	err := t.Execute(w, map[string]interface{}{
-		"user":    session.Values["user"],
-		"token": session.Values["token"],
-		"page_offset": u.Ternary(session.Values["page_offset"] != nil, session.Values["page_offset"], "0"),
+		"user":          session.Values["user"],
+		"token":         session.Values["token"],
+		"page_offset":   u.Ternary(session.Values["page_offset"] != nil, session.Values["page_offset"], "0"),
 		"running_procs": u.RunSystemCommand("ls -lha /tmp/*.lock 2>/dev/null || true", false),
 	})
 	u.CheckErr(err, "homePage t.Execute")
@@ -54,47 +58,97 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Process %s already running", func_name)
 		return
 	}
-	_, err := os.Create(lockFileName); u.CheckErr(err, "UpdateAllWrapper create clock file")
-	logFile := "RunFunction-"+func_name+"-"+ses.Values["user"].(string)+"-"+time.Now().Format(u.CleanStringDateLayout)+".txt"
-	f, err := os.OpenFile("log/" + logFile, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+	_, err := os.Create(lockFileName)
+	u.CheckErr(err, "UpdateAllWrapper create clock file")
+	logFile := "RunFunction-" + func_name + "-" + ses.Values["user"].(string) + "-" + time.Now().Format(u.CleanStringDateLayout) + ".txt"
+	f, err := os.OpenFile("log/"+logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	u.CheckErr(err, "OpenFile Log") // Close file inside each go routine
 
 	switch func_name {
 	case "update-all":
-		go func() {log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); UpdateAllWrapper(git, SearchStr); os.Remove(lockFileName)}()
+		go func() {
+			log.SetOutput(f)
+			defer f.Close()
+			defer log.SetOutput(os.Stdout)
+			UpdateAllWrapper(git, SearchStr)
+			os.Remove(lockFileName)
+		}()
 	case "update-project":
 		go func() {
-			log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout)
+			log.SetOutput(f)
+			defer f.Close()
+			defer log.SetOutput(os.Stdout)
 			DumpOrUpdateProject(git, SearchStr)
 			os.Remove(lockFileName)
 		}()
 	case "update-namespace":
-		go func(){
-			log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout)
+		go func() {
+			log.SetOutput(f)
+			defer f.Close()
+			defer log.SetOutput(os.Stdout)
 			DumpOrUpdateNamespace(git, SearchStr)
 			UpdateGroupMember(git)
 			os.Remove(lockFileName)
 		}()
 	case "update-team":
-		go func() {log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); UpdateTeam(); os.Remove(lockFileName)}()
-    case "UpdateGroupMember":
-        go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); UpdateGroupMember(git); os.Remove(lockFileName)}()
+		go func() {
+			log.SetOutput(f)
+			defer f.Close()
+			defer log.SetOutput(os.Stdout)
+			UpdateTeam()
+			os.Remove(lockFileName)
+		}()
+	case "UpdateGroupMember":
+		go func() {
+			log.SetOutput(f)
+			defer f.Close()
+			defer log.SetOutput(os.Stdout)
+			UpdateGroupMember(git)
+			os.Remove(lockFileName)
+		}()
 	case "get-first10mr-peruser":
-		go func() {log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); Addhoc_getfirst10mrperuser(git); os.Remove(lockFileName)}()
-    case "UpdateProjectDomainFromCSV":
-        go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); UpdateProjectDomainFromCSV("data/MigrationServices.csv"); os.Remove(lockFileName) }()
-    case "UpdateProjectDomainFromCSVSheet3":
-        go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv"); os.Remove(lockFileName) }()
+		go func() {
+			log.SetOutput(f)
+			defer f.Close()
+			defer log.SetOutput(os.Stdout)
+			Addhoc_getfirst10mrperuser(git)
+			os.Remove(lockFileName)
+		}()
+	case "UpdateProjectDomainFromCSV":
+		go func() {
+			log.SetOutput(f)
+			defer f.Close()
+			defer log.SetOutput(os.Stdout)
+			UpdateProjectDomainFromCSV("data/MigrationServices.csv")
+			os.Remove(lockFileName)
+		}()
+	case "UpdateProjectDomainFromCSVSheet3":
+		go func() {
+			log.SetOutput(f)
+			defer f.Close()
+			defer log.SetOutput(os.Stdout)
+			UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv")
+			os.Remove(lockFileName)
+		}()
 	case "UpdateProjectMigrationStatus":
-		go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout)
-			UpdateProjectMigrationStatus(git); os.Remove(lockFileName) }()
+		go func() {
+			log.SetOutput(f)
+			defer f.Close()
+			defer log.SetOutput(os.Stdout)
+			UpdateProjectMigrationStatus(git)
+			os.Remove(lockFileName)
+		}()
 	case "UpdateProjectDomainFromExcelNext":
-		go func() { log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout)
+		go func() {
+			log.SetOutput(f)
+			defer f.Close()
+			defer log.SetOutput(os.Stdout)
 			u.RunSystemCommand("rm -rf data/GitlabProject-Domain-Status.xlsx || true; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", false)
 			UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 			UpdateProjectDomainFromExcelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 			UpdateGroupMember(git)
-			os.Remove(lockFileName) }()
+			os.Remove(lockFileName)
+		}()
 	}
 	fmt.Fprintf(w, "<p>Process %s started. You can see the log <a href='/log/%s'>here</a></p>", func_name, logFile)
 }
@@ -104,20 +158,21 @@ func DisplayTransferProjectConsole(w http.ResponseWriter, r *http.Request) {
 	searchName := r.FormValue("keyword")
 	migrated := r.FormValue("migrated")
 	// ses.Values["migrated"] = migrated
-	currentOffsetStr := u.Ternary( vars["page_offset"] != "" && searchName == "", vars["page_offset"], "0" ).(string)
+	currentOffsetStr := u.Ternary(vars["page_offset"] != "" && searchName == "", vars["page_offset"], "0").(string)
 	currentOffset, _ := strconv.Atoi(currentOffsetStr)
 	sqlwhere := fmt.Sprintf(`project.namespace_kind = 'group' AND project.labels NOT LIKE '%%personal%%' AND is_active = 1 AND domain_ownership_confirmed = %s AND project.name LIKE '%%%s%%' AND project.pid IN (SELECT p.pid from project AS p, project_domain AS pd, domain AS d WHERE p.pid = pd.project_id AND pd.domain_id = d.gitlab_ns_id AND p.path_with_namespace NOT LIKE 'apps/%%' AND p.path_with_namespace NOT LIKE 'mirror/%%' ) ORDER BY ts LIMIT 25 OFFSET %d`, migrated, searchName, currentOffset)
 	projectList := ProjectGet(map[string]string{"where": sqlwhere})
 	t := template.Must(template.New("project-migration.html").ParseFiles("templates/project-migration.html"))
 	currentOffset = currentOffset + 25
 
-	ses.Values["page_offset"] = currentOffset; ses.Save(r, w)
+	ses.Values["page_offset"] = currentOffset
+	ses.Save(r, w)
 	err := t.Execute(w, map[string]interface{}{
 		"projects":    projectList,
 		"page_offset": currentOffset,
-		"user": ses.Values["user"],
-		"migrated": migrated,
-		"sqlwhere": "SELECT * FROM project WHERE " + sqlwhere,
+		"user":        ses.Values["user"],
+		"migrated":    migrated,
+		"sqlwhere":    "SELECT * FROM project WHERE " + sqlwhere,
 	})
 	u.CheckErr(err, "homePage t.Execute")
 	// log.Printf("%v\n", projectList)
@@ -127,35 +182,38 @@ func RunTransferProject(w http.ResponseWriter, r *http.Request) {
 	ses, _ := SessionStore.Get(r, SessionName)
 	user := ses.Values["user"].(string)
 	lockFileName := fmt.Sprintf("/tmp/RunTransferProject_%s.lock", vars["project_id"])
-	logFile := "RunFunction-RunTransferProject"+"-"+user+"-"+time.Now().Format(u.CleanStringDateLayout)+".txt"
+	logFile := "RunFunction-RunTransferProject" + "-" + user + "-" + time.Now().Format(u.CleanStringDateLayout) + ".txt"
 	if ok, err := u.FileExists(lockFileName); ok && (err == nil) {
 		previousLogfile, _ := ioutil.ReadFile(lockFileName)
 		fmt.Fprintf(w, "RunTransferProject already running - lock file %s - <a href='/log/%s'>Log</a>", lockFileName, string(previousLogfile))
 		return
 	}
 	ioutil.WriteFile(lockFileName, []byte(logFile), 0660)
-	f, _ := os.OpenFile("log/" + logFile, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+	f, _ := os.OpenFile("log/"+logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	go func() {
-		log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout)
+		log.SetOutput(f)
+		defer f.Close()
+		defer log.SetOutput(os.Stdout)
 		git := GetGitlabClient()
-		project_id, _ := strconv.Atoi( vars["project_id"])
+		project_id, _ := strconv.Atoi(vars["project_id"])
 		log.Printf("TransferProject Started with is %d - \n", project_id)
 
-		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("ProjectID %d Migration Started", project_id), "", fmt.Sprintf("Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{"log/"+logFile} )
+		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("ProjectID %d Migration Started", project_id), "", fmt.Sprintf("Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
 
 		TransferProject(git, project_id, user)
 
-		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("ProjectID %d Migration Status", project_id), "", fmt.Sprintf("Migration fully completed. Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{"log/"+logFile} )
+		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("ProjectID %d Migration Status", project_id), "", fmt.Sprintf("Migration fully completed. Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
 		os.Remove(lockFileName)
 	}()
 	fmt.Fprintf(w, "Started Project ID %s - <a href='/log/%s'>Log</a><br/>Also check your email for notification.", vars["project_id"], logFile)
 }
+
 //HandleRequests -
 func HandleRequests() {
 	router := mux.NewRouter()
 
 	staticFS := http.FileServer(http.Dir("./log"))
-    router.PathPrefix("/log/").Handler( BasicAuthHandler(http.StripPrefix("/log/", staticFS), AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm") )
+	router.PathPrefix("/log/").Handler(BasicAuthHandler(http.StripPrefix("/log/", staticFS), AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm"))
 
 	router.HandleFunc("/", BasicAuth(homePage, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("GET")
 	router.HandleFunc("/run/{func_name}", BasicAuth(RunFunction, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("POST")
@@ -208,7 +266,7 @@ func HandleRequests() {
 	}
 }
 func StartWebGUI() {
-	SessionKey, SessionName = AppConfig ["SessionKey"].(string), "golanggitlab-auth"
+	SessionKey, SessionName = AppConfig["SessionKey"].(string), "golanggitlab-auth"
 	SessionStore = sessions.NewCookieStore([]byte(SessionKey))
 	RunScheduleTasks()
 	HandleRequests()
@@ -224,16 +282,24 @@ func isAuthorized(endpoint func(http.ResponseWriter, *http.Request)) http.Handle
 		}
 	})
 }
+
 //This func is used to load the home page and generate tempo token for the ajax post
 func BasicAuth(handlerFunc http.HandlerFunc, username, password, realm string) http.HandlerFunc {
-    return func(w http.ResponseWriter, r *http.Request) {
-        user, pass, ok := r.BasicAuth()
-        if !ok || subtle.ConstantTimeCompare([]byte(pass), []byte(password)) != 1 {
-            w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
-            w.WriteHeader(401)
-            w.Write([]byte("Unauthorised.\n"))
-            return
-        }
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		userPtn := regexp.MustCompile(`[^\s]+@[^\s]+`)
+		if !userPtn.MatchString(user) {
+			w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
+			w.WriteHeader(401)
+			w.Write([]byte("Wrong user name format.\n"))
+			return
+		}
+		if !ok || subtle.ConstantTimeCompare([]byte(pass), []byte(password)) != 1 {
+			w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
+			w.WriteHeader(401)
+			w.Write([]byte("Unauthorised.\n"))
+			return
+		}
 		//This is used in Ajax Post auth header. See func isAuthorized
 		tempToken := u.GenRandomString(32)
 		// ioutil.WriteFile("/tmp/" + fmt.Sprintf("%x", userHash), []byte(tempToken), 0750)
@@ -245,21 +311,29 @@ func BasicAuth(handlerFunc http.HandlerFunc, username, password, realm string) h
 		}
 		session.Values["user"] = user
 		session.Values["token"] = tempToken
-		u.CheckErr( session.Save(r, w), "BasicAuth session.Save" )
-        handlerFunc(w, r)
-    }
+		u.CheckErr(session.Save(r, w), "BasicAuth session.Save")
+		handlerFunc(w, r)
+	}
 }
+
 //The http.Handler wrapper technique. I feel awkward but not yet having time to reduce duplicate code here
 //Maybe should get the user and password, realm via session or database instead.
 func BasicAuthHandler(handler http.Handler, username, password, realm string) http.Handler {
-    return http.HandlerFunc( func(w http.ResponseWriter, r *http.Request) {
-        user, pass, ok := r.BasicAuth()
-        if !ok || subtle.ConstantTimeCompare([]byte(pass), []byte(password)) != 1 {
-            w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
-            w.WriteHeader(401)
-            w.Write([]byte("Unauthorised.\n"))
-            return
-        }
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		userPtn := regexp.MustCompile(`[^\s]+@[^\s]+`)
+		if !userPtn.MatchString(user) {
+			w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
+			w.WriteHeader(401)
+			w.Write([]byte("Wrong user name format.\n"))
+			return
+		}
+		if !ok || subtle.ConstantTimeCompare([]byte(pass), []byte(password)) != 1 {
+			w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
+			w.WriteHeader(401)
+			w.Write([]byte("Unauthorised.\n"))
+			return
+		}
 		//This is used in Ajax Post auth header. See func isAuthorized
 		tempToken := u.GenRandomString(32)
 		// ioutil.WriteFile("/tmp/" + fmt.Sprintf("%x", userHash), []byte(tempToken), 0750)
@@ -271,9 +345,9 @@ func BasicAuthHandler(handler http.Handler, username, password, realm string) ht
 		}
 		session.Values["user"] = user
 		session.Values["token"] = tempToken
-		u.CheckErr( session.Save(r, w), "BasicAuth session.Save" )
+		u.CheckErr(session.Save(r, w), "BasicAuth session.Save")
 		handler.ServeHTTP(w, r)
-    })
+	})
 }
 func RunScheduleTasks() {
 	ctab := crontab.New() // create cron table
@@ -288,11 +362,16 @@ func CronUpdateAllWrapper() {
 	if ok, err := u.FileExists(lockFileName); ok && (err == nil) {
 		return
 	}
-	_, err := os.Create(lockFileName); u.CheckErr(err, "UpdateAllWrapper create clock file")
-	logFile := "RunFunction-"+func_name+"-"+"cron-user"+"-"+time.Now().Format(u.CleanStringDateLayout)+".txt"
-	f, err := os.OpenFile("log/" + logFile, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+	_, err := os.Create(lockFileName)
+	u.CheckErr(err, "UpdateAllWrapper create clock file")
+	logFile := "RunFunction-" + func_name + "-" + "cron-user" + "-" + time.Now().Format(u.CleanStringDateLayout) + ".txt"
+	f, err := os.OpenFile("log/"+logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	u.CheckErr(err, "OpenFile Log")
-	log.SetOutput(f); defer f.Close(); defer log.SetOutput(os.Stdout); UpdateAllWrapper(GetGitlabClient(), ""); os.Remove(lockFileName)
+	log.SetOutput(f)
+	defer f.Close()
+	defer log.SetOutput(os.Stdout)
+	UpdateAllWrapper(GetGitlabClient(), "")
+	os.Remove(lockFileName)
 }
 func DatabaseMaintenance() {
 	conn := GetDBConn()
