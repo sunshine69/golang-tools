@@ -43,7 +43,7 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, tempPrj *gitlab.P
 		u.RunSystemCommand(fmt.Sprintf(`docker rmi %s`, _oldImage), false)
 	}
 }
-func MoveProjectRegistryImagesUseShell(git *gitlab.Client, currentPrj, tempPrj *gitlab.Project, user string) {
+func MoveProjectRegistryImagesUseShell(git *gitlab.Client, currentPrj, newPrj *gitlab.Project, user string) {
 	returnTag := true
 	registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(currentPrj.ID, &gitlab.ListRegistryRepositoriesOptions{
 		ListOptions: gitlab.ListOptions{
@@ -56,11 +56,11 @@ func MoveProjectRegistryImagesUseShell(git *gitlab.Client, currentPrj, tempPrj *
 	for _, repoReg := range registryRepos {
 		repoImage := repoReg.Location
 		extraName := u.Ternary(repoReg.Name == "", "", "/"+repoReg.Name)
-		newImage := fmt.Sprintf(`%s%s`, GetContainerRegistryBaseLocation(git, tempPrj.ID), extraName)
+		newImage := fmt.Sprintf(`%s%s`, GetContainerRegistryBaseLocation(git, newPrj.ID), extraName)
 		u.RunSystemCommand(fmt.Sprintf("docker pull %s -a", repoImage), true)
 		log.Printf("Pull %s completed\nStart to push ...\n", repoImage)
 
-		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), fmt.Sprintf("We are going to push images From %s => %s", currentPrj.NameWithNamespace, tempPrj.NameWithNamespace), "", []string{})
+		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), fmt.Sprintf("We are going to push images From %s => %s", currentPrj.NameWithNamespace, newPrj.NameWithNamespace), "", []string{})
 
 		u.RunSystemCommand(fmt.Sprintf(`docker images %s --format "docker tag {{.Repository}}:{{.Tag}} %s:{{.Tag}} && docker push %s:{{.Tag}}" | bash `, repoImage, newImage, newImage), true)
 		log.Printf("Push %s completed\nStart to clean up ...\n", newImage)
@@ -169,23 +169,8 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 	log.Println("Backup container reg and remove all existing tags")
 	tempPrj := BackupProjectRegistryImages(git, gitlabProject, user)
 	//Check the current project and be sure we don't have any image tags exists before transferring
-	for {
-		returnTag := true
-		registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(gitlabProject.ID, &gitlab.ListRegistryRepositoriesOptions{
-			ListOptions: gitlab.ListOptions{
-				Page: 1, PerPage: 500,
-			},
-			Tags:      &returnTag,
-			TagsCount: &returnTag,
-		})
-		u.CheckErr(err, "MoveProjectRegistryImages ListRegistryRepositories")
-		if len(registryRepos) == 0 {
-			log.Printf("No repo, no tags")
-			break
-		} else {
-			u.Sleep("15s")
-		}
-	}
+	WaitUntilAllRegistryTagCleared(git, gitlabProject.ID)
+
 	log.Printf("Transfer project to a new name space")
 	_, res, err := git.Projects.TransferProject(gitlabProject.ID, &gitlab.TransferProjectOptions{
 		Namespace: lastNewGroup.ID,
@@ -207,7 +192,29 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 	log.Println("Move container image from temp")
 	MoveProjectRegistryImagesUseShell(git, tempPrj, gitlabProject, user)
 	log.Println("Delete temporary project")
+
+	WaitUntilAllRegistryTagCleared(git, tempPrj.ID)
 	_, err = git.Projects.DeleteProject(tempPrj.ID, nil)
 	u.CheckErr(err, "TransferProject DeleteProject")
+
 	log.Printf("TransferProject ID %d completed\n", gitlabProjectId)
+}
+func WaitUntilAllRegistryTagCleared(git *gitlab.Client, gitlabProjectId int) {
+	for {
+		returnTag := true
+		registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(gitlabProject.ID, &gitlab.ListRegistryRepositoriesOptions{
+			ListOptions: gitlab.ListOptions{
+				Page: 1, PerPage: 500,
+			},
+			Tags:      &returnTag,
+			TagsCount: &returnTag,
+		})
+		u.CheckErr(err, "MoveProjectRegistryImages ListRegistryRepositories")
+		if len(registryRepos) == 0 {
+			log.Printf("No repo, no tags")
+			break
+		} else {
+			u.Sleep("15s")
+		}
+	}
 }

@@ -182,18 +182,19 @@ func RunTransferProject(w http.ResponseWriter, r *http.Request) {
 	ses, _ := SessionStore.Get(r, SessionName)
 	user := ses.Values["user"].(string)
 	lockFileName := fmt.Sprintf("/tmp/RunTransferProject_%s.lock", vars["project_id"])
-	logFile := "RunFunction-RunTransferProject" + "-" + user + "-" + time.Now().Format(u.CleanStringDateLayout) + ".txt"
+	logFile := "RunFunction-RunTransferProject_" + vars["project_id"] + "-" + user + "-" + time.Now().Format(u.CleanStringDateLayout) + ".txt"
 	if ok, err := u.FileExists(lockFileName); ok && (err == nil) {
 		previousLogfile, _ := ioutil.ReadFile(lockFileName)
 		fmt.Fprintf(w, "RunTransferProject already running - lock file %s - <a href='/log/%s'>Log</a>", lockFileName, string(previousLogfile))
 		return
 	}
 	ioutil.WriteFile(lockFileName, []byte(logFile), 0660)
-	f, _ := os.OpenFile("log/"+logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	go func() {
+	f, err := os.OpenFile("log/"+logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	u.CheckErr(err, "RunTransferProject OpenFile logfile")
+	go func(f *os.File) {
 		log.SetOutput(f)
 		defer f.Close()
-		defer log.SetOutput(os.Stdout)
+		// defer log.SetOutput(os.Stdout) // no need to do that?
 		git := GetGitlabClient()
 		project_id, _ := strconv.Atoi(vars["project_id"])
 		log.Printf("TransferProject Started with is %d - \n", project_id)
@@ -204,7 +205,7 @@ func RunTransferProject(w http.ResponseWriter, r *http.Request) {
 
 		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("ProjectID %d Migration Status", project_id), "", fmt.Sprintf("Migration fully completed. Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
 		os.Remove(lockFileName)
-	}()
+	}(f)
 	fmt.Fprintf(w, "Started Project ID %s - <a href='/log/%s'>Log</a><br/>Also check your email for notification.", vars["project_id"], logFile)
 }
 
