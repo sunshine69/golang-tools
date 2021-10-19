@@ -202,7 +202,7 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 func WaitUntilAllRegistryTagCleared(git *gitlab.Client, gitlabProjectId int) {
 	for {
 		returnTag := true
-		registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(gitlabProject.ID, &gitlab.ListRegistryRepositoriesOptions{
+		registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(gitlabProjectId, &gitlab.ListRegistryRepositoriesOptions{
 			ListOptions: gitlab.ListOptions{
 				Page: 1, PerPage: 500,
 			},
