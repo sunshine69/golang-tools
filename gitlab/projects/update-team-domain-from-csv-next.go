@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"strings"
 	"fmt"
 	"log"
@@ -88,7 +89,7 @@ func UpdateTeamDomainOneRow(git *gitlab.Client, idx int, l []string) *TeamDomain
 // One day I will make the two func into one only :)
 func CreateGitlabDomain(git *gitlab.Client, d *Domain) {
 	gName, gDesc := d.Name, "autocreated"
-	gPath := strings.ReplaceAll(strings.ToLower(gName), " - ", "-")
+	gPath := MakeGitlabPathNameFromName(gName)
 	log.Printf("[INFO] Going to create Domain as GitlabGroup - Path: '%s' - Name: '%s' - Description: '%s'\n", gPath, gName, gDesc)
 	newGroup, _, err := git.Groups.CreateGroup(&gitlab.CreateGroupOptions{
 		Name: &gName,
@@ -100,7 +101,7 @@ func CreateGitlabDomain(git *gitlab.Client, d *Domain) {
 }
 func CreateGitlabTeam(git *gitlab.Client, d *Team) {
 	gName, gDesc := d.Name, "autocreated"
-	gPath := strings.ReplaceAll(strings.ToLower(gName), " - ", "-")
+	gPath := MakeGitlabPathNameFromName(gName)
 	log.Printf("[INFO] Going to create Team as GitlabGroup - Path: '%s' - Name: '%s' - Description: '%s'\n", gPath, gName, gDesc)
 	newGroup, _, err := git.Groups.CreateGroup(&gitlab.CreateGroupOptions{
 		Name: &gName,
@@ -120,4 +121,13 @@ func AddGitlabTeamToDomain(git *gitlab.Client, d *Domain) {
 		})
 		u.CheckErrNonFatal(err, "AddGitlabTeamToDomain ShareGroupWithGroup")
 	}
+}
+
+func MakeGitlabPathNameFromName(gName string) string {
+	ptn := regexp.MustCompile(`[^\s]+[\s]+[^\s]+`)
+	gPath := ptn.ReplaceAllString(strings.ToLower(gName), "-")
+	ptn = regexp.MustCompile(`[\-]{2,}`)
+	gPath = ptn.ReplaceAllString(gPath, "-")
+	gPath = strings.TrimSpace(gPath)
+	return gPath
 }
