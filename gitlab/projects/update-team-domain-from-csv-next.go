@@ -124,7 +124,8 @@ func AddGitlabTeamToDomain(git *gitlab.Client, d *Domain) {
 }
 
 func MakeGitlabPathNameFromName(gName string) string {
-	ptn := regexp.MustCompile(`[^\s]+[\s]+[^\s]+`)
+	gName = strings.TrimSpace(gName)
+	ptn := regexp.MustCompile(`[\s]+`)
 	gPath := ptn.ReplaceAllString(strings.ToLower(gName), "-")
 	ptn = regexp.MustCompile(`[\-]{2,}`)
 	gPath = ptn.ReplaceAllString(gPath, "-")

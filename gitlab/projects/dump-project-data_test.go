@@ -228,3 +228,7 @@ func TestParsingConfig(t *testing.T) {
 	AppConfig := u.ParseConfig(ConfigFile)
 	log.Printf("%d\n", AppConfig["admin_user_id"])
 }
+func TestMakeGitlabPathNameFromName(t *testing.T) {
+	gPath := MakeGitlabPathNameFromName("Domain - External API")
+	log.Printf(gPath)
+}
