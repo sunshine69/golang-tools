@@ -159,6 +159,80 @@ func SetUpLogDatabase() {
     BEGIN
         UPDATE groupmember SET ts = STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW') WHERE id = NEW.id;
     END;
+
+
+    CREATE TABLE IF NOT EXISTS "gitlab_user" (
+        ts TEXT DEFAULT(STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW')),
+        "id"	INTEGER,
+        "gitlab_ns_id"	INTEGER DEFAULT -1,
+        "gitlab_user_id" INTEGER DEFAULT 0,
+        "username" TEXT DEFAULT "",
+        "email" TEXT,
+        "name" TEXT DEFAULT "",
+        "state" INTEGER DEFAULT -1,
+        "web_url" TEXT DEFAULT "",
+        "created_at" TEXT DEFAULT "",
+        "bio" TEXT DEFAULT "",
+        "location" TEXT DEFAULT "",
+        "public_email" TEXT DEFAULT "",
+        "skype" TEXT DEFAULT "",
+        "linkedin" TEXT DEFAULT "",
+        "twitter" TEXT DEFAULT "",
+        "website_url" TEXT DEFAULT "",
+        "organization" TEXT DEFAULT "",
+        "extern_uid" TEXT DEFAULT "",
+        "provider" TEXT DEFAULT "",
+        "theme_id" INTEGER DEFAULT -1,
+        "last_activity_on" TEXT DEFAULT "",
+        "color_scheme_id" INTEGER DEFAULT -1,
+        "is_admin" INTEGER DEFAULT 0,
+        "avatar_url" TEXT DEFAULT "",
+        "can_create_group" INTEGER DEFAULT 0,
+        "can_create_project" INTEGER DEFAULT 0,
+        "projects_limit" INTEGER DEFAULT 0,
+        "current_sign_in_at" TEXT DEFAULT "",
+        "last_sign_in_at" TEXT DEFAULT "",
+        "confirmed_at" TEXT DEFAULT "",
+        "two_factor_enabled" INTEGER DEFAULT 0,
+        "note" TEXT DEFAULT "",
+        "identities" TEXT DEFAULT "",
+        "external" INTEGER DEFAULT 0,
+        "private_profile" INTEGER DEFAULT 0,
+        "shared_runners_minutes_limit" INTEGER DEFAULT 0,
+        "extra_shared_runners_minutes_limit" INTEGER DEFAULT 0,
+        "using_license_seat" INTEGER DEFAULT 0,
+        "custom_attributes" TEXT DEFAULT "",
+        PRIMARY KEY("id" AUTOINCREMENT),
+        CONSTRAINT "gilab-id" UNIQUE("gitlab_user_id"),
+        CONSTRAINT "gilab-email" UNIQUE("email"),
+        CONSTRAINT "gilab-username" UNIQUE("username")
+    );
+
+    CREATE TRIGGER IF NOT EXISTS gitlab_user_update_ts_Trigger
+    AFTER UPDATE On gitlab_user
+    BEGIN
+        UPDATE gitlab_user SET ts = STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW') WHERE id = NEW.id;
+    END;
+
+    CREATE TABLE IF NOT EXISTS "team_user" (
+        ts TEXT DEFAULT(STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW')),
+        "id"	INTEGER,
+        "team_id"	int,
+        "user_id"	int,
+        "max_role"	    text DEFAULT "",
+        "access_expires" text DEFAULT "",
+        "source" text DEFAULT "",
+        "expiration" text DEFAULT "",
+        "access_granted" text DEFAULT "",
+        PRIMARY KEY("id" AUTOINCREMENT),
+        CONSTRAINT "teamid-pid" UNIQUE("team_id","user_id")
+    );
+    CREATE TRIGGER IF NOT EXISTS team_user_update_ts_Trigger
+    AFTER UPDATE On team_user
+    BEGIN
+        UPDATE team_user SET ts = STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW') WHERE id = NEW.id;
+    END;
+
     PRAGMA main.page_size = 4096;
     PRAGMA main.cache_size=10000;
     PRAGMA main.locking_mode=EXCLUSIVE;

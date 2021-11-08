@@ -232,3 +232,17 @@ func TestMakeGitlabPathNameFromName(t *testing.T) {
 	gPath := MakeGitlabPathNameFromName("Domain - External API")
 	log.Printf(gPath)
 }
+func TestGetGitlabUser(t *testing.T) {
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
+	ParseConfig()
+	git, userActive := GetGitlabClient(), true
+	users, _, err := git.Users.ListUsers(&gitlab.ListUsersOptions{
+		ListOptions: gitlab.ListOptions{
+			Page: 1,
+			PerPage: 1,
+		},
+		Active: &userActive,
+	})
+	u.CheckErr(err, "ListUsers")
+	log.Printf("%s\n", u.JsonDump(users,  "  "))
+}

@@ -105,7 +105,7 @@ func (p *TeamDomain) Update() {
 				log.Fatal("aborted due to error\n")
 			}
 		case "permission":
-			_, err := stmt.Exec(p.Permission, p.ID) //Just update so trigger will fired to udpate ts
+			_, err := stmt.Exec(p.Permission, p.ID)
 			if u.CheckErrNonFatal(err, "Exec") != nil {
 				tx.Rollback()
 				log.Fatal("aborted due to error\n")

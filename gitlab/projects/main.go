@@ -209,6 +209,7 @@ func UpdateAllWrapper(git *gitlab.Client, SearchStr string) {
 	DumpOrUpdateProject(git, SearchStr)
 	DumpOrUpdateNamespace(git, SearchStr)
 	UpdateTeam()
+	UpdateGitlabUser(git)
 	UpdateProjectDomainFromCSV("data/MigrationServices.csv")
 	UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv")
 	u.RunSystemCommand("rm -rf data/GitlabProject-Domain-Status.xlsx || true; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", false)
@@ -253,6 +254,8 @@ func main() {
         UpdateGroupMember(git)
 	case "update-team":
 		UpdateTeam()
+	case "UpdateGitlabUser":
+		UpdateGitlabUser(git)
     //From now is function name - adhoc run
     case "UpdateGroupMember":
         UpdateGroupMember(git)

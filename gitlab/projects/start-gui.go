@@ -98,6 +98,14 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 			UpdateTeam()
 			os.Remove(lockFileName)
 		}()
+	case "UpdateGitlabUser":
+		go func() {
+			log.SetOutput(f)
+			defer f.Close()
+			defer log.SetOutput(os.Stdout)
+			UpdateGitlabUser(git)
+			os.Remove(lockFileName)
+		}()
 	case "UpdateGroupMember":
 		go func() {
 			log.SetOutput(f)
