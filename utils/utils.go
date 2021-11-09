@@ -311,16 +311,19 @@ func Getenv(key, fallback string) string {
 }
 
 func JsonDump(obj interface{}, indent string) string {
+	msgByte := JsonDumpByte(obj, indent)
+	return string(msgByte)
+}
+func JsonDumpByte(obj interface{}, indent string) []byte {
 	if indent == "" {
 		indent = "    "
 	}
 	msgByte, err := json.MarshalIndent(obj, "", indent)
 	if CheckErrNonFatal(err, "JsonDump") == nil {
-		return string(msgByte)
+		return msgByte
 	}
-	return ""
+	return []byte("")
 }
-
 //Given a duration string return a tuple of start time, end time satisfy the duration.
 //If duration string is dd/mm/yyyy hh:mm:ss - dd/mm/yyyy hh:mm:ss it simply return two time object.
 //If duration is like 15m then endtime is now, start time is 15 minutes ago. This applies for all case if input is not parsable
