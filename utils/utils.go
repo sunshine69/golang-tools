@@ -722,3 +722,30 @@ func pemBlockForKey(priv interface{}) *pem.Block {
 		return nil
 	}
 }
+// Pass an interface, return same interface if they are string as key or list of string as key
+func ValidateInterfaceWithStringKeys(val interface{}) (interface{}, error) {
+	switch val := val.(type) {
+	case map[interface{}]interface{}:
+		m := make(map[string]interface{})
+		for k, v := range val {
+			k, ok := k.(string)
+			if !ok {
+				return nil, errors.New(fmt.Sprintf("found non-string key '%v'", k))
+			}
+			m[k] = v
+		}
+		return m, nil
+	case []interface{}:
+		var err error
+		var l = make([]interface{}, len(val))
+		for i, v := range l {
+			l[i], err = ValidateInterfaceWithStringKeys(v)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return l, nil
+	default:
+		return val, nil
+	}
+}
