@@ -53,43 +53,63 @@ var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
-func Unzip(zipfile, dst string) error {
-    archive, err := zip.OpenReader(zipfile)
+func Unzip(src, dest string) error {
+	if dest == "." || dest == "./" {
+		dest, _ = os.Getwd()
+	}
+    r, err := zip.OpenReader(src)
     if err != nil {
         return err
     }
-    defer archive.Close()
-    for _, f := range archive.File {
-        filePath := filepath.Join(dst, f.Name)
-        fmt.Println("unzipping file ", filePath)
-
-        if !strings.HasPrefix(filePath, filepath.Clean(dst)+string(os.PathSeparator)) {
-            fmt.Println("invalid file path")
-            return nil
+    defer func() {
+        if err := r.Close(); err != nil {
+            panic(err)
+        }
+    }()
+    os.MkdirAll(dest, 0755)
+    // Closure to address file descriptors issue with all the deferred .Close() methods
+    extractAndWriteFile := func(f *zip.File) error {
+        rc, err := f.Open()
+        if err != nil {
+            return err
+        }
+        defer func() {
+            if err := rc.Close(); err != nil {
+                panic(err)
+            }
+        }()
+        path := filepath.Join(dest, f.Name)
+        // Check for ZipSlip (Directory traversal)
+        if !strings.HasPrefix(path, filepath.Clean(dest) + string(os.PathSeparator)) {
+            return fmt.Errorf("illegal file path: %s", path)
         }
         if f.FileInfo().IsDir() {
-            fmt.Println("creating directory...")
-            os.MkdirAll(filePath, os.ModePerm)
-            continue
+            os.MkdirAll(path, f.Mode())
+        } else {
+            os.MkdirAll(filepath.Dir(path), f.Mode())
+            f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+            if err != nil {
+                return err
+            }
+            defer func() {
+                if err := f.Close(); err != nil {
+                    panic(err)
+                }
+            }()
+            _, err = io.Copy(f, rc)
+            if err != nil {
+                return err
+            }
         }
-        if err := os.MkdirAll(filepath.Dir(filePath), os.ModePerm); err != nil {
-            return err
-        }
-        dstFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
-        if err != nil {
-            return err
-        }
-        fileInArchive, err := f.Open()
-        if err != nil {
-            return err
-        }
-        if _, err := io.Copy(dstFile, fileInArchive); err != nil {
-            return err
-        }
-        dstFile.Close()
-        fileInArchive.Close()
+        return nil
     }
-	return nil
+    for _, f := range r.File {
+        err := extractAndWriteFile(f)
+        if err != nil {
+            return err
+        }
+    }
+    return nil
 }
 
 func FindAndParseTemplates(rootDir, fileExtention string,funcMap template.FuncMap) (*template.Template, []string, error) {

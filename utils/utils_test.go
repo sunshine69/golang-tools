@@ -11,3 +11,8 @@ func TestUtils(t *testing.T) {
 	a := GenRandomString(12)
 	log.Println(a)
 }
+
+func TestUnzip(t *testing.T) {
+	err := Unzip("/home/stevek/Downloads/artifacts.zip", ".")
+	CheckErr(err, "  ")
+}
