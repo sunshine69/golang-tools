@@ -13,6 +13,6 @@ func TestUtils(t *testing.T) {
 }
 
 func TestUnzip(t *testing.T) {
-	err := Unzip("/home/stevek/Downloads/artifacts.zip", ".")
+	err := Unzip("Downloads/artifacts.zip", ".")
 	CheckErr(err, "  ")
 }
