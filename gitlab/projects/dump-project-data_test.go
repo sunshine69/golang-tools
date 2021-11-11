@@ -16,9 +16,11 @@ func TestGetGitlabProject(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
 	ParseConfig()
 	git := GetGitlabClient()
-	p, _, err := git.Projects.GetProject(208000, nil); u.CheckErr(err, "GetProject")
+	p, _, err := git.Projects.GetProject(1370, nil); u.CheckErr(err, "GetProject")
 	log.Printf("[DEBUG] TestGetGitlabProject %s\n", u.JsonDump(p, "  "))
-
+	approvalRules, _, err := git.Projects.GetProjectApprovalRules(p.ID, nil)
+	u.CheckErr(err, "   ")
+	log.Printf("approvalRules: %s\n",u.JsonDump(approvalRules, "  "))
 }
 func TestGetGitlabGroup(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
