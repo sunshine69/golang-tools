@@ -39,6 +39,7 @@ import (
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
 	"path"
+	"golang.org/x/crypto/bcrypt"
 )
 
 //TimeISO8601LayOut
@@ -52,6 +53,17 @@ const (
 var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
+
+func BcryptHashPassword(password string, cost int) (string, error) {
+	if cost == -1 { cost = 14 }
+    bytes, err := bcrypt.GenerateFromPassword([]byte(password), cost)
+    return string(bytes), err
+}
+
+func BcryptCheckPasswordHash(password, hash string) bool {
+    err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+    return err == nil
+}
 
 func Unzip(src, dest string) error {
 	if dest == "." || dest == "./" {
