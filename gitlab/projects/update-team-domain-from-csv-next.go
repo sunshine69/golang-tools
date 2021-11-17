@@ -74,6 +74,7 @@ func UpdateTeamDomainFromExelNext(git *gitlab.Client, filename string) {
 }
 func UpdateTeamDomainOneRow(git *gitlab.Client, idx int, l []string) *TeamDomain {
 	//team_name,domain name, access level
+	if len(l) < 3 { return nil }
 	if l[0] == "" || l[1] == "" || l[2] == ""  { return nil }
 	ts := TeamGet(map[string]string{"where":fmt.Sprintf("name = '%s'", l[0])})
 	if ! u.Assert(len(ts) == 1, "Team should exists in Team table", false) { return nil }
