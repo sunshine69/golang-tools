@@ -22,6 +22,7 @@ func TeamProjectNew(team_id, project_id int) TeamProject {
 	if p.ID == 0 {
 		p.New(team_id, project_id, false)
 	}
+	p.Update()
 	return p
 }
 func (p *TeamProject) GetOne(inputmap map[string]int) {

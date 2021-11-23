@@ -25,6 +25,7 @@ func TeamUserNew(team_id, user_id int) TeamUser {
 	if p.ID == 0 {
 		p.New(team_id, user_id, false)
 	}
+	p.Update()
 	return p
 }
 func (p *TeamUser) GetOne(inputmap map[string]int) {

@@ -21,6 +21,7 @@ func GroupmemberNew(group_id, member_group_id int) Groupmember {
 		p.New(group_id, member_group_id, false)
 		p.GetOne(map[string]string{"id": fmt.Sprintf("%d", p.ID)})
 	}
+	p.Update()
 	return p
 }
 func (p *Groupmember) GetOne(inputmap map[string]string) {

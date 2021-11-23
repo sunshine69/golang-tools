@@ -21,6 +21,7 @@ func TeamDomainNew(team_id, domain_id int) TeamDomain {
 	if p.ID == 0 {
 		p.New(team_id, domain_id, false)
 	}
+	p.Update()
 	return p
 }
 func (p *TeamDomain) GetOne(inputmap map[string]int) {

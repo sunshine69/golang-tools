@@ -20,6 +20,7 @@ func ProjectDomainNew(project_id, domain_id int) ProjectDomain {
 	if p.ID == 0 {
 		p.New(project_id, domain_id, false)
 	}
+	p.Update()
 	return p
 }
 func (p *ProjectDomain) GetOne(inputmap map[string]int) {
