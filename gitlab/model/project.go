@@ -254,7 +254,7 @@ func (p *Project) Delete(inputmap map[string]string) {
 
 //Non standard function for the model, specific to project
 func (p *Project) UpdateNonSQLFields() {
-	pds := ProjectDomainGet(map[string]string{"where": fmt.Sprintf("project_id = %d", p.Pid)})
+	pds := ProjectDomainGet(map[string]string{"where": fmt.Sprintf("project_id = %d ORDER BY ts DESC", p.Pid)})
 	if len(pds) > 0 {
 		pd := pds[0]
 		d := DomainGet(map[string]string{"where": fmt.Sprintf("gitlab_ns_id = %d", pd.DomainId)})[0]
