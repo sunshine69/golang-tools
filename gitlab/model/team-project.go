@@ -14,6 +14,7 @@ type TeamProject struct {
 	TeamId              int `sql:"team_id"`
 	ProjectId           int `sql:"project_id"`
 	Domain              string `sql:"domain"`
+	Permission          string  `sql:"permission"`
 	TS         string   `sql:"ts"`
 }
 func TeamProjectNew(team_id, project_id int) TeamProject {
@@ -102,6 +103,12 @@ func (p *TeamProject) Update() {
 			continue
 		case "domain":
 			_, err := stmt.Exec(p.Domain, p.ID)
+			if u.CheckErrNonFatal(err, "Exec") != nil {
+				tx.Rollback()
+				log.Fatal("aborted due to error\n")
+			}
+		case "permission":
+			_, err := stmt.Exec(p.Permission, p.ID)
 			if u.CheckErrNonFatal(err, "Exec") != nil {
 				tx.Rollback()
 				log.Fatal("aborted due to error\n")

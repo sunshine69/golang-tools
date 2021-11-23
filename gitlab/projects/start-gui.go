@@ -159,6 +159,7 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 			UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 			UpdateProjectDomainFromExcelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 			UpdateGroupMember(git)
+			UpdateTeamProjectFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 			os.Remove(lockFileName)
 
 			u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, "GitlabDomain Automation - UpdateProjectDomainFromExcelNext", "", fmt.Sprintf("UpdateProjectDomainFromExcelNext Completed. Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})

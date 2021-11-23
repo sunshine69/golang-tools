@@ -111,6 +111,7 @@ func SetUpLogDatabase() {
         "team_id"	int,
         "project_id"	int,
         "domain"	text DEFAULT "",
+        "permission" TEXT DEFAULT "GuestPermissions",
         PRIMARY KEY("id" AUTOINCREMENT),
         CONSTRAINT "teamid-pid" UNIQUE("team_id","project_id")
     );
