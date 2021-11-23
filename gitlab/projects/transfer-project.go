@@ -166,32 +166,32 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 	log.Printf("[DEBUG] nonCopyableVars: %s\n", u.JsonDump(nonCopyableVars, "  "))
 	// Transfer project won't work if the current project still have registry tag. We need to delete them
 	// all before. Delete/backup is handled in MoveProjectRegistryImages func
-	log.Println("Backup container reg and remove all existing tags")
+	log.Printf("pid:%d - Backup container reg and remove all existing tags\n", gitlabProjectId)
 	tempPrj := BackupProjectRegistryImages(git, gitlabProject, user)
 	//Check the current project and be sure we don't have any image tags exists before transferring
 	WaitUntilAllRegistryTagCleared(git, gitlabProject.ID)
 
-	log.Printf("Transfer project to a new name space")
+	log.Printf("pid:%d - Transfer project to a new name space", gitlabProjectId)
 	_, res, err := git.Projects.TransferProject(gitlabProject.ID, &gitlab.TransferProjectOptions{
 		Namespace: lastNewGroup.ID,
 	})
 	if u.CheckErrNonFatal(err, "TransferProject TransferGroup") != nil {
-		log.Fatalf("[ERROR] gitlab response is %s\n", u.JsonDump(res, "  "))
+		log.Fatalf("[ERROR] gitlab response is %s. pid:%d \n", u.JsonDump(res, "  "), gitlabProjectId)
 	}
 	project.DomainOwnershipConfirmed = 1
 	project.Update()
 
-	log.Printf("[DEBUG] Copy nonCopyableVars into project\n")
+	log.Printf("[DEBUG] pid:%d Copy nonCopyableVars into project\n", gitlabProjectId)
 	nonCopyableVars1 := CopyGroupVarIntoProject(git, nonCopyableVars, gitlabProject)
 	if len(nonCopyableVars1) > 0 {
-		log.Printf("[WARN] Can not copy these vars, it does exist but having different values\n%s\n", u.JsonDump(nonCopyableVars1, "  "))
+		log.Printf("[WARN] pid:%d Can not copy these vars, it does exist but having different values\n%s\n", gitlabProjectId, u.JsonDump(nonCopyableVars1, "  "))
 	}
 
 	u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", gitlabProject.NameWithNamespace), "", fmt.Sprintf("<h2>Migration %s completed</h2> However we still need to move the images back. <b>You can start to rebuild and deploy now</b>. If you do not want to rebuild and just want to re-deploy qa and prod, check the container registry to be sure the latest image tag has been copied over and you can run the deploy job manualy.", gitlabProject.NameWithNamespace), []string{})
 
-	log.Println("Move container image from temp")
+	log.Printf("pid:%d - Move container image from temp\n", gitlabProjectId)
 	MoveProjectRegistryImagesUseShell(git, tempPrj, gitlabProject, user)
-	log.Println("Delete temporary project")
+	log.Printf("pid:%d - Delete temporary project\n", gitlabProjectId)
 
 	WaitUntilAllRegistryTagCleared(git, tempPrj.ID)
 	_, err = git.Projects.DeleteProject(tempPrj.ID, nil)

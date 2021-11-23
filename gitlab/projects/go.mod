@@ -14,7 +14,7 @@ require (
 	github.com/mileusna/crontab v1.2.0
 	github.com/xanzy/go-gitlab v0.51.1
 	github.com/xuri/excelize/v2 v2.4.1
-	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
+	golang.org/x/crypto v0.0.0-20211115234514-b4de73f9ece8
 	localhost.com/gitlab/model v0.0.0-00010101000000-000000000000
 	localhost.com/utils v0.0.0-00010101000000-000000000000
 )
