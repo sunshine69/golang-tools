@@ -51,6 +51,7 @@ func GetVersion(w http.ResponseWriter, r *http.Request) {
 func RunFunction(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	ses, _ := SessionStore.Get(r, SessionName)
+	user := ses.Values["user"].(string)
 	func_name := vars["func_name"]
 	git, SearchStr := GetGitlabClient(), ""
 	lockFileName := fmt.Sprintf("/tmp/%s.lock", func_name)
@@ -70,8 +71,10 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 			log.SetOutput(f)
 			defer f.Close()
 			defer log.SetOutput(os.Stdout)
+			u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, "GitlabDomain Automation - update-all", "", fmt.Sprintf("update-all Started. Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
 			UpdateAllWrapper(git, SearchStr)
 			os.Remove(lockFileName)
+			u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, "GitlabDomain Automation - update-all", "", fmt.Sprintf("update-all Completed. Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
 		}()
 	case "update-project":
 		go func() {
@@ -151,11 +154,15 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 			log.SetOutput(f)
 			defer f.Close()
 			defer log.SetOutput(os.Stdout)
+			u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, "GitlabDomain Automation - UpdateProjectDomainFromExcelNext", "", fmt.Sprintf("UpdateProjectDomainFromExcelNext Started. Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
+
 			u.RunSystemCommand("rm -rf data/GitlabProject-Domain-Status.xlsx || true; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", false)
 			UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 			UpdateProjectDomainFromExcelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 			UpdateGroupMember(git)
 			os.Remove(lockFileName)
+
+			u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, "GitlabDomain Automation - UpdateProjectDomainFromExcelNext", "", fmt.Sprintf("UpdateProjectDomainFromExcelNext Completed. Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
 		}()
 	}
 	fmt.Fprintf(w, "<p>Process %s started. You can see the log <a href='/log/%s'>here</a></p>", func_name, logFile)
