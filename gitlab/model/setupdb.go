@@ -233,6 +233,14 @@ func SetUpLogDatabase() {
     BEGIN
         UPDATE team_user SET ts = STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW') WHERE id = NEW.id;
     END;
+    -- Generic log table to store adhoc data etc
+    CREATE TABLE IF NOT EXISTS eventlog(
+		ts DATETIME DEFAULT(STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW')),
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		host TEXT DEFAULT "",
+		application TEXT DEFAULT "",
+		message TEXT NOT NULL,
+		logfile TEXT DEFAULT "");
 
     PRAGMA main.page_size = 4096;
     PRAGMA main.cache_size=10000;
