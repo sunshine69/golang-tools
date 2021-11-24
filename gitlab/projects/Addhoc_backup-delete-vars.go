@@ -2,10 +2,8 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
-	"strings"
-
+	. "localhost.com/gitlab/model"
 	u "localhost.com/utils"
 
 	// gu "localhost.com/gitlab/utils"
@@ -14,55 +12,44 @@ import (
 )
 // Search all vars globally and if match the value then back it up in a way we can restore it later on if needed. Then delete it
 func Addhoc_backup_delete_vars_by_value(git *gitlab.Client, value string) {
-	output := []string{"created_at,close_at,author_id,author,title,project"}
-	MergeReqService := git.MergeRequests
-	UsersService := git.Users
-	activeOpt := true
-	scope := "all"
-	uOpt := &gitlab.ListUsersOptions{
-		Active: &activeOpt,
-		ListOptions: gitlab.ListOptions{
-			Page:    1,
-			PerPage: 25,
-		},
-	}
-	for {
-		users, resp, err := UsersService.ListUsers(uOpt)
-		u.CheckErr(err, "UsersService.ListUsers")
-		for _, user := range users {
-			log.Printf("[DEBUG] Set option to list MR for user %s ID %d\n", user.Name, user.ID)
-			opt := &gitlab.ListMergeRequestsOptions{
-				AuthorID: &user.ID,
-				Scope:    &scope,
-				ListOptions: gitlab.ListOptions{
-					Page:    1,
-					PerPage: 10,
-				},
-			}
-			mrList, _, err := MergeReqService.ListMergeRequests(opt)
-			u.CheckErr(err, "MergeReqService.ListMergeRequests")
-			for _, mr := range mrList {
-				create_at, close_at := "", ""
-				if mr.CreatedAt != nil {
-					create_at = mr.CreatedAt.Format(u.AUTimeLayout)
-				}
-				if mr.ClosedAt != nil {
-					close_at = mr.ClosedAt.Format(u.AUTimeLayout)
-				}
-				project, _, _ := git.Projects.GetProject(mr.ProjectID, nil)
-
-				line := fmt.Sprintf("%s,%s,%d,%s,%s,%s", create_at, close_at, user.ID, user.Name, mr.Title, project.Name)
-				output = append(output, line)
-				fmt.Printf("%s\n%s\n", u.JsonDump(user, "  "), line)
+	sqlwhere := fmt.Sprintf(`namespace_kind = 'group' AND labels NOT LIKE '%%personal%%' AND is_active = 1 ORDER BY ts`)
+	// Project vars
+	projects := ProjectGet(map[string]string{"where": sqlwhere})
+	for _, p := range projects {
+		// gproject, _, err := git.Projects.GetProject(p.Pid, nil)
+		pvars, _, err := git.ProjectVariables.ListVariables(p.Pid, nil)
+		if u.CheckErrNonFatal(err, "Addhoc_backup_delete_vars_by_value GetProject") != nil {
+			continue
+		}
+		for _, pv := range pvars {
+			if pv.Value == value {
+				log.Printf("[DEBUG] Found var to be deleted - %s\n", u.JsonDump(pv, "  "))
+				application := fmt.Sprintf(`{"key": "%s", "value": "%s", "pid": %d, "gid": %d}`, pv.Key, pv.Value, p.Pid, 0)
+				evtlog := EventLogNew(u.JsonDump(pv, "  "))
+				evtlog.Application = application
+				evtlog.Update()
+				_, err := git.ProjectVariables.RemoveVariable(p.Pid, pv.Key, nil)
+				u.CheckErr(err, "Addhoc_backup_delete_vars_by_value RemoveVariable")
 			}
 		}
-		if resp.CurrentPage >= resp.TotalPages {
-			fmt.Printf("Break %s %s\n", u.JsonDump(resp, "  "), u.JsonDump(uOpt, "  "))
-			break
-		}
-		u.Sleep("2s")
-		uOpt.Page = resp.NextPage
 	}
-	data := strings.Join(output, "\n")
-	ioutil.WriteFile("Addhoc_getfirst10mrperuser.csv", []byte(data), 0777)
+	// Domain group vars
+	groups := GitlabNamespaceGet(map[string]string{"where": "kind = 'group'"})
+	for _, g := range groups {
+		gvars, _, err := git.GroupVariables.ListVariables(g.GitlabNamespaceId, nil)
+		if u.CheckErrNonFatal(err, "Addhoc_backup_delete_vars_by_value GroupVariables.ListVariables") != nil {
+			continue
+		}
+		for _, gv := range gvars {
+			if gv.Value == value {
+				log.Printf("[DEBUG] Found var to be deleted - %s\n", u.JsonDump(gv, "  "))
+				application := fmt.Sprintf(`{"key": "%s", "value": "%s", "pid": %d, "gid": %d}`, gv.Key, gv.Value, 0, g.GitlabNamespaceId)
+				evtlog := EventLogNew(u.JsonDump(gv, "  "))
+				evtlog.Application = application
+				evtlog.Update()
+				_, err := git.GroupVariables.RemoveVariable(g.GitlabNamespaceId, gv.Key, nil)
+				u.CheckErr(err, "Addhoc_backup_delete_vars_by_value RemoveVariable")
+			}
+		}
+	}
 }

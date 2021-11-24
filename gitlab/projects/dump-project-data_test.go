@@ -248,11 +248,9 @@ func TestGetGitlabUser(t *testing.T) {
 	u.CheckErr(err, "ListUsers")
 	log.Printf("%s\n", u.JsonDump(users,  "  "))
 }
-func TestEventLog(t *testing.T) {
+func TestAddhoc_backup_delete_vars_by_value(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
 	ParseConfig()
-	alogline := EventLogNew("My test message")
-	alogline.Host = "My test host"
-	alogline.Update()
-	log.Printf("%s\n",u.JsonDump(alogline, "  "))
+	git := GetGitlabClient()
+	Addhoc_backup_delete_vars_by_value(git, "microservice.cluster-csb6wde17f7d.ap-southeast-2.rds.amazonaws.com")
 }
