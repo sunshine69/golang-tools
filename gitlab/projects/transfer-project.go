@@ -39,6 +39,7 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 			go func(idx int, oldImage, newImage string) {
 				if o, err := u.RunSystemCommandV2(fmt.Sprintf("docker pull %s", oldImage), true); err != nil {
 					log.Println(o)
+					comChannel <- idx
 					return
 				}
 				u.RunSystemCommand(fmt.Sprintf("docker tag %s  %s", oldImage, newImage), true)
@@ -244,7 +245,7 @@ func WaitUntilAllRegistryTagCleared(git *gitlab.Client, gitlabProjectId int) {
 			Tags:      &returnTag,
 			TagsCount: &returnTag,
 		})
-		u.CheckErr(err, "MoveProjectRegistryImages ListRegistryRepositories")
+		u.CheckErr(err, "WaitUntilAllRegistryTagCleared ListRegistryRepositories")
 		if len(registryRepos) == 0 {
 			log.Printf("No repo, no tags")
 			break
