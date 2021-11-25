@@ -71,10 +71,10 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 			log.SetOutput(f)
 			defer f.Close()
 			defer log.SetOutput(os.Stdout)
-			u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, "GitlabDomain Automation - update-all", "", fmt.Sprintf("update-all Started. Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{})
+			u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, "GitlabDomain Automation - update-all", "", fmt.Sprintf("update-all Started. Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{})
 			UpdateAllWrapper(git, SearchStr)
 			os.Remove(lockFileName)
-			u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, "GitlabDomain Automation - update-all", "", fmt.Sprintf("update-all Completed. Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
+			u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, "GitlabDomain Automation - update-all", "", fmt.Sprintf("update-all Completed. Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
 		}()
 	case "update-project":
 		go func() {
@@ -150,7 +150,7 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 			os.Remove(lockFileName)
 		}()
 	case "UpdateProjectDomainFromExcelNext":
-		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, "GitlabDomain Automation - UpdateProjectDomainFromExcelNext", "", fmt.Sprintf("UpdateProjectDomainFromExcelNext Started. Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{})
+		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, "GitlabDomain Automation - UpdateProjectDomainFromExcelNext", "", fmt.Sprintf("UpdateProjectDomainFromExcelNext Started. Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{})
 		go func() {
 			log.SetOutput(f)
 			defer f.Close()
@@ -162,7 +162,7 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 			UpdateTeamProjectFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 			os.Remove(lockFileName)
 
-			u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, "GitlabDomain Automation - UpdateProjectDomainFromExcelNext", "", fmt.Sprintf("UpdateProjectDomainFromExcelNext Completed. Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
+			u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, "GitlabDomain Automation - UpdateProjectDomainFromExcelNext", "", fmt.Sprintf("UpdateProjectDomainFromExcelNext Completed. Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
 		}()
 	}
 	fmt.Fprintf(w, "<p>Process %s started. You can see the log <a href='/log/%s'>here</a></p>", func_name, logFile)
@@ -214,11 +214,11 @@ func RunTransferProject(w http.ResponseWriter, r *http.Request) {
 		project_id, _ := strconv.Atoi(vars["project_id"])
 		log.Printf("TransferProject Started with is %d - \n", project_id)
 
-		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("ProjectID %d Migration Started", project_id), "", fmt.Sprintf("Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{})
+		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("ProjectID %d Migration Started", project_id), "", fmt.Sprintf("Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{})
 
 		TransferProject(git, project_id, user)
 
-		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("ProjectID %d Migration Status", project_id), "", fmt.Sprintf("Migration fully completed. Please find the log attached or click <a href='%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
+		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("ProjectID %d Migration Status", project_id), "", fmt.Sprintf("Migration fully completed. Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
 		os.Remove(lockFileName)
 	}(f)
 	fmt.Fprintf(w, "Started Project ID %s - <a href='/log/%s'>Log</a><br/>Also check your email for notification.", vars["project_id"], logFile)
