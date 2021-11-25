@@ -5,7 +5,7 @@ import (
 	"log"
 	. "localhost.com/gitlab/model"
 	u "localhost.com/utils"
-
+	retryablehttp "github.com/hashicorp/go-retryablehttp"
 	// gu "localhost.com/gitlab/utils"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/xanzy/go-gitlab"
@@ -28,7 +28,7 @@ func Addhoc_backup_delete_vars_by_value(git *gitlab.Client, value string) {
 				evtlog := EventLogNew(u.JsonDump(pv, "  "))
 				evtlog.Application = application
 				evtlog.Update()
-				_, err := git.ProjectVariables.RemoveVariable(p.Pid, pv.Key, nil)
+				_, err := git.ProjectVariables.RemoveVariable(p.Pid, pv.Key, RequestOptionFuncWithParam(map[string]string{"filter[environment_scope]":pv.EnvironmentScope}) )
 				u.CheckErr(err, "Addhoc_backup_delete_vars_by_value RemoveVariable")
 			}
 		}
@@ -51,5 +51,17 @@ func Addhoc_backup_delete_vars_by_value(git *gitlab.Client, value string) {
 				u.CheckErr(err, "Addhoc_backup_delete_vars_by_value RemoveVariable")
 			}
 		}
+	}
+}
+
+func RequestOptionFuncWithParam(params map[string]string) gitlab.RequestOptionFunc {
+	return func(req *retryablehttp.Request) error {
+		for k, v := range params {
+			q := req.URL.Query()
+			q.Add(k, v)
+			req.URL.RawQuery = q.Encode()
+			// req.Form.Set(k, v)
+		}
+		return nil
 	}
 }
