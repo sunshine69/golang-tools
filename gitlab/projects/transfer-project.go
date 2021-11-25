@@ -10,8 +10,8 @@ import (
 	u "localhost.com/utils"
 )
 
-func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, tempPrj *gitlab.Project) {
-	returnTag := true
+func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Project, user string) int {
+	returnTag, processImageCount := true, 0
 	registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(currentPrj.ID, &gitlab.ListRegistryRepositoriesOptions{
 		ListOptions: gitlab.ListOptions{
 			Page: 1, PerPage: 500,
@@ -23,25 +23,57 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, tempPrj *gitlab.P
 
 	oldImagesList := []string{}
 	for _, repoReg := range registryRepos {
+		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), fmt.Sprintf("We are going to push images From %s => %s", currentPrj.NameWithNamespace, newPrj.NameWithNamespace), "", []string{})
 		_, tags := repoReg.Location, repoReg.Tags
-		for _, t := range tags {
+
+		comChannel := make(chan int)
+		defer close(comChannel)
+		totalJobsLeft := 0
+		for _idx, t := range tags {
 			oldImage := t.Location
 			oldImagesList = append(oldImagesList, oldImage)
 			extraName := u.Ternary(repoReg.Name == "", "", "/"+repoReg.Name)
-			newImage := fmt.Sprintf(`%s%s:%s`, GetContainerRegistryBaseLocation(git, tempPrj.ID), extraName, t.Name)
-			u.RunSystemCommand(fmt.Sprintf("docker pull %s", oldImage), true)
-			u.RunSystemCommand(fmt.Sprintf("docker tag %s  %s", oldImage, newImage), true)
-			u.RunSystemCommand(fmt.Sprintf("docker push %s", newImage), true)
+			newImage := fmt.Sprintf(`%s%s:%s`, GetContainerRegistryBaseLocation(git, newPrj.ID), extraName, t.Name)
+
+			totalJobsLeft++
+			go func(idx int, oldImage, newImage string) {
+				if o, err := u.RunSystemCommandV2(fmt.Sprintf("docker pull %s", oldImage), true); err != nil {
+					log.Println(o)
+					return
+				}
+				u.RunSystemCommand(fmt.Sprintf("docker tag %s  %s", oldImage, newImage), true)
+				u.RunSystemCommand(fmt.Sprintf("docker push %s", newImage), true)
+				comChannel <- idx
+			}(_idx, oldImage, newImage)
+
+			if (totalJobsLeft > 0) && (totalJobsLeft % 5 == 0) {
+				j := <-comChannel
+				processImageCount++
+				fmt.Printf("job %d completed.\n", j)
+				totalJobsLeft--
+			}
+		}
+		if totalJobsLeft > 0 {
+			//Flush the rest
+			for j := range comChannel {
+				fmt.Printf("job %d completed\n", j)
+				totalJobsLeft--
+				if totalJobsLeft == 0 {
+					break
+				}
+			}
 		}
 	}
 	for _, repoReg := range registryRepos {
+		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", fmt.Sprintf("We are going to delete the container registry repository of the project name %s, ID %d. <b>This means your production k8s if using the old image will get errors. To minimize the outage of scaling please keep an eye for next email for action</b>", currentPrj.NameWithNamespace, currentPrj.ID), []string{})
 		_, err := git.ContainerRegistry.DeleteRegistryRepository(currentPrj.ID, repoReg.ID, nil)
 		u.CheckErr(err, "MoveProjectRegistryImages DeleteRegistryRepository "+repoReg.String())
 	}
 	// Clean up local docker images after pushing
 	for _, _oldImage := range oldImagesList {
-		u.RunSystemCommand(fmt.Sprintf(`docker rmi %s`, _oldImage), false)
+		go u.RunSystemCommand(fmt.Sprintf(`docker rmi %s`, _oldImage), false)
 	}
+	return processImageCount
 }
 func MoveProjectRegistryImagesUseShell(git *gitlab.Client, currentPrj, newPrj *gitlab.Project, user string) {
 	returnTag := true
@@ -91,7 +123,10 @@ func BackupProjectRegistryImages(git *gitlab.Client, p *gitlab.Project, user str
 		u.CheckErr(err, "BackupProjectRegistryImages ListProjects")
 		tempPrj = ps[0]
 	}
-	MoveProjectRegistryImagesUseShell(git, p, tempPrj, user)
+	// MoveProjectRegistryImagesUseShell(git, p, tempPrj, user)
+	if MoveProjectRegistryImages(git, p, tempPrj, user) == 0 {
+		log.Fatalf("[ERROR] MoveProjectRegistryImages does not process any images\n")
+	}
 	return tempPrj
 }
 

@@ -375,7 +375,20 @@ func RunSystemCommand(cmd string, verbose bool) string {
 	output1 = strings.TrimSuffix(output1, "\n")
 	return output1
 }
+func RunSystemCommandV2(cmd string, verbose bool) (string, error) {
+	if verbose {
+		log.Printf("[INFO] command: %s\n", cmd)
+	}
+	command := exec.Command("bash", "-c", cmd)
 
+	combinedOutput, err := command.CombinedOutput()
+	if err != nil {
+		return fmt.Sprintf("[ERROR] error command: '%s' - %v\n    %s\n", cmd, err, combinedOutput), err
+	}
+	output1 := fmt.Sprintf("%s", command.Stdout)
+	output1 = strings.TrimSuffix(output1, "\n")
+	return output1, nil
+}
 func Getenv(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
 		return value
