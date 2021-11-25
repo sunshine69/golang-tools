@@ -72,7 +72,7 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 	}
 	// Clean up local docker images after pushing
 	for _, _oldImage := range oldImagesList {
-		go u.RunSystemCommand(fmt.Sprintf(`docker rmi %s`, _oldImage), false)
+		go u.RunSystemCommandV2(fmt.Sprintf(`docker rmi %s`, _oldImage), false)
 	}
 	return processImageCount
 }
