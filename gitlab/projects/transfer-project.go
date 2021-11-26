@@ -59,6 +59,7 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 			for j := range comChannel {
 				fmt.Printf("job %d completed\n", j)
 				totalJobsLeft--
+				processImageCount++
 				if totalJobsLeft == 0 {
 					break
 				}
