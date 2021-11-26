@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 
@@ -10,7 +11,7 @@ import (
 	u "localhost.com/utils"
 )
 
-func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Project, user string) int {
+func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Project, user string) (int, error) {
 	returnTag, processImageCount := true, 0
 	registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(currentPrj.ID, &gitlab.ListRegistryRepositoriesOptions{
 		ListOptions: gitlab.ListOptions{
@@ -67,7 +68,9 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 		}
 		//If we do not process any images but in the registry has images means all images are corrupted. We should error here
 		if (processImageCount == 0) && (len(oldImagesList) > 0) {
-			log.Fatalf("[ERROR] We have images in the repo but we can not move any. This implies all images are corrupted")
+			errMsg := "[ERROR] CRITICAL We have images in the repo but we can not move any. This implies all images are corrupted"
+			u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", errMsg, []string{})
+			return 0, errors.New(errMsg)
 		}
 	}
 	for _, repoReg := range registryRepos {
@@ -79,7 +82,7 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 	for _, _oldImage := range oldImagesList {
 		go u.RunSystemCommandV2(fmt.Sprintf(`docker rmi %s`, _oldImage), false)
 	}
-	return processImageCount
+	return processImageCount, nil
 }
 func MoveProjectRegistryImagesUseShell(git *gitlab.Client, currentPrj, newPrj *gitlab.Project, user string) {
 	returnTag := true
@@ -115,7 +118,7 @@ func MoveProjectRegistryImagesUseShell(git *gitlab.Client, currentPrj, newPrj *g
 		log.Printf("Cleanup %s completed\n", repoImage)
 	}
 }
-func BackupProjectRegistryImages(git *gitlab.Client, p *gitlab.Project, user string) *gitlab.Project {
+func BackupProjectRegistryImages(git *gitlab.Client, p *gitlab.Project, user string) (*gitlab.Project, error) {
 	tempPrjPath := fmt.Sprintf("%s-temp", p.Path)
 	newNameSpaceId := ProjectDomainGet(map[string]string{"where": fmt.Sprintf("project_id = %d", p.ID)})[0].DomainId
 	tempPrj, _, err := git.Projects.CreateProject(&gitlab.CreateProjectOptions{
@@ -130,10 +133,8 @@ func BackupProjectRegistryImages(git *gitlab.Client, p *gitlab.Project, user str
 		tempPrj = ps[0]
 	}
 	// MoveProjectRegistryImagesUseShell(git, p, tempPrj, user)
-	if MoveProjectRegistryImages(git, p, tempPrj, user) == 0 {
-		log.Fatalf("[ERROR] MoveProjectRegistryImages does not process any images\n")
-	}
-	return tempPrj
+	_, err = MoveProjectRegistryImages(git, p, tempPrj, user)
+	return tempPrj, err
 }
 
 // Take a project_id and automate the transfer process. This should be run on a dashboard manually per project
@@ -208,7 +209,8 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 	// Transfer project won't work if the current project still have registry tag. We need to delete them
 	// all before. Delete/backup is handled in MoveProjectRegistryImages func
 	log.Printf("pid:%d - Backup container reg and remove all existing tags\n", gitlabProjectId)
-	tempPrj := BackupProjectRegistryImages(git, gitlabProject, user)
+	tempPrj, err := BackupProjectRegistryImages(git, gitlabProject, user)
+	if err != nil { return }
 	//Check the current project and be sure we don't have any image tags exists before transferring
 	WaitUntilAllRegistryTagCleared(git, gitlabProject.ID)
 
