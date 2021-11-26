@@ -65,6 +65,10 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 				}
 			}
 		}
+		//If we do not process any images but in the registry has images means all images are corrupted. We should error here
+		if (processImageCount == 0) && (len(oldImagesList) > 0) {
+			log.Fatalf("[ERROR] We have images in the repo but we can not move any. This implies all images are corrupted")
+		}
 	}
 	for _, repoReg := range registryRepos {
 		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", fmt.Sprintf("We are going to delete the container registry repository of the project name %s, ID %d. <b>This means your production k8s if using the old image will get errors. To minimize the outage of scaling please keep an eye for next email for action</b>", currentPrj.NameWithNamespace, currentPrj.ID), []string{})
