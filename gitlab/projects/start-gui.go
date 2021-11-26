@@ -203,6 +203,12 @@ func RunTransferProject(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "RunTransferProject already running - lock file %s - <a href='/log/%s'>Log</a>", lockFileName, string(previousLogfile))
 		return
 	}
+	_countStr, _ := u.RunSystemCommandV2("ls -lha /tmp/RunTransferProject_* 2>/dev/null | wc -l", false)
+	_count, _ := strconv.Atoi(_countStr)
+	if _count > 2 {
+		fmt.Fprintf(w, "RunTransferProject two processes already running")
+		return
+	}
 	ioutil.WriteFile(lockFileName, []byte(logFile), 0660)
 	f, err := os.OpenFile("log/"+logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	u.CheckErr(err, "RunTransferProject OpenFile logfile")
