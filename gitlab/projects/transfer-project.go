@@ -15,7 +15,7 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 	returnTag, processImageCount := true, 0
 	registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(currentPrj.ID, &gitlab.ListRegistryRepositoriesOptions{
 		ListOptions: gitlab.ListOptions{
-			Page: 1, PerPage: 500,
+			Page: 1, PerPage: 100,
 		},
 		Tags:      &returnTag,
 		TagsCount: &returnTag,
@@ -88,7 +88,7 @@ func MoveProjectRegistryImagesUseShell(git *gitlab.Client, currentPrj, newPrj *g
 	returnTag := true
 	registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(currentPrj.ID, &gitlab.ListRegistryRepositoriesOptions{
 		ListOptions: gitlab.ListOptions{
-			Page: 1, PerPage: 500,
+			Page: 1, PerPage: 100,
 		},
 		Tags:      &returnTag,
 		TagsCount: &returnTag,
@@ -248,7 +248,7 @@ func WaitUntilAllRegistryTagCleared(git *gitlab.Client, gitlabProjectId int) {
 		returnTag := true
 		registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(gitlabProjectId, &gitlab.ListRegistryRepositoriesOptions{
 			ListOptions: gitlab.ListOptions{
-				Page: 1, PerPage: 500,
+				Page: 1, PerPage: 100,
 			},
 			Tags:      &returnTag,
 			TagsCount: &returnTag,

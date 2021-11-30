@@ -10,31 +10,39 @@ import (
 func CopyGroupVars(git *gitlab.Client ,groupA, groupB *gitlab.Group) []*gitlab.GroupVariable {
 	gvSrv := git.GroupVariables
 	output := []*gitlab.GroupVariable{}
-	gVars,_,err := gvSrv.ListVariables(groupA.ID, &gitlab.ListGroupVariablesOptions{
+	opt := gitlab.ListGroupVariablesOptions{
 		Page: 1,
-		PerPage: 10000,
-	}); u.CheckErr(err, "CopyGroupVars ListVariables")
-	for _, gv := range gVars {
-		gbv, _, err := gvSrv.GetVariable(groupB.ID, gv.Key, nil)
-		if err == nil {
-			log.Printf("Target group var key: %s val: %s exists\n", gbv.Key, gbv.Value)
-			if gv.Value != gbv.Value {
-				log.Printf("[WARNING] Key exists but value are different\n")
-				output = append(output, gv)
-			} else {
-				log.Printf("Value match, skipping")
+		PerPage: 100,
+	}
+	for {
+		gVars,resp,err := gvSrv.ListVariables(groupA.ID, &opt); u.CheckErr(err, "CopyGroupVars ListVariables")
+		for _, gv := range gVars {
+			gbv, _, err := gvSrv.GetVariable(groupB.ID, gv.Key, nil)
+			if err == nil {
+				log.Printf("Target group var key: %s val: %s exists\n", gbv.Key, gbv.Value)
+				if gv.Value != gbv.Value {
+					log.Printf("[WARNING] Key exists but value are different\n")
+					output = append(output, gv)
+				} else {
+					log.Printf("Value match, skipping")
+				}
+				continue
 			}
-			continue
+			gbv, _, err = gvSrv.CreateVariable(groupB.ID, &gitlab.CreateGroupVariableOptions{
+				Key: &gv.Key,
+				Value: &gv.Value,
+				VariableType: &gv.VariableType,
+				EnvironmentScope: &gv.EnvironmentScope,
+				Masked: &gv.Masked,
+				Protected: &gv.Protected,
+			}); u.CheckErr(err, "CopyGroupVars CreateVariable")
+			log.Printf("Created new var in group %s\n%s\n", groupB.Name, u.JsonDump(gbv, "  "))
 		}
-		gbv, _, err = gvSrv.CreateVariable(groupB.ID, &gitlab.CreateGroupVariableOptions{
-			Key: &gv.Key,
-			Value: &gv.Value,
-			VariableType: &gv.VariableType,
-			EnvironmentScope: &gv.EnvironmentScope,
-			Masked: &gv.Masked,
-			Protected: &gv.Protected,
-		}); u.CheckErr(err, "CopyGroupVars CreateVariable")
-		log.Printf("Created new var in group %s\n%s\n", groupB.Name, u.JsonDump(gbv, "  "))
+		if resp.CurrentPage >= resp.TotalPages {
+			break
+		}
+		// Update the page number to get the next page.
+		opt.Page = resp.NextPage
 	}
 	return output
 }
