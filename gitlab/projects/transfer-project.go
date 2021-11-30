@@ -162,9 +162,9 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 
 	existingGroupList := project.GetDomainList(git)
 	existingRootGroup := existingGroupList[0]
-	log.Printf("Check if existing root group %s is the same as the new group %s\n", existingRootGroup.FullPath, gitlabDomainGroup.FullPath)
+	log.Printf("pid: %d Check if existing root group %s is the same as the new group %s\n", gitlabProjectId, existingRootGroup.FullPath, gitlabDomainGroup.FullPath)
 	if existingRootGroup.FullPath == gitlabDomainGroup.FullPath {
-		log.Printf("Matched - Project already be in correct group, do nothing\n")
+		log.Printf("pid: %d Matched - Project already be in correct group, do nothing\n", gitlabProjectId)
 		return
 	}
 	parentID := gitlabDomainGroup.ID
@@ -173,14 +173,14 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 	//Replicate group path from old project => new one
 	for idx, eg := range existingGroupList {
 		if idx == 0 {
-			log.Println("Copy the group vars - existingRootGroup => New Root Group")
+			log.Printf("pid: %d Copy the group vars - existingRootGroup '%s' => New Root Group '%s'\n", gitlabProjectId, eg.Name, gitlabDomainGroup.Name)
 			nonCopyableVars = append(nonCopyableVars, CopyGroupVars(git, eg, gitlabDomainGroup)...)
 		} else {
-			log.Printf("Check if sub group exists in the new tree")
+			log.Printf("pid: %d Check if sub group exists in the new tree\n", gitlabProjectId)
 			gs := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("parent_id = %d AND path = '%s' ", parentID, eg.Path)})
 
 			if len(gs) == 0 {
-				log.Printf("Group does not exist, creating new group with parentID %d\n", parentID)
+				log.Printf("pid: %d Group does not exist, creating new group with parentID %d\n", gitlabProjectId, parentID)
 				lastNewGroup, _, err = git.Groups.CreateGroup(&gitlab.CreateGroupOptions{
 					ParentID: &parentID,
 					Path:     &eg.Path,
@@ -196,11 +196,12 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 				}
 				GitlabNamespaceNew(lastNewGroup.FullPath) //Update the table so re-run will detect that
 			} else {
-				log.Printf("Group exist, copy vars over")
+				log.Printf("pid: %d Group exist, copy vars over\n", gitlabProjectId)
 				lastNewGroup, _, err = git.Groups.GetGroup(gs[0].GitlabNamespaceId, nil)
 				u.CheckErr(err, "TransferProject GetGroup")
 			}
-			log.Printf("[DEBUG] lastNewGroup %s\n", u.JsonDump(lastNewGroup, "  "))
+			log.Printf("[DEBUG] pid: %d lastNewGroup %s\n", gitlabProjectId, u.JsonDump(lastNewGroup, "  "))
+			log.Printf("pid: %d Copy the group vars - existingRootGroup '%s' => New Root Group '%s'\n", gitlabProjectId, eg.Name, lastNewGroup.Name)
 			nonCopyableVars = append(nonCopyableVars, CopyGroupVars(git, eg, lastNewGroup)...)
 			parentID = lastNewGroup.ID
 		}

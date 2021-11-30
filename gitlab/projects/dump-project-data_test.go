@@ -254,3 +254,16 @@ func TestAddhoc_backup_delete_vars_by_value(t *testing.T) {
 	git := GetGitlabClient()
 	Addhoc_backup_delete_vars_by_value(git, "microservice.cluster-csb6wde17f7d.ap-southeast-2.rds.amazonaws.com")
 }
+func TestCopyGroupVars(t *testing.T) {
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
+	ParseConfig()
+	git := GetGitlabClient()
+	gA, _, err := git.Groups.GetGroup(266, nil); u.CheckErr(err, "")
+	// gVars,_,err := git.GroupVariables.ListVariables(gA.ID, &gitlab.ListGroupVariablesOptions{
+	// 	Page: 1,
+	// 	PerPage: 5000,
+	// }); u.CheckErr(err, "CopyGroupVars ListVariables")
+	// log.Printf("%s\n", u.JsonDump(gVars, "   "))
+	gB, _, err := git.Groups.GetGroup(569, nil); u.CheckErr(err, "")
+	CopyGroupVars(git, gA, gB)
+}

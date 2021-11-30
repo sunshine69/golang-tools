@@ -10,7 +10,10 @@ import (
 func CopyGroupVars(git *gitlab.Client ,groupA, groupB *gitlab.Group) []*gitlab.GroupVariable {
 	gvSrv := git.GroupVariables
 	output := []*gitlab.GroupVariable{}
-	gVars,_,err := gvSrv.ListVariables(groupA.ID, nil); u.CheckErr(err, "CopyGroupVars ListVariables")
+	gVars,_,err := gvSrv.ListVariables(groupA.ID, &gitlab.ListGroupVariablesOptions{
+		Page: 1,
+		PerPage: 10000,
+	}); u.CheckErr(err, "CopyGroupVars ListVariables")
 	for _, gv := range gVars {
 		gbv, _, err := gvSrv.GetVariable(groupB.ID, gv.Key, nil)
 		if err == nil {
