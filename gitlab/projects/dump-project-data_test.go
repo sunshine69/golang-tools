@@ -1,5 +1,6 @@
 package main
 import (
+	"io/ioutil"
 	"os"
 	"fmt"
 	"log"
@@ -258,12 +259,29 @@ func TestCopyGroupVars(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
 	ParseConfig()
 	git := GetGitlabClient()
-	gA, _, err := git.Groups.GetGroup(266, nil); u.CheckErr(err, "")
-	// gVars,_,err := git.GroupVariables.ListVariables(gA.ID, &gitlab.ListGroupVariablesOptions{
-	// 	Page: 1,
-	// 	PerPage: 5000,
-	// }); u.CheckErr(err, "CopyGroupVars ListVariables")
-	// log.Printf("%s\n", u.JsonDump(gVars, "   "))
-	gB, _, err := git.Groups.GetGroup(569, nil); u.CheckErr(err, "")
-	CopyGroupVars(git, gA, gB)
+	opt := gitlab.ListGroupVariablesOptions{
+		Page: 1,
+		PerPage: 100,
+	}
+	allVars := []*gitlab.GroupVariable{}
+	projectIDLookup := map[string]int{
+		"go1-core": 266,
+		"microservices": 146,
+		"integration": 227,
+		"domain-content": 569,
+	}
+	groupName := "domain-content"
+	for {
+		gA, resp, err := git.Groups.GetGroup(projectIDLookup[groupName], nil); u.CheckErr(err, "")
+		gVars,_,err := git.GroupVariables.ListVariables(gA.ID, &opt); u.CheckErr(err, "CopyGroupVars ListVariables")
+		allVars = append(allVars, gVars... )
+		// gB, _, err := git.Groups.GetGroup(569, nil); u.CheckErr(err, "")
+		// CopyGroupVars(git, gA, gB)
+		if resp.CurrentPage >= resp.TotalPages {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+	// log.Printf("%s\nCount: %d\n", u.JsonDump(allVars, "   "), len(allVars))
+	ioutil.WriteFile("data/"+groupName + "-vars.json", []byte(u.JsonDump(allVars, "  ")), 0750)
 }
