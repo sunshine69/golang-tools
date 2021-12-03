@@ -150,6 +150,10 @@ func BackupProjectRegistryImages(git *gitlab.Client, p *gitlab.Project, user str
 func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 	log.Printf("TransferProject ID %d started\n", gitlabProjectId)
 	gitlabProject, _, err := git.Projects.GetProject(gitlabProjectId, nil)
+	if gitlabProject.Archived {
+		log.Printf("[ERROR] Project %s is in Archived mode, skipping\n", gitlabProject.NameWithNamespace)
+		return
+	}
 	u.CheckErr(err, "TransferProject Projects.GetProject")
 	// Get the domain for this project from Project_Domain relationship
 	pd := ProjectDomainGet(map[string]string{"where": fmt.Sprintf("project_id = %d ORDER BY ts DESC LIMIT 1", gitlabProject.ID)})
