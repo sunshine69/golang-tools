@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"flag"
+	"log"
 	"fmt"
 	"io/ioutil"
 	"strings"
@@ -14,25 +15,11 @@ import (
 
 var (
 	json      = jsoniter.ConfigCompatibleWithStandardLibrary
-	inputFile, k8sNamespace string
+	inputFile, k8sNamespace, objectType string
     autoExecute bool
 )
 
-func main() {
-
-	flag.StringVar(&inputFile, "f", "", "Input fname. Run 'kubectl -n review get deployments -o json > deployments.json' to get the file")
-    flag.BoolVar(&autoExecute, "autoexec", false, "Auto exec. This will automatically run kubectl to get deployment and print out the command")
-    flag.StringVar(&k8sNamespace, "n", "review", "k8s namespace when automatically run kubectl to get deployment and print out the command")
-	flag.Parse()
-
-	tempFile, err := ioutil.TempFile("", "deployments.json"); defer os.Remove(tempFile.Name())
-
-	u.CheckErr(err, "Create temp file")
-    if autoExecute {
-		u.RunSystemCommand(fmt.Sprintf("kubectl -n %s get deployments -o json > %s", k8sNamespace, tempFile.Name()), false)
-		inputFile = tempFile.Name()
-    }
-
+func processCommand(objType, inputFile string) {
 	data, err := ioutil.ReadFile(inputFile)
 	u.CheckErr(err, "")
 
@@ -57,9 +44,48 @@ func main() {
 			if !strings.Contains(val["name"], "nginx") {
 				//depDate := tDeploy.String()
 				//cmdList = append(cmdList, fmt.Sprintf("kubectl -n review delete deployment %s - %s", val["name"], depDate))
-				cmdList = append(cmdList, fmt.Sprintf("kubectl -n %s delete deployment %s", k8sNamespace, val["name"]))
+				cmdList = append(cmdList, fmt.Sprintf("kubectl -n %s delete %s %s", k8sNamespace, objType, val["name"]))
 			}
 		}
 	}
 	fmt.Printf("%v\n", strings.Join(cmdList, "\n"))
+}
+
+func main() {
+
+	flag.StringVar(&inputFile, "f", "", "Input fname. Run 'kubectl -n review get <object_type> -o json > deployments.json' to get the file. object_type can be: deployment, svc, hpa, ingress")
+	flag.StringVar(&objectType, "t", "deployment", "Object type. Can be: deployment, svc, hpa, ingress, all. all is all of them")
+    flag.BoolVar(&autoExecute, "autoexec", false, "Auto exec. This will automatically run kubectl to get deployment and print out the command")
+    flag.StringVar(&k8sNamespace, "n", "review", "k8s namespace when automatically run kubectl to get deployment and print out the command")
+	flag.Parse()
+
+	tempFile, err := ioutil.TempFile("", objectType + ".json"); defer os.Remove(tempFile.Name())
+
+	u.CheckErr(err, "Create temp file")
+
+	supportObjectType := map[string]bool{
+		"deployment": true, "service": true, "svc": true, "ingress": true, "ing": true, "hpa": true, "all": true,
+	}
+	if isSupport, ok := supportObjectType[objectType]; ok {
+		if isSupport {
+			if autoExecute {
+				if objectType == "all" {
+					for _, objType := range []string{"deployment","service","ingress", "hpa"} {
+						u.RunSystemCommand(fmt.Sprintf("kubectl -n %s get %s -o json > %s", k8sNamespace, objType, tempFile.Name()), false)
+						processCommand(objType, tempFile.Name())
+					}
+				} else {
+					u.RunSystemCommand(fmt.Sprintf("kubectl -n %s get %s -o json > %s", k8sNamespace, objectType,tempFile.Name()), false)
+					processCommand(objectType, tempFile.Name())
+				}
+			} else {
+				processCommand(objectType, inputFile)
+			}
+		} else {
+			log.Fatalf("[ERROR] Whether the objectType (-t) is not supported")
+		}
+	} else {
+		log.Fatalf("[ERROR] Whether the objectType (-t) does not exist")
+	}
+
 }
