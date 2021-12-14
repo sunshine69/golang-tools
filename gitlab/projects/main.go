@@ -231,6 +231,9 @@ func main() {
 		"gitlabToken": "YOUR-GITLAB-API-TOKEN",
 		"admin_user_id": <YOUR GILAB USER ID AS ADMIN TO USE IN THE APP>,
 		"SearchStr": "",
+		"BlacklistVariableValues": {
+			"<value of blacklisted var>": true
+		},
 		"SENDGRID_API_KEY": "YOUR SENDGRID API KEY USED TO SEND EMAIL NOTIFICATION"
    }`)
 	flag.StringVar(&GitLabToken, "tok", "", "GitLabToken if empty then read from env var GITLAB_TOKEN")

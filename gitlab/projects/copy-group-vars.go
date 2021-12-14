@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	u "localhost.com/utils"
+	. "localhost.com/gitlab/model"
 	"github.com/xanzy/go-gitlab"
 )
 //Copy all vars from one group to other if destination does not have the same vars
@@ -16,7 +17,12 @@ func CopyGroupVars(git *gitlab.Client ,groupA, groupB *gitlab.Group) []*gitlab.G
 	}
 	for {
 		gVars,resp,err := gvSrv.ListVariables(groupA.ID, &opt); u.CheckErr(err, "CopyGroupVars ListVariables")
+		blacklistVarByValue :=  AppConfig["BlacklistVariableValues"].(map[string]bool)
 		for _, gv := range gVars {
+			if _, _blOK := blacklistVarByValue[gv.Value]; _blOK {
+				log.Printf("[INFO] Value %s is in the blacklist, ignoring...\n", gv.Value)
+				continue
+			}
 			gbv, _, err := gvSrv.GetVariable(groupB.ID, gv.Key, nil)
 			if err == nil {
 				log.Printf("Target group var key: %s val: %s exists\n", gbv.Key, gbv.Value)
@@ -52,7 +58,12 @@ func CopyGroupVars(git *gitlab.Client ,groupA, groupB *gitlab.Group) []*gitlab.G
 func CopyGroupVarIntoProject(git *gitlab.Client, varList []*gitlab.GroupVariable, p *gitlab.Project) []*gitlab.GroupVariable {
 	pvSrv := git.ProjectVariables
 	output := []*gitlab.GroupVariable{}
+	blacklistVarByValue :=  AppConfig["BlacklistVariableValues"].(map[string]bool)
 	for _, gv := range varList {
+		if _, _blOK := blacklistVarByValue[gv.Value]; _blOK {
+			log.Printf("[INFO] Value %s is in the blacklist, ignoring...\n", gv.Value)
+			continue
+		}
 		gbv, _, err := pvSrv.GetVariable(p.ID, gv.Key, nil)
 		if err == nil {
 			log.Printf("Target project var key: %s val: %s exists\n", gbv.Key, gbv.Value)
