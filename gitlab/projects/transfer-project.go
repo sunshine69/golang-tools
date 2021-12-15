@@ -210,10 +210,10 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 			parentID = lastNewGroup.ID
 		}
 	}
-	log.Printf("[DEBUG] nonCopyableVars: %s\n", u.JsonDump(nonCopyableVars, "  "))
+	log.Printf("[DEBUG] pid: %d nonCopyableVars: %s\n", gitlabProjectId, u.JsonDump(nonCopyableVars, "  "))
 	// Transfer project won't work if the current project still have registry tag. We need to delete them
 	// all before. Delete/backup is handled in MoveProjectRegistryImages func
-	log.Printf("pid:%d - Backup container reg and remove all existing tags\n", gitlabProjectId)
+	log.Printf("pid: %d - Backup container reg and remove all existing tags\n", gitlabProjectId)
 	tempPrj, err := BackupProjectRegistryImages(git, gitlabProject, user)
 	if err != nil { return }
 	//Check the current project and be sure we don't have any image tags exists before transferring

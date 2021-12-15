@@ -61,17 +61,17 @@ func CopyGroupVarIntoProject(git *gitlab.Client, varList []*gitlab.GroupVariable
 	blacklistVarByValue :=  AppConfig["BlacklistVariableValues"].(map[string]interface{})
 	for _, gv := range varList {
 		if _, _blOK := blacklistVarByValue[gv.Value]; _blOK {
-			log.Printf("[INFO] Value %s is in the blacklist, ignoring...\n", gv.Value)
+			log.Printf("[INFO] pid: %d Value %s is in the blacklist, ignoring...\n", p.ID, gv.Value)
 			continue
 		}
 		gbv, _, err := pvSrv.GetVariable(p.ID, gv.Key, nil)
 		if err == nil {
-			log.Printf("Target project var key: %s val: %s exists\n", gbv.Key, gbv.Value)
+			log.Printf("pid: %d Target project var key: %s val: %s exists\n", p.ID, gbv.Key, gbv.Value)
 			if gv.Value != gbv.Value {
-				log.Printf("[WARNING] Key exists but value are different\n")
+				log.Printf("[WARNING] pid: %d Key exists but value are different\n",  p.ID)
 				output = append(output, gv)
 			} else {
-				log.Printf("Value match, skipping")
+				log.Printf("pid: %d Value match, skipping", p.ID )
 			}
 			continue
 		}

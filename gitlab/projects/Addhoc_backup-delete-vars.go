@@ -23,7 +23,7 @@ func Addhoc_backup_delete_vars_by_value(git *gitlab.Client, value string) {
 		}
 		for _, pv := range pvars {
 			if pv.Value == value {
-				log.Printf("[DEBUG] Found var to be deleted - %s\n", u.JsonDump(pv, "  "))
+				log.Printf("[DEBUG] Found var to be deleted. Project %s - %s\n",p.NameWithSpace, u.JsonDump(pv, "  "))
 				application := fmt.Sprintf(`{"key": "%s", "value": "%s", "pid": %d, "gid": %d}`, pv.Key, pv.Value, p.Pid, 0)
 				evtlog := EventLogNew(u.JsonDump(pv, "  "))
 				evtlog.Application = application
@@ -42,7 +42,7 @@ func Addhoc_backup_delete_vars_by_value(git *gitlab.Client, value string) {
 		}
 		for _, gv := range gvars {
 			if gv.Value == value {
-				log.Printf("[DEBUG] Found var to be deleted - %s\n", u.JsonDump(gv, "  "))
+				log.Printf("[DEBUG] Found var to be deleted. Group %s - %s\n", g.Name, u.JsonDump(gv, "  "))
 				application := fmt.Sprintf(`{"key": "%s", "value": "%s", "pid": %d, "gid": %d}`, gv.Key, gv.Value, 0, g.GitlabNamespaceId)
 				evtlog := EventLogNew(u.JsonDump(gv, "  "))
 				evtlog.Application = application
