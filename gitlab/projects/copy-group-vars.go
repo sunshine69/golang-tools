@@ -17,7 +17,7 @@ func CopyGroupVars(git *gitlab.Client ,groupA, groupB *gitlab.Group) []*gitlab.G
 	}
 	for {
 		gVars,resp,err := gvSrv.ListVariables(groupA.ID, &opt); u.CheckErr(err, "CopyGroupVars ListVariables")
-		blacklistVarByValue :=  AppConfig["BlacklistVariableValues"].(map[string]bool)
+		blacklistVarByValue :=  AppConfig["BlacklistVariableValues"].(map[string]int)
 		for _, gv := range gVars {
 			if _, _blOK := blacklistVarByValue[gv.Value]; _blOK {
 				log.Printf("[INFO] Value %s is in the blacklist, ignoring...\n", gv.Value)
@@ -58,7 +58,7 @@ func CopyGroupVars(git *gitlab.Client ,groupA, groupB *gitlab.Group) []*gitlab.G
 func CopyGroupVarIntoProject(git *gitlab.Client, varList []*gitlab.GroupVariable, p *gitlab.Project) []*gitlab.GroupVariable {
 	pvSrv := git.ProjectVariables
 	output := []*gitlab.GroupVariable{}
-	blacklistVarByValue :=  AppConfig["BlacklistVariableValues"].(map[string]bool)
+	blacklistVarByValue :=  AppConfig["BlacklistVariableValues"].(map[string]int)
 	for _, gv := range varList {
 		if _, _blOK := blacklistVarByValue[gv.Value]; _blOK {
 			log.Printf("[INFO] Value %s is in the blacklist, ignoring...\n", gv.Value)
