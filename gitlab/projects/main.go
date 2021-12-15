@@ -232,7 +232,10 @@ func main() {
 		"admin_user_id": <YOUR GILAB USER ID AS ADMIN TO USE IN THE APP>,
 		"SearchStr": "",
 		"BlacklistVariableValues": {
-			"<value of blacklisted var>": true
+			"<value of blacklisted var>": {
+				"match-key": "correct-value",
+				"if-not-match": "just-skip-copying"
+			}
 		},
 		"SENDGRID_API_KEY": "YOUR SENDGRID API KEY USED TO SEND EMAIL NOTIFICATION"
    }`)

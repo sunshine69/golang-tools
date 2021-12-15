@@ -19,14 +19,22 @@ func CopyGroupVars(git *gitlab.Client ,groupA, groupB *gitlab.Group) []*gitlab.G
 		gVars,resp,err := gvSrv.ListVariables(groupA.ID, &opt); u.CheckErr(err, "CopyGroupVars ListVariables")
 		blacklistVarByValue :=  AppConfig["BlacklistVariableValues"].(map[string]interface{})
 		for _, gv := range gVars {
-			if _, _blOK := blacklistVarByValue[gv.Value]; _blOK {
-				log.Printf("[INFO] Value %s is in the blacklist, ignoring...\n", gv.Value)
-				continue
+			sourceValue := gv.Value
+			if _blValI, _blOK := blacklistVarByValue[gv.Value]; _blOK {
+				blVal := _blValI.(map[string]interface{})
+				if varCorrectValueI, _varOK := blVal[gv.Key]; _varOK {
+					varCorrectValue := varCorrectValueI.(string)
+					log.Printf("[INFO] Value %s is in the mangle, the correct value should be %s\n", gv.Value, varCorrectValue)
+					sourceValue = varCorrectValue
+				} else {
+					log.Printf("[INFO] Value %s is in the blacklist, ignoring...\n", gv.Value)
+					continue
+				}
 			}
 			gbv, _, err := gvSrv.GetVariable(groupB.ID, gv.Key, nil)
 			if err == nil {
 				log.Printf("Target group var key: %s val: %s exists\n", gbv.Key, gbv.Value)
-				if gv.Value != gbv.Value {
+				if sourceValue != gbv.Value {
 					log.Printf("[WARNING] Key exists but value are different\n")
 					output = append(output, gv)
 				} else {
@@ -36,7 +44,7 @@ func CopyGroupVars(git *gitlab.Client ,groupA, groupB *gitlab.Group) []*gitlab.G
 			}
 			gbv, _, err = gvSrv.CreateVariable(groupB.ID, &gitlab.CreateGroupVariableOptions{
 				Key: &gv.Key,
-				Value: &gv.Value,
+				Value: &sourceValue,
 				VariableType: &gv.VariableType,
 				EnvironmentScope: &gv.EnvironmentScope,
 				Masked: &gv.Masked,
@@ -60,14 +68,22 @@ func CopyGroupVarIntoProject(git *gitlab.Client, varList []*gitlab.GroupVariable
 	output := []*gitlab.GroupVariable{}
 	blacklistVarByValue :=  AppConfig["BlacklistVariableValues"].(map[string]interface{})
 	for _, gv := range varList {
-		if _, _blOK := blacklistVarByValue[gv.Value]; _blOK {
-			log.Printf("[INFO] pid: %d Value %s is in the blacklist, ignoring...\n", p.ID, gv.Value)
-			continue
+		sourceValue := gv.Value
+		if _blValI, _blOK := blacklistVarByValue[gv.Value]; _blOK {
+			blVal := _blValI.(map[string]interface{})
+			if varCorrectValueI, _varOK := blVal[gv.Key]; _varOK {
+				varCorrectValue := varCorrectValueI.(string)
+				log.Printf("[INFO] Value %s is in the mangle, the correct value should be %s\n", gv.Value, varCorrectValue)
+				sourceValue = varCorrectValue
+			} else {
+				log.Printf("[INFO] pid: %d Value %s is in the blacklist, ignoring...\n", p.ID, gv.Value)
+				continue
+			}
 		}
 		gbv, _, err := pvSrv.GetVariable(p.ID, gv.Key, nil)
 		if err == nil {
 			log.Printf("pid: %d Target project var key: %s val: %s exists\n", p.ID, gbv.Key, gbv.Value)
-			if gv.Value != gbv.Value {
+			if sourceValue != gbv.Value {
 				log.Printf("[WARNING] pid: %d Key exists but value are different\n",  p.ID)
 				output = append(output, gv)
 			} else {
@@ -77,7 +93,7 @@ func CopyGroupVarIntoProject(git *gitlab.Client, varList []*gitlab.GroupVariable
 		}
 		gbv, _, err = pvSrv.CreateVariable(p.ID, &gitlab.CreateProjectVariableOptions {
 			Key: &gv.Key,
-			Value: &gv.Value,
+			Value: &sourceValue,
 			VariableType: &gv.VariableType,
 			EnvironmentScope: &gv.EnvironmentScope,
 			Masked: &gv.Masked,
