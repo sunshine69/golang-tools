@@ -285,3 +285,9 @@ func TestCopyGroupVars(t *testing.T) {
 	// log.Printf("%s\nCount: %d\n", u.JsonDump(allVars, "   "), len(allVars))
 	ioutil.WriteFile("data/"+groupName + "-vars.json", []byte(u.JsonDump(allVars, "  ")), 0750)
 }
+func TestAllTeamShouldHaveReporterPermmisiononOnAllProject(t *testing.T) {
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
+	ParseConfig()
+	git := GetGitlabClient()
+	AllTeamShouldHaveReporterPermmisiononOnAllProject(git)
+}

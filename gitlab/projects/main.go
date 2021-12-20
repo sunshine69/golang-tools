@@ -210,13 +210,14 @@ func UpdateAllWrapper(git *gitlab.Client, SearchStr string) {
 	DumpOrUpdateNamespace(git, SearchStr)
 	UpdateTeam()
 	UpdateGitlabUser(git)
-	UpdateProjectDomainFromCSV("data/MigrationServices.csv")
-	UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv")
+	// UpdateProjectDomainFromCSV("data/MigrationServices.csv")
+	// UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv")
 	u.RunSystemCommand("rm -rf data/GitlabProject-Domain-Status.xlsx || true; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", false)
 	UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 	UpdateProjectDomainFromExcelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 	UpdateGroupMember(git)
 	UpdateProjectMigrationStatus(git)
+	AllTeamShouldHaveReporterPermmisiononOnAllProject(git)
 }
 func main() {
 	flag.StringVar(&Logdbpath, "db", "", "db path")
