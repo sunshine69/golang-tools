@@ -269,8 +269,9 @@ func (p *Project) GetDomainList(git *gitlab.Client) []*gitlab.Group {
 	o := []*gitlab.Group{}
 	parentID := 0 //First one is always a root group (without parent)
 	for _, path := range paths {
-		log.Printf("[DEBUG] Get info from Gitlabnamespace table for path: %s, parent_id: %d, project: %s\n", path, parentID, u.JsonDump(p, "  "))
+		log.Printf("[DEBUG] Get info from Gitlabnamespace table for path: %s, parent_id: %d, project %s\n", path, parentID, u.JsonDump(p, "  "))
 		d := GitlabNamespaceGet(map[string]string{"where":fmt.Sprintf("path = '%s' AND parent_id = %d", path, parentID)})[0]
+		log.Printf("[DEBUG] pid:%d Found from table group ID %d, Name: %s\n", p.ID, d.GitlabNamespaceId, d.Name)
 		dg, _, err := git.Groups.GetGroup(d.GitlabNamespaceId, nil)
 		u.CheckErr(err, "Project GetDomainList GetGroup")
 		o = append(o, dg)
