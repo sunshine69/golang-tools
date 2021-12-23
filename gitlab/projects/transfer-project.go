@@ -165,7 +165,9 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 	project := ProjectNew(gitlabProject.PathWithNamespace)
 
 	existingGroupList := project.GetDomainList(git)
-	log.Printf("[DEBUG] pid:%d existingGroupList %s\n", project.ID, u.JsonDump(existingGroupList, "  "))
+	existingGroupListNames := []string{}
+	for _, _name := range existingGroupList { existingGroupListNames = append(existingGroupListNames, _name.FullPath ) }
+	log.Printf("[DEBUG] pid:%d existingGroupList %s\n", project.ID, u.JsonDump(existingGroupListNames, "  "))
 	existingRootGroup := existingGroupList[0]
 	log.Printf("pid: %d Check if existing root group %s is the same as the new group %s\n", gitlabProjectId, existingRootGroup.FullPath, gitlabDomainGroup.FullPath)
 	if existingRootGroup.FullPath == gitlabDomainGroup.FullPath {
@@ -183,7 +185,7 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 		} else {
 			log.Printf("pid: %d Check if sub group %s exists in the new tree\n", gitlabProjectId, eg.Path)
 			gs := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("parent_id = %d AND path = '%s' ", parentID, eg.Path)})
-
+			log.Printf("[DEBUG] pid: %d got list namespace from table %s\n", gitlabProjectId, u.JsonDump(gs, "  "))
 			if len(gs) == 0 {
 				log.Printf("pid: %d Group %s does not exist, creating new group path '%s' with parentID %d\n", gitlabProjectId, eg.Name, eg.Path, parentID)
 				lastNewGroup, _, err = git.Groups.CreateGroup(&gitlab.CreateGroupOptions{
