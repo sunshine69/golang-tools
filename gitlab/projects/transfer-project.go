@@ -269,3 +269,55 @@ func WaitUntilAllRegistryTagCleared(git *gitlab.Client, gitlabProjectId int) {
 		}
 	}
 }
+// Just transfer a project to new path and get/push images. No variable copying or replicate domain in between, assume the new path has been created already
+//newPath should not started with slash /
+func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extraRegistryImageName string) {
+	gitlabProject, _, err := git.Projects.GetProject(gitlabProjectId, nil)
+	if gitlabProject.Archived {
+		log.Printf("[ERROR] Project %s is in Archived mode, skipping\n", gitlabProject.NameWithNamespace)
+		return
+	}
+	u.CheckErr(err, "TransferProjectQuick GetProject")
+	log.Printf("TransferProject ID %d, name %s to new path: %s started\n", gitlabProjectId, gitlabProject.NameWithNamespace, newPath)
+	d := GitlabNamespaceGet(map[string]string{"where":"full_path = '"+newPath+"'"})
+	u.Assert(len(d) == 1, "Expect to get 1 domain", true)
+	gitlabDomainGroup, _, err := git.Groups.GetGroup(d[0].GitlabNamespaceId, nil)
+	u.CheckErr(err, "TransferProject GetGroup")
+
+	returnTag := true
+	registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(gitlabProject.ID, &gitlab.ListRegistryRepositoriesOptions{
+		ListOptions: gitlab.ListOptions{
+			Page: 1, PerPage: 100,
+		},
+		Tags:      &returnTag,
+		TagsCount: &returnTag,
+	})
+	u.CheckErr(err, "TransferProjectQuick ListRegistryRepositories")
+	repoImages := []string{}
+	for _, repoReg := range registryRepos {
+		repoImage := repoReg.Location
+		u.RunSystemCommand(fmt.Sprintf("docker pull %s -a", repoImage), true)
+		log.Printf("[DEBUG] pull completed, start to remove registry")
+		_, err := git.ContainerRegistry.DeleteRegistryRepository(gitlabProject.ID, repoReg.ID, nil)
+		u.CheckErr(err, "TransferProjectQuick DeleteRegistryRepository "+repoReg.String())
+		repoImages = append(repoImages, repoImage)
+	}
+	WaitUntilAllRegistryTagCleared(git, gitlabProject.ID)
+	log.Printf("pid:%d - Transfer project to a new name space %s with id %d\n", gitlabProjectId, gitlabDomainGroup.Name, gitlabDomainGroup.ID)
+
+	_, res, err := git.Projects.TransferProject(gitlabProject.ID, &gitlab.TransferProjectOptions{
+		Namespace: gitlabDomainGroup.ID,
+	})
+	if u.CheckErrNonFatal(err, "TransferProject TransferGroup") != nil {
+		log.Fatalf("[ERROR] gitlab response is %s. pid:%d \n", u.JsonDump(res, "  "), gitlabProjectId)
+	}
+	newRegistryImagePath := fmt.Sprintf(`%s%s`, GetContainerRegistryBaseLocation(git, gitlabProject.ID), extraRegistryImageName)
+	for _, _repoImage := range repoImages {
+		u.RunSystemCommand(fmt.Sprintf(`docker images %s --format "docker tag {{.Repository}}:{{.Tag}} %s:{{.Tag}} && docker push %s:{{.Tag}}" | bash `, _repoImage, newRegistryImagePath, newRegistryImagePath), true)
+		log.Printf("Push %s completed\nStart to clean up ...\n", newRegistryImagePath)
+		u.RunSystemCommand(fmt.Sprintf(
+			`docker images %s --format "docker rmi {{.Repository}}:{{.Tag}}" | bash`,
+			_repoImage), true)
+		log.Printf("Cleanup %s completed\n", _repoImage)
+	}
+}

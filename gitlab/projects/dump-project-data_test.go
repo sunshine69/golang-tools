@@ -291,3 +291,10 @@ func TestAllTeamShouldHaveReporterPermmisiononOnAllProject(t *testing.T) {
 	git := GetGitlabClient()
 	AllTeamShouldHaveReporterPermmisiononOnAllProject(git)
 }
+
+func TestTransferProjectQuick(t *testing.T) {
+	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
+	ParseConfig()
+	git := GetGitlabClient()
+	TransferProjectQuick(git, 2414, "mirror/go1-core/group/services", "")
+}
