@@ -187,7 +187,7 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 			gs := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("parent_id = %d AND path = '%s' ", parentID, eg.Path)})
 			log.Printf("[DEBUG] pid: %d got list namespace from table %s\n", gitlabProjectId, u.JsonDump(gs, "  "))
 			if len(gs) == 0 {
-				log.Printf("pid: %d Group %s does not exist, creating new group path '%s' with parentID %d\n", gitlabProjectId, eg.Name, eg.Path, parentID)
+				log.Printf("pid: %d Group %s does not exist, creating new group path '%s' with parentID %d\n", gitlabProjectId, eg.FullName, eg.Path, parentID)
 				lastNewGroup, _, err = git.Groups.CreateGroup(&gitlab.CreateGroupOptions{
 					ParentID: &parentID,
 					Path:     &eg.Path,
@@ -203,7 +203,7 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 				}
 				GitlabNamespaceNew(lastNewGroup.FullPath) //Update the table so re-run will detect that
 			} else {
-				log.Printf("pid: %d Group %s exist, copy vars over\n", gitlabProjectId, eg.Path)
+				log.Printf("pid: %d Group %s exist. Use this groupID %d from database to get group from gitlab\n", gitlabProjectId, eg.Path, gs[0].GitlabNamespaceId )
 				lastNewGroup, _, err = git.Groups.GetGroup(gs[0].GitlabNamespaceId, nil)
 				u.CheckErr(err, "TransferProject GetGroup")
 			}
@@ -222,7 +222,7 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 	//Check the current project and be sure we don't have any image tags exists before transferring
 	WaitUntilAllRegistryTagCleared(git, gitlabProject.ID)
 
-	log.Printf("pid:%d - Transfer project to a new name space %s with id %d\n", gitlabProjectId, lastNewGroup.Name, lastNewGroup.ID)
+	log.Printf("pid:%d - Transfer project to a new name space %s with id %d\n", gitlabProjectId, lastNewGroup.FullName, lastNewGroup.ID)
 	_, res, err := git.Projects.TransferProject(gitlabProject.ID, &gitlab.TransferProjectOptions{
 		Namespace: lastNewGroup.ID,
 	})
