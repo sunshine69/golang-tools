@@ -218,7 +218,7 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 	// all before. Delete/backup is handled in MoveProjectRegistryImages func
 	log.Printf("pid: %d - Backup container reg and remove all existing tags\n", gitlabProjectId)
 	tempPrj, err := BackupProjectRegistryImages(git, gitlabProject, user)
-	if err != nil { return }
+	if u.CheckErrNonFatal(err, "TransferProject BackupProjectRegistryImages") != nil { return }
 	//Check the current project and be sure we don't have any image tags exists before transferring
 	WaitUntilAllRegistryTagCleared(git, gitlabProject.ID)
 
@@ -227,8 +227,9 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 		Namespace: lastNewGroup.ID,
 	})
 	if u.CheckErrNonFatal(err, "TransferProject TransferGroup") != nil {
-		log.Fatalf("[ERROR] gitlab response is %s. pid:%d \n", u.JsonDump(res, "  "), gitlabProjectId)
+		log.Fatalf("[ERROR] pid:%d gitlab response is %s. pid:%d \n", gitlabProject.ID, u.JsonDump(res, "  "), gitlabProjectId)
 	}
+	log.Fatalf("[DEBUG] pid:%d gitlab response is %s. pid:%d \n", gitlabProject.ID, u.JsonDump(res, "  "), gitlabProjectId)
 	project.DomainOwnershipConfirmed = 1
 	project.Update()
 
