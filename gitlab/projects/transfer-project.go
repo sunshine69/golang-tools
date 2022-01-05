@@ -205,8 +205,8 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 				p := GitlabNamespaceNew(lastNewGroup.FullPath) //Update the table so re-run will detect that
 				p.Name, p.ParentId, p.Path, p.FullPath, p.GitlabNamespaceId = lastNewGroup.Name, lastNewGroup.ParentID, lastNewGroup.Path, lastNewGroup.FullPath, lastNewGroup.ID
 				p.Update()
-				GitlabGroup2Team(git, &p)
-				GitlabGroup2Domain(git, &p)
+				// GitlabGroup2Team(git, &p)
+				// GitlabGroup2Domain(git, &p)
 			} else {
 				log.Printf("pid: %d Group %s exist. Use this groupID %d from database to get group from gitlab\n", gitlabProjectId, eg.Path, gs[0].GitlabNamespaceId )
 				lastNewGroup, _, err = git.Groups.GetGroup(gs[0].GitlabNamespaceId, nil)
@@ -232,9 +232,10 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 		Namespace: lastNewGroup.ID,
 	})
 	if u.CheckErrNonFatal(err, "TransferProject TransferGroup") != nil {
-		log.Fatalf("[ERROR] pid:%d gitlab response is %s. pid:%d \n", gitlabProject.ID, u.JsonDump(res, "  "), gitlabProjectId)
+		log.Fatalf("[ERROR] pid:%d gitlab response is %s. Error object: %s\n", gitlabProject.ID, u.JsonDump(res, "  "), u.JsonDump(err, "  "))
+	} else {
+		log.Printf("[DEBUG] pid:%d gitlab response is %s\n", gitlabProject.ID, u.JsonDump	(res, "  "))
 	}
-	log.Fatalf("[DEBUG] pid:%d gitlab response is %s. pid:%d \n", gitlabProject.ID, u.JsonDump(res, "  "), gitlabProjectId)
 	project.DomainOwnershipConfirmed = 1
 	project.Update()
 

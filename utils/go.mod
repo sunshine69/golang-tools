@@ -9,7 +9,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/sendgrid/rest v2.6.5+incompatible // indirect
 	github.com/sendgrid/sendgrid-go v3.10.2+incompatible
-	golang.org/x/crypto v0.0.0-20211115234514-b4de73f9ece8 // indirect
+	golang.org/x/crypto v0.0.0-20211115234514-b4de73f9ece8
 	golang.org/x/net v0.0.0-20210903162142-ad29c8ab022f
 	gopkg.in/yaml.v2 v2.4.0
 )

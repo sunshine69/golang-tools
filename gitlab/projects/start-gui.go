@@ -218,7 +218,7 @@ func RunTransferProject(w http.ResponseWriter, r *http.Request) {
 		// defer log.SetOutput(os.Stdout) // no need to do that?
 		git := GetGitlabClient()
 		project_id, _ := strconv.Atoi(vars["project_id"])
-		log.Printf("TransferProject Started with is %d - \n", project_id)
+		log.Printf("TransferProject Started with ID %d - \n", project_id)
 
 		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("ProjectID %d Migration Started", project_id), "", fmt.Sprintf("Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{})
 

@@ -10,6 +10,7 @@ replace localhost.com/gitlab/model => ../model
 require (
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/sessions v1.2.1
+	github.com/hashicorp/go-retryablehttp v0.7.0
 	github.com/mattn/go-sqlite3 v1.14.8
 	github.com/mileusna/crontab v1.2.0
 	github.com/xanzy/go-gitlab v0.51.1
@@ -24,7 +25,6 @@ require (
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/gorilla/securecookie v1.1.1 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.1 // indirect
-	github.com/hashicorp/go-retryablehttp v0.7.0 // indirect
 	github.com/hashicorp/logutils v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.11 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
