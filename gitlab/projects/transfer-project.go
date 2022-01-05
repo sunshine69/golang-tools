@@ -188,11 +188,12 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 			log.Printf("[DEBUG] pid: %d got list namespace from table %s\n", gitlabProjectId, u.JsonDump(gs, "  "))
 			if len(gs) == 0 {
 				log.Printf("pid: %d Group %s does not exist, creating new group path '%s' with parentID %d\n", gitlabProjectId, eg.FullName, eg.Path, parentID)
-				lastNewGroup, _, err = git.Groups.CreateGroup(&gitlab.CreateGroupOptions{
+				lastNewGroup, res, err := git.Groups.CreateGroup(&gitlab.CreateGroupOptions{
 					ParentID: &parentID,
 					Path:     &eg.Path,
 					Name:     &eg.Path, //Simplify, maybe search replace - with space and Captialize word?
 				})
+				log.Printf("[DEBUG] pid: %d response from gitlab to create group path %s with parentID %d - %s\n",gitlabProjectId, eg.Path, parentID, u.JsonDump(res, "  "))
 				if u.CheckNonErrIfMatch(err, "has already been taken", "") != nil {
 					_gs, _, err := git.Groups.ListGroups(&gitlab.ListGroupsOptions{
 						Search:     &eg.Path,
@@ -201,7 +202,11 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 					u.CheckErr(err, "TransferProject CreateGroup")
 					lastNewGroup = _gs[0]
 				}
-				GitlabNamespaceNew(lastNewGroup.FullPath) //Update the table so re-run will detect that
+				p := GitlabNamespaceNew(lastNewGroup.FullPath) //Update the table so re-run will detect that
+				p.Name, p.ParentId, p.Path, p.FullPath, p.GitlabNamespaceId = lastNewGroup.Name, lastNewGroup.ParentID, lastNewGroup.Path, lastNewGroup.FullPath, lastNewGroup.ID
+				p.Update()
+				GitlabGroup2Team(git, &p)
+				GitlabGroup2Domain(git, &p)
 			} else {
 				log.Printf("pid: %d Group %s exist. Use this groupID %d from database to get group from gitlab\n", gitlabProjectId, eg.Path, gs[0].GitlabNamespaceId )
 				lastNewGroup, _, err = git.Groups.GetGroup(gs[0].GitlabNamespaceId, nil)
