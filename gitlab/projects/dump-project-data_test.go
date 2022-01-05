@@ -113,10 +113,13 @@ func TestAllTeamShouldHaveReporterPermmisiononOnAllProject(t *testing.T) {
 	AllTeamShouldHaveReporterPermmisiononOnAllProject(git)
 }
 func TestTransferProjectQuick(t *testing.T) {
-	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
-	ParseConfig()
-	git := GetGitlabClient()
-	TransferProjectQuick(git, 2414, "mirror/go1-core/group/services", "")
+    ConfigFile, Logdbpath = "/home/azureuser/.go1-gitlab-project.json", "data/testdb.sqlite3"
+    ParseConfig()
+    git := GetGitlabClient()
+    pList := []int{1903, 2042}
+    for _, pid := range pList {
+        TransferProjectQuick(git, pid, "mirror/go1-core/achievement/services", "")
+    }
 }
 func TestDeleteGroup(t *testing.T) {
 	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
