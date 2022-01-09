@@ -126,24 +126,5 @@ func TestDeleteGroup(t *testing.T) {
 	ParseConfig()
 	git := GetGitlabClient()
 	groupID := 714
-	g, _, err := git.Groups.GetGroup(groupID, nil); u.CheckErr(err, "TestDeleteGroup GetGroup")
-	log.Printf("YOU ARE GOING TO REMOVE THIS GROUP. Type YES to continue, otherwise I wont do it. %s\n", u.JsonDump(g, "  "))
-	// var confirm string
-    // fmt.Scanf("%s", &confirm)
-	rd,_,err := os.Pipe(); t.Fatal(err)
-	saved := os.Stdin
-	os.Stdin = rd
-	scanner := bufio.NewScanner(rd)
-	scanner.Scan()
-	if err := scanner.Err(); err != nil {
-		u.CheckErr(err, "")
-	}
-	confirm := scanner.Text()
-	os.Stdin = saved
-	if confirm == "YES"{
-		fmt.Println("Your answer ", confirm)
-		// res, err :=  git.Groups.DeleteGroup(714, nil)
-		// u.CheckErr(err, "TestDeleteGroup")
-		// log.Printf("[DEBUG] %s\n", u.JsonDump(res, "  "))
-	}
+	
 }

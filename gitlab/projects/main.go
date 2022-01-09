@@ -280,6 +280,10 @@ func main() {
 		UpdateProjectMigrationStatus(git)
 	case "StartWebGUI":
 		StartWebGUI()
+	case "DeleteGroup":
+		DeleteGroup(git)
+	case "CreateGroup":
+		CreateGroup(git)
 	default:
 		fmt.Printf("Need an action. Run with -h for help")
 	}

@@ -183,11 +183,11 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 			log.Printf("pid: %d Copy the group vars - existingRootGroup '%s' => New Root Group '%s'\n", gitlabProjectId, eg.Name, gitlabDomainGroup.Name)
 			nonCopyableVars = append(nonCopyableVars, CopyGroupVars(git, eg, gitlabDomainGroup)...)
 		} else {
-			log.Printf("pid: %d Check if sub group %s exists in the new tree\n", gitlabProjectId, eg.Path)
+			log.Printf("pid: %d Check if sub group %s exists in the new tree from db\n", gitlabProjectId, eg.Path)
 			gs := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("parent_id = %d AND path = '%s' ", parentID, eg.Path)})
 			log.Printf("[DEBUG] pid: %d got list namespace from table %s\n", gitlabProjectId, u.JsonDump(gs, "  "))
 			if len(gs) == 0 {
-				log.Printf("pid: %d Group %s does not exist, creating new group path '%s' with parentID %d\n", gitlabProjectId, eg.FullName, eg.Path, parentID)
+				log.Printf("pid: %d Group %s does not exist, trying to create new group path '%s' with parentID %d\n", gitlabProjectId, eg.FullName, eg.Path, parentID)
 				lastNewGroup, res, err := git.Groups.CreateGroup(&gitlab.CreateGroupOptions{
 					ParentID: &parentID,
 					Path:     &eg.Path,
@@ -195,12 +195,18 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 				})
 				log.Printf("[DEBUG] pid: %d response from gitlab to create group path %s with parentID %d - %s\n",gitlabProjectId, eg.Path, parentID, u.JsonDump(res, "  "))
 				if u.CheckNonErrIfMatch(err, "has already been taken", "") != nil {
+					log.Printf("Group %s seems to exists in gitlab but not in database as we hit error from gitlab says 'has already been taken'\n", eg.Path)
 					_gs, _, err := git.Groups.ListGroups(&gitlab.ListGroupsOptions{
 						Search:     &eg.Path,
-						SkipGroups: []int{eg.ID},
 					})
-					u.CheckErr(err, "TransferProject CreateGroup")
-					lastNewGroup = _gs[0]
+					u.CheckErr(err, "TransferProject")
+					for _, _g := range _gs {
+						if _g.ParentID == parentID {
+							lastNewGroup = _g
+							break
+						}
+					}
+					log.Printf("Did re-get the group with path %s and parentID %d. Output: %s\n", eg.Path, parentID, u.JsonDump(lastNewGroup, "  "))
 				}
 				p := GitlabNamespaceNew(lastNewGroup.FullPath) //Update the table so re-run will detect that
 				p.Name, p.ParentId, p.Path, p.FullPath, p.GitlabNamespaceId = lastNewGroup.Name, lastNewGroup.ParentID, lastNewGroup.Path, lastNewGroup.FullPath, lastNewGroup.ID
