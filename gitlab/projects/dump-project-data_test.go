@@ -1,11 +1,10 @@
 package main
 import (
-	"os"
-	"bufio"
 	"io/ioutil"
-	"fmt"
 	"log"
 	"testing"
+	"fmt"
+	"os"
 	. "localhost.com/gitlab/model"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/xanzy/go-gitlab"
@@ -113,18 +112,11 @@ func TestAllTeamShouldHaveReporterPermmisiononOnAllProject(t *testing.T) {
 	AllTeamShouldHaveReporterPermmisiononOnAllProject(git)
 }
 func TestTransferProjectQuick(t *testing.T) {
-    ConfigFile, Logdbpath = "/home/azureuser/.go1-gitlab-project.json", "data/testdb.sqlite3"
+    ConfigFile, Logdbpath = fmt.Sprintf("%s/.go1-gitlab-project.json", os.Getenv("HOME")), "data/testdb.sqlite3"
     ParseConfig()
     git := GetGitlabClient()
-    pList := []int{1903, 2042}
+    pList := []int{2414}
     for _, pid := range pList {
         TransferProjectQuick(git, pid, "mirror/go1-core/achievement/services", "")
     }
-}
-func TestDeleteGroup(t *testing.T) {
-	ConfigFile, Logdbpath = "/home/stevek/.dump-gitlab-project-data.json",  "data/testdb.sqlite3"
-	ParseConfig()
-	git := GetGitlabClient()
-	groupID := 714
-	
 }
