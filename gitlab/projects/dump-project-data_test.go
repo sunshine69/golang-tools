@@ -120,3 +120,17 @@ func TestTransferProjectQuick(t *testing.T) {
         TransferProjectQuick(git, pid, "mirror/go1-core/achievement/services", "")
     }
 }
+
+func TestAllTeamShouldHaveDeveloperPermmisionOnTestCafe(t *testing.T) {
+    ConfigFile, Logdbpath = fmt.Sprintf("%s/.go1-gitlab-project.json", os.Getenv("HOME")), "data/testdb.sqlite3"
+    ParseConfig()
+    git := GetGitlabClient()
+    AllTeamShouldHaveDeveloperPermmisionOnTestCafe(git)
+}
+
+func TestAllTeamShouldBeInTheDomainAllTeamReporter(t *testing.T) {
+    ConfigFile, Logdbpath = fmt.Sprintf("%s/.go1-gitlab-project.json", os.Getenv("HOME")), "data/testdb.sqlite3"
+    ParseConfig()
+    git := GetGitlabClient()
+    AllTeamShouldBeInTheDomainAllTeamReporter(git)
+}

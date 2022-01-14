@@ -217,7 +217,8 @@ func UpdateAllWrapper(git *gitlab.Client, SearchStr string) {
 	UpdateProjectDomainFromExcelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 	UpdateGroupMember(git)
 	UpdateProjectMigrationStatus(git)
-	AllTeamShouldHaveReporterPermmisiononOnAllProject(git)
+	AllTeamShouldBeInTheDomainAllTeamReporter(git)
+	// AllTeamShouldHaveReporterPermmisiononOnAllProject(git)
 }
 func main() {
 	flag.StringVar(&Logdbpath, "db", "", "db path")

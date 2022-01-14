@@ -375,8 +375,15 @@ func RunScheduleTasks() {
 	ctab := crontab.New() // create cron table
 	// AddJob and test the errors
 	if err := ctab.AddJob("1 0 * * *", CronUpdateAllWrapper); err != nil {
-		log.Printf("[WARN] - Can not add maintanance job - %v\n", err)
+		log.Printf("[WARN] - Can not add maintanance job CronUpdateAllWrapper - %v\n", err)
 	}
+	// These are just once off run - so comment them out
+	// if err := ctab.AddJob("5 0 * * *", AllTeamShouldHaveReporterPermmisiononOnAllProject); err != nil {
+	// 	log.Printf("[WARN] - Can not add maintanance job AllTeamShouldHaveReporterPermmisiononOnAllProject - %v\n", err)
+	// }
+	// if err := ctab.AddJob("5 0 * * *", AllTeamShouldHaveDeveloperPermmisionOnTestCafe); err != nil {
+	// 	log.Printf("[WARN] - Can not add maintanance job AllTeamShouldHaveDeveloperPermmisionOnTestCafe - %v\n", err)
+	// }
 }
 func CronUpdateAllWrapper() {
 	func_name := "update-all"
