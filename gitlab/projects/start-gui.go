@@ -235,7 +235,7 @@ func HandleRequests() {
 	router := mux.NewRouter()
 
 	staticFS := http.FileServer(http.Dir("./log"))
-	router.PathPrefix("/log/").Handler(BasicAuthHandler(http.StripPrefix("/log/", staticFS), AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm"))
+	router.PathPrefix("/log/").Handler(BasicAuthHandler(http.StripPrefix("/log/", staticFS), AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm") )
 
 	router.HandleFunc("/", BasicAuth(homePage, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("GET")
 	router.HandleFunc("/run/{func_name}", BasicAuth(RunFunction, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("POST")
@@ -304,22 +304,30 @@ func isAuthorized(endpoint func(http.ResponseWriter, *http.Request)) http.Handle
 		}
 	})
 }
+var UsernameRegex *regexp.Regexp = regexp.MustCompile(AppConfig["UsernamePattern"].(string))
+func VerifyAuthentication(reqUsername, reqPassword, realm string) error {
+	if ! UsernameRegex.MatchString(reqUsername) {  return fmt.Errorf("username %s not accepted", reqUsername) }
+	users := UserGet(map[string]string{"where":"email = '"+reqUsername+"'"})
+	if len(users) == 0 { return  fmt.Errorf("user %s not found", reqUsername) }
+	//Allow Shared token still works
+	if reqPassword == AppConfig["SharedToken"] { return nil }
+	//The eventlog can be sued for nearly anything, if schema is not enough, use json string
+	// and sqlite3 json extention. In this example we do not need to though
+	evts := EventLogGet(map[string]string{"where":"host = 'AUTH' AND application = '"+reqUsername+"' ORDER BY ts DESC LIMIT 2"})
+	if len(evts) == 0 { return  fmt.Errorf("user %s does not have password set", reqUsername) }
+	if ! u.BcryptCheckPasswordHash(reqPassword, evts[0].Message) { return  fmt.Errorf("user %s wrong password", reqUsername) }
+	return nil
+}
 
 //This func is used to load the home page and generate tempo token for the ajax post
 func BasicAuth(handlerFunc http.HandlerFunc, username, password, realm string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, pass, ok := r.BasicAuth()
-		userPtn := regexp.MustCompile(`[^\s]+@[^\s]+`)
-		if !userPtn.MatchString(user) {
+		user, pass, _ := r.BasicAuth()
+		checkAuth := VerifyAuthentication(user, pass, realm)
+		if checkAuth != nil {
 			w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
 			w.WriteHeader(401)
-			w.Write([]byte("Wrong user name format.\n"))
-			return
-		}
-		if !ok || subtle.ConstantTimeCompare([]byte(pass), []byte(password)) != 1 {
-			w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
-			w.WriteHeader(401)
-			w.Write([]byte("Unauthorised.\n"))
+			w.Write([]byte(checkAuth.Error()))
 			return
 		}
 		//This is used in Ajax Post auth header. See func isAuthorized
@@ -340,20 +348,15 @@ func BasicAuth(handlerFunc http.HandlerFunc, username, password, realm string) h
 
 //The http.Handler wrapper technique. I feel awkward but not yet having time to reduce duplicate code here
 //Maybe should get the user and password, realm via session or database instead.
+
 func BasicAuthHandler(handler http.Handler, username, password, realm string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, pass, ok := r.BasicAuth()
-		userPtn := regexp.MustCompile(`[^\s]+@[^\s]+`)
-		if !userPtn.MatchString(user) {
+		user, pass, _ := r.BasicAuth()
+		checkAuth := VerifyAuthentication(user, pass, realm)
+		if checkAuth != nil {
 			w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
 			w.WriteHeader(401)
-			w.Write([]byte("Wrong user name format.\n"))
-			return
-		}
-		if !ok || subtle.ConstantTimeCompare([]byte(pass), []byte(password)) != 1 {
-			w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
-			w.WriteHeader(401)
-			w.Write([]byte("Unauthorised.\n"))
+			w.Write([]byte(checkAuth.Error()))
 			return
 		}
 		//This is used in Ajax Post auth header. See func isAuthorized

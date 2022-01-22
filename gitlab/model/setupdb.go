@@ -240,14 +240,7 @@ func SetUpLogDatabase() {
 		host TEXT DEFAULT "",
 		application TEXT DEFAULT "",
 		message TEXT NOT NULL,
-		logfile TEXT DEFAULT "");
-
-    PRAGMA main.page_size = 4096;
-    PRAGMA main.cache_size=10000;
-    PRAGMA main.locking_mode=EXCLUSIVE;
-    PRAGMA main.synchronous=NORMAL;
-    PRAGMA main.journal_mode=WAL;
-    PRAGMA main.cache_size=5000;`
+		logfile TEXT DEFAULT "");`
 
 	log.Printf("[INFO] Set up database schema\n")
 	_, err := conn.Exec(sql)
