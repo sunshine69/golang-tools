@@ -52,9 +52,8 @@ func EventLogGet(inputmap map[string]string) []EventLog {
 	} else {
 		sql = inputmap["sql"]
 	}
-	sql = sql + ` ORDER BY id DESC`
 	stmt, err := dbc.Prepare(sql)
-	u.CheckErr(err, "EventLog GetOne")
+	u.CheckErr(err, "EventLogGet")
 	defer stmt.Close()
 	rows, _ := stmt.Query()
 	defer rows.Close()

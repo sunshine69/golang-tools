@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/subtle"
 	"crypto/tls"
 	"fmt"
 	"html/template"
@@ -9,10 +8,8 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"regexp"
 	"strconv"
 	"time"
-
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	_ "github.com/mattn/go-sqlite3"
@@ -237,6 +234,7 @@ func HandleRequests() {
 	staticFS := http.FileServer(http.Dir("./log"))
 	router.PathPrefix("/log/").Handler(BasicAuthHandler(http.StripPrefix("/log/", staticFS), AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm") )
 
+	router.HandleFunc("/register/{username}", RegisterUser)
 	router.HandleFunc("/", BasicAuth(homePage, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("GET")
 	router.HandleFunc("/run/{func_name}", BasicAuth(RunFunction, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("POST")
 	router.HandleFunc("/transferproject/{page_offset:[0-9]+}", BasicAuth(DisplayTransferProjectConsole, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("GET")
@@ -304,21 +302,36 @@ func isAuthorized(endpoint func(http.ResponseWriter, *http.Request)) http.Handle
 		}
 	})
 }
-var UsernameRegex *regexp.Regexp = regexp.MustCompile(AppConfig["UsernamePattern"].(string))
+
 func VerifyAuthentication(reqUsername, reqPassword, realm string) error {
 	if ! UsernameRegex.MatchString(reqUsername) {  return fmt.Errorf("username %s not accepted", reqUsername) }
 	users := UserGet(map[string]string{"where":"email = '"+reqUsername+"'"})
 	if len(users) == 0 { return  fmt.Errorf("user %s not found", reqUsername) }
 	//Allow Shared token still works
 	if reqPassword == AppConfig["SharedToken"] { return nil }
-	//The eventlog can be sued for nearly anything, if schema is not enough, use json string
+	//The eventlog can be used for nearly anything, if schema is not enough, use json string
 	// and sqlite3 json extention. In this example we do not need to though
-	evts := EventLogGet(map[string]string{"where":"host = 'AUTH' AND application = '"+reqUsername+"' ORDER BY ts DESC LIMIT 2"})
+	evts := EventLogGet(map[string]string{"where":"host = 'AUTH' AND application = '"+reqUsername+"'  ORDER BY ts DESC LIMIT 1"})
 	if len(evts) == 0 { return  fmt.Errorf("user %s does not have password set", reqUsername) }
 	if ! u.BcryptCheckPasswordHash(reqPassword, evts[0].Message) { return  fmt.Errorf("user %s wrong password", reqUsername) }
 	return nil
 }
-
+func RegisterUser(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	username := vars["username"]
+	if ! UsernameRegex.MatchString(username) {
+		fmt.Fprintf(w, "username %s not accepted", username)
+		return
+	}
+	password := u.GenRandomString(24)
+	passhash, err := u.BcryptHashPassword(password, 10)
+	u.CheckErr(err, "RegisterUser BcryptHashPassword")
+	evt := EventLogNew( passhash )
+	evt.Host, evt.Application = "AUTH", username
+	evt.Update()
+	u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", username, fmt.Sprintf("Go1 Gitlab Domain Tool - User registration"), "", fmt.Sprintf("Please login using your %s as username and password is '%s' without quote", username, password), []string{})
+	fmt.Fprintf(w, "Registration completed. Please check your email for details")
+}
 //This func is used to load the home page and generate tempo token for the ajax post
 func BasicAuth(handlerFunc http.HandlerFunc, username, password, realm string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -360,7 +373,7 @@ func BasicAuthHandler(handler http.Handler, username, password, realm string) ht
 			return
 		}
 		//This is used in Ajax Post auth header. See func isAuthorized
-		tempToken := u.GenRandomString(32)
+		// tempToken := u.GenRandomString(32)
 		// ioutil.WriteFile("/tmp/" + fmt.Sprintf("%x", userHash), []byte(tempToken), 0750)
 		session, _ := SessionStore.Get(r, SessionName)
 		session.Options = &sessions.Options{
@@ -369,7 +382,7 @@ func BasicAuthHandler(handler http.Handler, username, password, realm string) ht
 			HttpOnly: true,
 		}
 		session.Values["user"] = user
-		session.Values["token"] = tempToken
+		// session.Values["token"] = tempToken
 		u.CheckErr(session.Save(r, w), "BasicAuth session.Save")
 		handler.ServeHTTP(w, r)
 	})

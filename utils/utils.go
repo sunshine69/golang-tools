@@ -55,7 +55,8 @@ var (
 )
 
 func BcryptHashPassword(password string, cost int) (string, error) {
-	if cost == -1 { cost = 14 }
+	//Too slow with cost 14 - Maybe 10 or 6 for normal user, 8 for super user? remember it is 2^cost iterations
+	if cost == -1 { cost = 10 }
     bytes, err := bcrypt.GenerateFromPassword([]byte(password), cost)
     return string(bytes), err
 }

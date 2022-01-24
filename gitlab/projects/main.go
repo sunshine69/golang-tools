@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"flag"
 	"fmt"
 	"log"
@@ -15,6 +16,7 @@ import (
 
 var (
     action string
+	UsernameRegex *regexp.Regexp
 )
 
 func ParseConfig() {
@@ -29,6 +31,7 @@ func ParseConfig() {
 	if SENDGRID_API_KEY, ok := AppConfig["SENDGRID_API_KEY"].(string); ok {
 		os.Setenv("SENDGRID_API_KEY", SENDGRID_API_KEY)
 	}
+	UsernameRegex = regexp.MustCompile(AppConfig["UsernamePattern"].(string))
 }
 func DumpOrUpdateProject(git *gitlab.Client, SearchStr string) {
 	log.Printf("DumpOrUpdateProject Started\n")
@@ -229,6 +232,7 @@ func main() {
 		"AuthUser": "go1",
 		"SessionKey": "RANDOM-KEY",
 		"SharedToken": "WEB-AUTH-SHARED-TOKEN",
+		"UsernamePattern": "your acceptable username regex pattern",
 		"gitlabAPIBaseURL": "https://code.go1.com.au/api/v4",
 		"gitlabToken": "YOUR-GITLAB-API-TOKEN",
 		"admin_user_id": <YOUR GILAB USER ID AS ADMIN TO USE IN THE APP>,
