@@ -324,12 +324,12 @@ func RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	password := u.GenRandomString(24)
-	passhash, err := u.BcryptHashPassword(password, 10)
+	passhash, err := u.BcryptHashPassword(password, 10) // cost 14 makes it slow in responsive
 	u.CheckErr(err, "RegisterUser BcryptHashPassword")
 	evt := EventLogNew( passhash )
 	evt.Host, evt.Application = "AUTH", username
 	evt.Update()
-	u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", username, fmt.Sprintf("Go1 Gitlab Domain Tool - User registration"), "", fmt.Sprintf("Please login using your %s as username and password is '%s' without quote", username, password), []string{})
+	u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", username, "Go1 Gitlab Domain Tool - User registration", "", fmt.Sprintf("Please login using your %s as username and password is '%s' without quote", username, password), []string{})
 	fmt.Fprintf(w, "Registration completed. Please check your email for details")
 }
 //This func is used to load the home page and generate tempo token for the ajax post
@@ -358,9 +358,6 @@ func BasicAuth(handlerFunc http.HandlerFunc, username, password, realm string) h
 		handlerFunc(w, r)
 	}
 }
-
-//The http.Handler wrapper technique. I feel awkward but not yet having time to reduce duplicate code here
-//Maybe should get the user and password, realm via session or database instead.
 
 func BasicAuthHandler(handler http.Handler, username, password, realm string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
