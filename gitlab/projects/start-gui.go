@@ -226,6 +226,10 @@ func RunTransferProject(w http.ResponseWriter, r *http.Request) {
 	}(f)
 	fmt.Fprintf(w, "Started Project ID %s - <a href='/log/%s'>Log</a><br/>Also check your email for notification.", vars["project_id"], logFile)
 }
+func GetRootDomain(w http.ResponseWriter, r *http.Request) {
+	domainList := GitlabNamespaceGet(map[string]string{"where": "name LIKE 'Domain -%'"})
+	fmt.Fprint(w, u.JsonDump(domainList, "  "))
+}
 
 //HandleRequests -
 func HandleRequests() {
@@ -247,6 +251,10 @@ func HandleRequests() {
 		//k8s container probe
 		router.HandleFunc("/container_status", ContainerStatus).Methods("GET")
 	}
+	// API endpoint
+	router.Handle("/api/v1/get_root_domain", isAuthorized(GetRootDomain)).Methods("GET")
+
+
 	srv := &http.Server{
 		Addr: fmt.Sprintf(":%s", AppConfig["Port"].(string)),
 		// Good practice to set timeouts to avoid Slowloris attacks.
@@ -295,7 +303,8 @@ func isAuthorized(endpoint func(http.ResponseWriter, *http.Request)) http.Handle
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokens := r.Header["X-Authorization-Token"]
 		session, _ := SessionStore.Get(r, SessionName)
-		if len(tokens) > 0 && tokens[0] == session.Values["token"] {
+		apiToken := AppConfig["SharedToken"].(string)
+		if len(tokens) > 0 && ((tokens[0] == session.Values["token"]) || ( tokens[0] == apiToken)) {
 			endpoint(w, r)
 		} else {
 			fmt.Fprintf(w, `{"error":"isAuthorized","message":"Not Authorized"}`)

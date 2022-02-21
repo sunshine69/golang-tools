@@ -5,6 +5,7 @@
 *.so
 *.dylib
 *.orig
+dump-gitlab-project
 
 # Test binary, build with `go test -c`
 *.test
