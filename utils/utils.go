@@ -2,9 +2,6 @@ package utils
 
 import (
 	"archive/zip"
-	"html/template"
-	"path/filepath"
-	"errors"
 	"bufio"
 	"bytes"
 	"crypto/ecdsa"
@@ -13,152 +10,221 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"database/sql"
+	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"log"
 	"math/big"
+	mr "math/rand"
 	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
+	nm "net/mail"
 	"net/textproto"
 	"os"
 	"os/exec"
+	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
-	"golang.org/x/net/publicsuffix"
+
+	"github.com/gorilla/mux"
 	"github.com/hashicorp/logutils"
 	jsoniter "github.com/json-iterator/go"
-	"gopkg.in/yaml.v2"
-	"database/sql"
-	mr "math/rand"
-	"encoding/base64"
-	nm "net/mail"
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
-	"path"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/net/publicsuffix"
+	"gopkg.in/yaml.v2"
 )
 
 //TimeISO8601LayOut
 const (
-	TimeISO8601LayOut = "2006-01-02T15:04:05-0700"
-	AUTimeLayout      = "02/01/2006 15:04:05 MST"
+	TimeISO8601LayOut     = "2006-01-02T15:04:05-0700"
+	AUTimeLayout          = "02/01/2006 15:04:05 MST"
 	CleanStringDateLayout = "2006-01-02-150405"
-	LetterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#%^()"
+	LetterBytes           = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#%^()"
 )
 
 var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
+//GetRequestValue - Attempt to get a val by key from the request in all cases.
+//First from the mux variables in the route path such as /dosomething/{var1}/{var2}
+//Then check the query string values such as /dosomething?var1=x&var2=y
+//Then check the form values if any
+//Then check the default value if supplied to use as return value
+//For performance we split each type into each function so it can be called independantly
+func GetRequestValue(r *http.Request, key ...string) string {
+	o := GetMuxValue(r, key[0], "")
+	if o == "" {
+		o = GetQueryValue(r, key[0], "")
+	}
+	if o == "" {
+		o = GetFormValue(r, key[0], "")
+	}
+	if o == "" {
+		if len(key) > 1 {
+			o = key[1]
+		} else {
+			o = ""
+		}
+	}
+	return o
+}
+
+//GetMuxValue -
+func GetMuxValue(r *http.Request, key ...string) string {
+	vars := mux.Vars(r)
+	val, ok := vars[key[0]]
+	if !ok {
+		if len(key) > 1 {
+			return key[1]
+		}
+		return ""
+	}
+	return val
+}
+
+//GetFormValue -
+func GetFormValue(r *http.Request, key ...string) string {
+	val := r.FormValue(key[0])
+	if val == "" {
+		if len(key) > 1 {
+			return key[1]
+		}
+	}
+	return val
+}
+
+//GetQueryValue -
+func GetQueryValue(r *http.Request, key ...string) string {
+	vars := r.URL.Query()
+	val, ok := vars[key[0]]
+	if !ok {
+		if len(key) > 1 {
+			return key[1]
+		}
+		return ""
+	}
+	return val[0]
+}
 func BcryptHashPassword(password string, cost int) (string, error) {
 	//Too slow with cost 14 - Maybe 10 or 6 for normal user, 8 for super user? remember it is 2^cost iterations
-	if cost == -1 { cost = 10 }
-    bytes, err := bcrypt.GenerateFromPassword([]byte(password), cost)
-    return string(bytes), err
+	if cost == -1 {
+		cost = 10
+	}
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), cost)
+	return string(bytes), err
 }
 
 func BcryptCheckPasswordHash(password, hash string) bool {
-    err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
-    return err == nil
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
 }
 
 func Unzip(src, dest string) error {
 	if dest == "." || dest == "./" {
 		dest, _ = os.Getwd()
 	}
-    r, err := zip.OpenReader(src)
-    if err != nil {
-        return err
-    }
-    defer func() {
-        if err := r.Close(); err != nil {
-            panic(err)
-        }
-    }()
-    os.MkdirAll(dest, 0755)
-    // Closure to address file descriptors issue with all the deferred .Close() methods
-    extractAndWriteFile := func(f *zip.File) error {
-        rc, err := f.Open()
-        if err != nil {
-            return err
-        }
-        defer func() {
-            if err := rc.Close(); err != nil {
-                panic(err)
-            }
-        }()
-        path := filepath.Join(dest, f.Name)
-        // Check for ZipSlip (Directory traversal)
-        if !strings.HasPrefix(path, filepath.Clean(dest) + string(os.PathSeparator)) {
-            return fmt.Errorf("illegal file path: %s", path)
-        }
-        if f.FileInfo().IsDir() {
-            os.MkdirAll(path, f.Mode())
-        } else {
-            os.MkdirAll(filepath.Dir(path), f.Mode())
-            f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
-            if err != nil {
-                return err
-            }
-            defer func() {
-                if err := f.Close(); err != nil {
-                    panic(err)
-                }
-            }()
-            _, err = io.Copy(f, rc)
-            if err != nil {
-                return err
-            }
-        }
-        return nil
-    }
-    for _, f := range r.File {
-        err := extractAndWriteFile(f)
-        if err != nil {
-            return err
-        }
-    }
-    return nil
+	r, err := zip.OpenReader(src)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := r.Close(); err != nil {
+			panic(err)
+		}
+	}()
+	os.MkdirAll(dest, 0755)
+	// Closure to address file descriptors issue with all the deferred .Close() methods
+	extractAndWriteFile := func(f *zip.File) error {
+		rc, err := f.Open()
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if err := rc.Close(); err != nil {
+				panic(err)
+			}
+		}()
+		path := filepath.Join(dest, f.Name)
+		// Check for ZipSlip (Directory traversal)
+		if !strings.HasPrefix(path, filepath.Clean(dest)+string(os.PathSeparator)) {
+			return fmt.Errorf("illegal file path: %s", path)
+		}
+		if f.FileInfo().IsDir() {
+			os.MkdirAll(path, f.Mode())
+		} else {
+			os.MkdirAll(filepath.Dir(path), f.Mode())
+			f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+			if err != nil {
+				return err
+			}
+			defer func() {
+				if err := f.Close(); err != nil {
+					panic(err)
+				}
+			}()
+			_, err = io.Copy(f, rc)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	for _, f := range r.File {
+		err := extractAndWriteFile(f)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func FindAndParseTemplates(rootDir, fileExtention string,funcMap template.FuncMap) (*template.Template, []string, error) {
-    cleanRoot := filepath.Clean(rootDir)
-	if fileExtention == "" { fileExtention = ".html" }
-    pfx := len(cleanRoot)+1
-    root := template.New("")
+func FindAndParseTemplates(rootDir, fileExtention string, funcMap template.FuncMap) (*template.Template, []string, error) {
+	cleanRoot := filepath.Clean(rootDir)
+	if fileExtention == "" {
+		fileExtention = ".html"
+	}
+	pfx := len(cleanRoot) + 1
+	root := template.New("")
 	templateNameList := []string{}
 
-    err := filepath.Walk(cleanRoot, func(path string, info os.FileInfo, e1 error) error {
-        if !info.IsDir() && strings.HasSuffix(path, fileExtention) {
-            if e1 != nil {
-                return e1
-            }
-            b, e2 := ioutil.ReadFile(path)
-            if e2 != nil {
-                return e2
-            }
-            name := path[pfx:]
-            t := root.New(name).Funcs(funcMap)
-            _, e2 = t.Parse(string(b))
-            if e2 != nil {
-                return e2
-            }
+	err := filepath.Walk(cleanRoot, func(path string, info os.FileInfo, e1 error) error {
+		if !info.IsDir() && strings.HasSuffix(path, fileExtention) {
+			if e1 != nil {
+				return e1
+			}
+			b, e2 := ioutil.ReadFile(path)
+			if e2 != nil {
+				return e2
+			}
+			name := path[pfx:]
+			t := root.New(name).Funcs(funcMap)
+			_, e2 = t.Parse(string(b))
+			if e2 != nil {
+				return e2
+			}
 			templateNameList = append(templateNameList, name)
-        }
-        return nil
-    })
-    return root, templateNameList, err
+		}
+		return nil
+	})
+	return root, templateNameList, err
 }
 func ReadFileToBase64Content(filename string) string {
 	f, _ := os.Open(filename)
-    reader := bufio.NewReader(f)
-    content, _ := ioutil.ReadAll(reader)
-    // Encode as base64.
-    return base64.StdEncoding.EncodeToString(content)
+	reader := bufio.NewReader(f)
+	content, _ := ioutil.ReadAll(reader)
+	// Encode as base64.
+	return base64.StdEncoding.EncodeToString(content)
 }
 func SendMailSendGrid(from, to, subject, plainTextContent, htmlContent string, attachments []string) error {
 	addr, err := nm.ParseAddress(from)
@@ -172,12 +238,12 @@ func SendMailSendGrid(from, to, subject, plainTextContent, htmlContent string, a
 	}
 	mailto := mail.NewEmail(addr.Name, addr.Address)
 	message := mail.NewSingleEmail(mailfrom, subject, mailto, plainTextContent, htmlContent)
-	for _, filepath := range attachments{
+	for _, filepath := range attachments {
 		filename := path.Base(filepath)
 		message = message.AddAttachment(&mail.Attachment{
 			Filename: filename,
-			Content: ReadFileToBase64Content(filepath),
-		} )
+			Content:  ReadFileToBase64Content(filepath),
+		})
 	}
 	client := sendgrid.NewSendClient(os.Getenv("SENDGRID_API_KEY"))
 	response, err := client.Send(message)
@@ -192,59 +258,68 @@ func SendMailSendGrid(from, to, subject, plainTextContent, htmlContent string, a
 }
 func FileTouch(fileName string) error {
 	_, err := os.Stat(fileName)
-    if os.IsNotExist(err) {
-        file, err := os.Create(fileName)
-        if err != nil {
-            return err
-        }
-        defer file.Close()
-    } else {
-        currentTime := time.Now().Local()
-        err = os.Chtimes(fileName, currentTime, currentTime)
-        if err != nil {
-            return err
-        }
-    }
+	if os.IsNotExist(err) {
+		file, err := os.Create(fileName)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+	} else {
+		currentTime := time.Now().Local()
+		err = os.Chtimes(fileName, currentTime, currentTime)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 func FileExists(name string) (bool, error) {
-    _, err := os.Stat(name)
-    if err == nil {
-        return true, nil
-    }
-    if errors.Is(err, os.ErrNotExist) {
-        return false, nil
-    }
-    return false, err
+	_, err := os.Stat(name)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return false, err
 }
 func GenRandomString(n int) string {
 	mr.Seed(time.Now().UnixNano())
-    b := make([]byte, n)
-    for i := range b {
-        b[i] = LetterBytes[mr.Intn(len(LetterBytes))]
-    }
-    return string(b)
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = LetterBytes[mr.Intn(len(LetterBytes))]
+	}
+	return string(b)
 }
-func RunDSL(dbc *sql.DB, sql string) map[string]interface{}{
+func RunDSL(dbc *sql.DB, sql string) map[string]interface{} {
 	stmt, err := dbc.Prepare(sql)
-	if err != nil {return map[string]interface{}{"result":nil,"error": err}}
+	if err != nil {
+		return map[string]interface{}{"result": nil, "error": err}
+	}
 	defer stmt.Close()
 	result, err := stmt.Exec()
-	return map[string]interface{}{"result":result,"error": err}
+	return map[string]interface{}{"result": result, "error": err}
 }
+
 // Run SELECT and return map[string]interface{}{"result": []interface{}, "error": error}
 func RunSQL(dbc *sql.DB, sql string) map[string]interface{} {
 	var result = make([]interface{}, 0)
 	ptn := regexp.MustCompile(`[\s]+(from|FROM)[\s]+([^\s]+)[\s]*`)
 	if matches := ptn.FindStringSubmatch(sql); len(matches) == 3 {
 		stmt, err := dbc.Prepare(sql)
-		if err != nil {return map[string]interface{}{"result":nil,"error": err}}
+		if err != nil {
+			return map[string]interface{}{"result": nil, "error": err}
+		}
 		defer stmt.Close()
 		rows, err := stmt.Query()
-		if err != nil {return map[string]interface{}{"result":nil,"error": err}}
+		if err != nil {
+			return map[string]interface{}{"result": nil, "error": err}
+		}
 		defer rows.Close()
 		columnNames, err := rows.Columns() // []string{"id", "name"}
-		if err != nil {return map[string]interface{}{"result":nil,"error": err}}
+		if err != nil {
+			return map[string]interface{}{"result": nil, "error": err}
+		}
 		columns := make([]interface{}, len(columnNames))
 		columnTypes, _ := rows.ColumnTypes()
 		columnPointers := make([]interface{}, len(columnNames))
@@ -253,7 +328,9 @@ func RunSQL(dbc *sql.DB, sql string) map[string]interface{} {
 		}
 		for rows.Next() {
 			err := rows.Scan(columnPointers...)
-			if err != nil {return map[string]interface{}{"result":nil,"error": err}}
+			if err != nil {
+				return map[string]interface{}{"result": nil, "error": err}
+			}
 			_temp := make(map[string]interface{})
 			for idx, _cName := range columnNames {
 				if strings.ToUpper(columnTypes[idx].DatabaseTypeName()) == "TEXT" {
@@ -277,37 +354,37 @@ func RunSQL(dbc *sql.DB, sql string) map[string]interface{} {
 	return map[string]interface{}{"result": result, "error": nil}
 }
 func RemoveDuplicateStr(strSlice []string) []string {
-    allKeys := make(map[string]bool)
-    list := []string{}
-    for _, item := range strSlice {
-        if _, value := allKeys[item]; !value {
-            allKeys[item] = true
-            list = append(list, item)
-        }
-    }
-    return list
+	allKeys := make(map[string]bool)
+	list := []string{}
+	for _, item := range strSlice {
+		if _, value := allKeys[item]; !value {
+			allKeys[item] = true
+			list = append(list, item)
+		}
+	}
+	return list
 }
 func RemoveDuplicateInt(strSlice []int) []int {
-    allKeys := make(map[int]bool)
-    list := []int{}
-    for _, item := range strSlice {
-        if _, value := allKeys[item]; !value {
-            allKeys[item] = true
-            list = append(list, item)
-        }
-    }
-    return list
+	allKeys := make(map[int]bool)
+	list := []int{}
+	for _, item := range strSlice {
+		if _, value := allKeys[item]; !value {
+			allKeys[item] = true
+			list = append(list, item)
+		}
+	}
+	return list
 }
 func RemoveDuplicate(strSlice []interface{}) []interface{} {
-    allKeys := make(map[interface{}]bool)
-    list := []interface{}{}
-    for _, item := range strSlice {
-        if _, value := allKeys[item]; !value {
-            allKeys[item] = true
-            list = append(list, item)
-        }
-    }
-    return list
+	allKeys := make(map[interface{}]bool)
+	list := []interface{}{}
+	for _, item := range strSlice {
+		if _, value := allKeys[item]; !value {
+			allKeys[item] = true
+			list = append(list, item)
+		}
+	}
+	return list
 }
 func LoadConfigIntoEnv(configFile string) map[string]interface{} {
 	configObj := ParseConfig(configFile)
@@ -411,6 +488,7 @@ func JsonDumpByte(obj interface{}, indent string) []byte {
 	}
 	return []byte("")
 }
+
 //Given a duration string return a tuple of start time, end time satisfy the duration.
 //If duration string is dd/mm/yyyy hh:mm:ss - dd/mm/yyyy hh:mm:ss it simply return two time object.
 //If duration is like 15m then endtime is now, start time is 15 minutes ago. This applies for all case if input is not parsable
@@ -459,7 +537,7 @@ func CheckNonErrIfMatch(err error, ptn, location string) error {
 	if err != nil {
 		if strings.Contains(err.Error(), ptn) {
 			return err
-		} else{
+		} else {
 			log.Fatalf("[ERROR] at %s - %v\n", location, err)
 		}
 	}
@@ -636,6 +714,7 @@ func Upload(client *http.Client, url string, values map[string]io.Reader, mimety
 	}
 	return nil
 }
+
 //Add or delete attrbs set in a to b
 func MergeAttributes(a, b []interface{}, action string) []interface{} {
 	if len(a) == 0 {
@@ -743,6 +822,7 @@ func LookupMap(m map[string]interface{}, key string, default_val string) interfa
 		return default_val
 	}
 }
+
 var MapLookup = LookupMap
 
 //Crypto utils
@@ -812,6 +892,7 @@ func pemBlockForKey(priv interface{}) *pem.Block {
 		return nil
 	}
 }
+
 // Pass an interface, return same interface if they are string as key or list of string as key
 func ValidateInterfaceWithStringKeys(val interface{}) (interface{}, error) {
 	switch val := val.(type) {

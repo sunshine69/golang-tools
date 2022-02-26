@@ -13,7 +13,9 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.7.0
 	github.com/mattn/go-sqlite3 v1.14.11
 	github.com/mileusna/crontab v1.2.0
-	github.com/xanzy/go-gitlab v0.55.1
+	// Do not upgrade - they change a lot in api call, not a good thing for a SDK like this
+	// I tried with current v0.55.1 need to revamp lots of things
+	github.com/xanzy/go-gitlab v0.51.1
 	github.com/xuri/excelize/v2 v2.5.0
 	golang.org/x/crypto v0.0.0-20220214200702-86341886e292
 	localhost.com/gitlab/model v0.0.0-00010101000000-000000000000
@@ -26,20 +28,20 @@ require (
 	github.com/gorilla/securecookie v1.1.1 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.1 // indirect
 	github.com/hashicorp/logutils v1.0.0 // indirect
-	github.com/json-iterator/go v1.1.11 // indirect
+	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.1 // indirect
+	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/richardlehane/mscfb v1.0.3 // indirect
 	github.com/richardlehane/msoleps v1.0.1 // indirect
-	github.com/sendgrid/rest v2.6.5+incompatible // indirect
-	github.com/sendgrid/sendgrid-go v3.10.2+incompatible // indirect
+	github.com/sendgrid/rest v2.6.8+incompatible // indirect
+	github.com/sendgrid/sendgrid-go v3.11.0+incompatible // indirect
 	github.com/sunshine69/golang-tools/utils v0.0.0-20211013131004-c7ad428806b2 // indirect
 	github.com/sunshine69/sqlstruct v0.0.0-20210630145711-dae28ed37023 // indirect
 	github.com/xuri/efp v0.0.0-20210322160811-ab561f5b45e3 // indirect
-	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
+	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
 	golang.org/x/oauth2 v0.0.0-20181106182150-f42d05182288 // indirect
-	golang.org/x/text v0.3.6 // indirect
+	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	google.golang.org/appengine v1.3.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

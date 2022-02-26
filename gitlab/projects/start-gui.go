@@ -163,14 +163,14 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 		}()
 	case "run_quick_project_xfer":
 		u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, "GitlabDomain Automation - run_quick_project_xfer", "", fmt.Sprintf("run_quick_project_xfer Started. Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{})
-		pid, err := strconv.Atoi(vars["quick_prj_id"])
+		pid, err := strconv.Atoi(u.GetRequestValue(r, "quick_prj_id"))
 		if u.CheckErrNonFatal(err, "") != nil {
-			fmt.Fprintf(w, "ERROR Project ID must be an integer. Got %s", vars["quick_prj_id"])
+			fmt.Fprintf(w, "ERROR Project ID must be an integer. Got %s", u.GetRequestValue(r, "quick_prj_id"))
 			return
 		}
 		go func() {
-			// TransferProjectQuick(git, pid, vars["project_new_path"], vars["extra_registry_name"])
-			fmt.Fprintf(w, "OK Dummy action with pid %d - new path: %s - extra registry name: %s", pid, vars["project_new_path"], vars["extra_registry_name"])
+			// TransferProjectQuick(git, pid, u.GetRequestValue(r, "project_new_path"), u.GetRequestValue(r, "extra_registry_name"))
+			fmt.Fprintf(w, "OK Dummy action with pid %d - new path: %s - extra registry name: %s", pid, u.GetRequestValue(r, "project_new_path"), u.GetRequestValue(r, "extra_registry_name"))
 		}()
 	}
 	fmt.Fprintf(w, "<p>Process %s started. You can see the log <a href='/log/%s'>here</a></p>", func_name, logFile)
@@ -264,7 +264,6 @@ func HandleRequests() {
 	}
 	// API endpoint
 	router.Handle("/api/v1/get_root_domain", isAuthorized(GetRootDomain)).Methods("GET")
-
 
 	srv := &http.Server{
 		Addr: fmt.Sprintf(":%s", AppConfig["Port"].(string)),
