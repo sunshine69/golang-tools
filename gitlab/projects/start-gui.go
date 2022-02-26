@@ -169,7 +169,10 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		go func() {
-			log.Printf("[DEBUG] Dummy action with pid %d - new path: %s - extra registry name: %s", pid, u.GetRequestValue(r, "project_new_path"), u.GetRequestValue(r, "extra_registry_name"))
+			log.SetOutput(f)
+			defer f.Close()
+			defer log.SetOutput(os.Stdout)
+			log.Printf("[DEBUG] TransferProjectQuick action with pid %d - new path: %s - extra registry name: %s", pid, u.GetRequestValue(r, "project_new_path"), u.GetRequestValue(r, "extra_registry_name"))
 			TransferProjectQuick(git, pid, u.GetRequestValue(r, "project_new_path"), u.GetRequestValue(r, "extra_registry_name"))
 			os.Remove(lockFileName)
 		}()
