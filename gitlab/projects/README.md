@@ -75,8 +75,15 @@ Something like:
 cat /home/azureuser/start-gitlab-tool.sh
 #!/bin/sh
 
+if [ "$1" = "stop" ]; then
+  killall dump-gitlab-project
+  exit 0
+fi
+
 cd $HOME/src/golang-tools/gitlab/projects/
-#export PATH=/usr/local/bin:$PATH
+if [ ! -f "dump-gitlab-project" ] || [ "$1" = "rebuild" ]; then
+  go build --tags "sqlite_stat4 sqlite_foreign_keys sqlite_json" .
+fi
 nohup ./dump-gitlab-project -f ~/.go1-gitlab-project.json -db 'data/testdb.sqlite3?busy_timeout=15000' -a StartWebGUI &
 ```
 and in /etc/rc.local
