@@ -294,7 +294,10 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 	u.CheckErr(err, "TransferProjectQuick GetProject")
 	log.Printf("TransferProject ID %d, name %s to new path: %s started\n", gitlabProjectId, gitlabProject.NameWithNamespace, newPath)
 	d := GitlabNamespaceGet(map[string]string{"where":"full_path = '"+newPath+"'"})
-	u.Assert(len(d) == 1, "Expect to get 1 domain", true)
+	if ! u.Assert(len(d) == 1, "Expect to get 1 domain", false) {
+		log.Printf("[ERROR] Can not find the group with full_path: %s make sure the path exists\n", newPath)
+		return
+	}
 	gitlabDomainGroup, _, err := git.Groups.GetGroup(d[0].GitlabNamespaceId, nil)
 	u.CheckErr(err, "TransferProject GetGroup")
 
