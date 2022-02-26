@@ -24,7 +24,7 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 
 	oldImagesList := []string{}
 	for _, repoReg := range registryRepos {
-		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), fmt.Sprintf("We are going to push images From %s => %s", currentPrj.NameWithNamespace, newPrj.NameWithNamespace), "", []string{})
+		u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), fmt.Sprintf("We are going to push images From %s => %s", currentPrj.NameWithNamespace, newPrj.NameWithNamespace), "", []string{})
 		_, tags := repoReg.Location, repoReg.Tags
 
 		comChannel := make(chan int)
@@ -69,12 +69,12 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 		//If we do not process any images but in the registry has images means all images are corrupted. We should error here
 		if (processImageCount == 0) && (len(oldImagesList) > 0) {
 			errMsg := "[ERROR] CRITICAL We have images in the repo but we can not move any. This implies all images are corrupted"
-			u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", errMsg, []string{})
+			u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", errMsg, []string{})
 			return 0, errors.New(errMsg)
 		}
 	}
 	for _, repoReg := range registryRepos {
-		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", fmt.Sprintf("We are going to delete the container registry repository of the project name %s, ID %d. <b>This means your production k8s if using the old image will get errors. To minimize the outage of scaling please keep an eye for next email for action</b>", currentPrj.NameWithNamespace, currentPrj.ID), []string{})
+		u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", fmt.Sprintf("We are going to delete the container registry repository of the project name %s, ID %d. <b>This means your production k8s if using the old image will get errors. To minimize the outage of scaling please keep an eye for next email for action</b>", currentPrj.NameWithNamespace, currentPrj.ID), []string{})
 		_, err := git.ContainerRegistry.DeleteRegistryRepository(currentPrj.ID, repoReg.ID, nil)
 		u.CheckErr(err, "MoveProjectRegistryImages DeleteRegistryRepository "+repoReg.String())
 	}
@@ -101,12 +101,12 @@ func MoveProjectRegistryImagesUseShell(git *gitlab.Client, currentPrj, newPrj *g
 		u.RunSystemCommand(fmt.Sprintf("docker pull %s -a", repoImage), true)
 		log.Printf("Pull %s completed\nStart to push ...\n", repoImage)
 
-		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), fmt.Sprintf("We are going to push images From %s => %s", currentPrj.NameWithNamespace, newPrj.NameWithNamespace), "", []string{})
+		u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), fmt.Sprintf("We are going to push images From %s => %s", currentPrj.NameWithNamespace, newPrj.NameWithNamespace), "", []string{})
 
 		u.RunSystemCommand(fmt.Sprintf(`docker images %s --format "docker tag {{.Repository}}:{{.Tag}} %s:{{.Tag}} && docker push %s:{{.Tag}}" | bash `, repoImage, newImage, newImage), true)
 		log.Printf("Push %s completed\nStart to clean up ...\n", newImage)
 
-		u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", fmt.Sprintf("We are going to delete the container registry repository of the project name %s, ID %d. <b>This means your production k8s if using the old image will get errors. To minimize the outage of scaling please keep an eye for next email for action</b>", currentPrj.NameWithNamespace, currentPrj.ID), []string{})
+		u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", fmt.Sprintf("We are going to delete the container registry repository of the project name %s, ID %d. <b>This means your production k8s if using the old image will get errors. To minimize the outage of scaling please keep an eye for next email for action</b>", currentPrj.NameWithNamespace, currentPrj.ID), []string{})
 
 		_, err := git.ContainerRegistry.DeleteRegistryRepository(currentPrj.ID, repoReg.ID, nil)
 		u.CheckErr(err, "MoveProjectRegistryImages DeleteRegistryRepository "+repoReg.String())
@@ -251,7 +251,7 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 		log.Printf("[WARN] pid:%d Can not copy these vars, it does exist but having different values\n%s\n", gitlabProjectId, u.JsonDump(nonCopyableVars1, "  "))
 	}
 
-	u.SendMailSendGrid("Go1 GitlabDomain Automation <steve.kieu@go1.com>", user, fmt.Sprintf("Gitlab migration progress. Project %s", gitlabProject.NameWithNamespace), "", fmt.Sprintf("<h2>Migration %s completed</h2> However we still need to move the images back. <b>You can start to rebuild and deploy now</b>. If you do not want to rebuild and just want to re-deploy qa and prod, check the container registry to be sure the latest image tag has been copied over and you can run the deploy job manualy.", gitlabProject.NameWithNamespace), []string{})
+	u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", gitlabProject.NameWithNamespace), "", fmt.Sprintf("<h2>Migration %s completed</h2> However we still need to move the images back. <b>You can start to rebuild and deploy now</b>. If you do not want to rebuild and just want to re-deploy qa and prod, check the container registry to be sure the latest image tag has been copied over and you can run the deploy job manualy.", gitlabProject.NameWithNamespace), []string{})
 
 	log.Printf("pid:%d - Move container image from temp\n", gitlabProjectId)
 	MoveProjectRegistryImagesUseShell(git, tempPrj, gitlabProject, user)
