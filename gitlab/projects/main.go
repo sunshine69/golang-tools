@@ -230,22 +230,27 @@ func main() {
     {
 		"Port": "8080",
 		"AuthUser": "go1",
-		"SessionKey": "RANDOM-KEY",
-		"SharedToken": "API-AUTH-SHARED-TOKEN",
+		"SessionKey": "<SESSION_RAN_DOM_KEY>",
 		"EmailFrom": "Go1 GitlabDomain Automation <steve.kieu@go1.com>",
-		"UsernamePattern": "your acceptable username regex pattern",
+		"SharedToken": "<RANDOM_API_ACCESS_TOKEN>",
+		"UsernamePattern": "<REGEX_PATTERN_FOR_USER_EMAIL_ALLOWED_TO_REGISTER>",
 		"gitlabAPIBaseURL": "https://code.go1.com.au/api/v4",
-		"gitlabToken": "YOUR-GITLAB-API-TOKEN",
-		"admin_user_id": <YOUR GILAB USER ID AS ADMIN TO USE IN THE APP>,
+		"gitlabToken": "<YOUR_GITLAB_TOKEN>",
+		"admin_user_id": <YOU_GITLAB_ADMIN_USER_ID_WHO_WILL_PERFORM_GITLAB_TASKS>,
 		"SearchStr": "",
 		"BlacklistVariableValues": {
-			"<value of blacklisted var>": {
-				"match-key": "correct-value",
-				"if-not-match": "just-skip-copying"
+			"value of a var that wont be copied when migrating": {
+				"not-match-key-xxxxxxxxxx": "just skip it"
+			 },
+			"value of a var that match the var name in the below line will be update with the new value": {
+			   "var name such as _ES_DEV_URL": "New value that will be used after migration"
 			}
 		},
-		"SENDGRID_API_KEY": "YOUR SENDGRID API KEY USED TO SEND EMAIL NOTIFICATION"
-   }`)
+		"SslKey": "path to the ssl key file",
+		"SslCert": "path to the ssl cert file",
+		"SENDGRID_API_KEY": "your SENDGRID_API_KEY used to send email notification"
+   }
+   `)
 	flag.StringVar(&GitLabToken, "tok", "", "GitLabToken if empty then read from env var GITLAB_TOKEN")
 	flag.StringVar(&action, "a", "", "Action. Default is update-all. Can be: update-project|update-namespace|update-team|xxx where xxx is the function name")
 	flag.Parse()
