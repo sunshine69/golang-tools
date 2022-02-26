@@ -239,10 +239,10 @@ func HandleRequests() {
 	router.PathPrefix("/log/").Handler(BasicAuthHandler(http.StripPrefix("/log/", staticFS), AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm") )
 
 	router.HandleFunc("/register/{username}", RegisterUser)
-	router.HandleFunc("/", BasicAuth(homePage, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("GET")
-	router.HandleFunc("/run/{func_name}", BasicAuth(RunFunction, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("POST")
-	router.HandleFunc("/transferproject/{page_offset:[0-9]+}", BasicAuth(DisplayTransferProjectConsole, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("GET")
-	router.HandleFunc("/runmigrate/{project_id:[0-9]+}", BasicAuth(RunTransferProject, AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm")).Methods("POST")
+	router.HandleFunc("/", BasicAuth(homePage, AppConfig["AuthUser"].(string), "default realm")).Methods("GET")
+	router.HandleFunc("/run/{func_name}", BasicAuth(RunFunction, AppConfig["AuthUser"].(string), "default realm")).Methods("POST")
+	router.HandleFunc("/transferproject/{page_offset:[0-9]+}", BasicAuth(DisplayTransferProjectConsole, AppConfig["AuthUser"].(string), "default realm")).Methods("GET")
+	router.HandleFunc("/runmigrate/{project_id:[0-9]+}", BasicAuth(RunTransferProject, AppConfig["AuthUser"].(string), "default realm")).Methods("POST")
 
 	if AppConfig["SharedToken"].(string) == "" {
 		log.Printf("[WARN] - SharedToken is not set. Log server will allow anyone to put log in\n")
@@ -342,7 +342,7 @@ func RegisterUser(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Registration completed. Please check your email for details")
 }
 //This func is used to load the home page and generate tempo token for the ajax post
-func BasicAuth(handlerFunc http.HandlerFunc, username, password, realm string) http.HandlerFunc {
+func BasicAuth(handlerFunc http.HandlerFunc, username, realm string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, pass, _ := r.BasicAuth()
 		checkAuth := VerifyAuthentication(user, pass, realm)
