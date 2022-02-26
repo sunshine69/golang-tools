@@ -49,10 +49,6 @@
         <a href="/transferproject/{{.page_offset}}?migrated=1">List projects already migrated</a><br/>
         <input type="hidden" name="user" value="{{ .user }}"/>
         <input type="hidden" name="token" value="{{ .token }}"/>
-        <hr/><h4><a href="/log/">Log</a></h4>
-        <div id="output" name="output"></div>
-        <div id="list_running_procs"><pre>Current running procs: (hit reload browser to refresh)
-            {{ .running_procs }}</pre></div>
         <hr/>
         <h3>TransferProjectQuick</h3>
         <p>Just transfer a project to new path and get/push images. No variable copying or replicate domain in between, assume the new path has been created already.<br/>
@@ -61,5 +57,12 @@
         <label for="project_new_path">New path:</label><input type="text" name="project_new_path" id="project_new_path" value="" /><br/>
         <label for="extra_registry_name">extraRegistryImageName if do not know, leave it empty:</label><input type="text" name="extra_registry_name" id="extra_registry_name" value="" /><br/>
         <input type="button" name="run_quick_project_xfer" value="run" onclick="return run_quick_project_xfer();">
+
+        <hr/><h4><a href="/log/">Log</a></h4>
+        <div id="output" name="output"></div>
+        <div id="list_running_procs"><pre>Current running procs: (hit reload browser to refresh)
+            {{ .running_procs }}</pre></div>
+        <hr/>
+
     </body>
 </html>
