@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"errors"
 	"fmt"
 	"log"
@@ -323,6 +324,10 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 	})
 	if u.CheckErrNonFatal(err, "TransferProject TransferGroup") != nil {
 		log.Fatalf("[ERROR] gitlab response is %s. pid:%d \n", u.JsonDump(res, "  "), gitlabProjectId)
+	}
+	if extraRegistryImageName != "" {
+		ptn := regexp.MustCompile(`^[\/]+`)
+		extraRegistryImageName = "/" + ptn.ReplaceAllString(extraRegistryImageName, "")
 	}
 	newRegistryImagePath := fmt.Sprintf(`%s%s`, GetContainerRegistryBaseLocation(git, gitlabProject.ID), extraRegistryImageName)
 	for _, _repoImage := range repoImages {
