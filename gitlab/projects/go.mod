@@ -11,18 +11,18 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/sessions v1.2.1
 	github.com/hashicorp/go-retryablehttp v0.7.0
-	github.com/mattn/go-sqlite3 v1.14.8
+	github.com/mattn/go-sqlite3 v1.14.11
 	github.com/mileusna/crontab v1.2.0
-	github.com/xanzy/go-gitlab v0.51.1
-	github.com/xuri/excelize/v2 v2.4.1
-	golang.org/x/crypto v0.0.0-20211115234514-b4de73f9ece8
+	github.com/xanzy/go-gitlab v0.55.1
+	github.com/xuri/excelize/v2 v2.5.0
+	golang.org/x/crypto v0.0.0-20220214200702-86341886e292
 	localhost.com/gitlab/model v0.0.0-00010101000000-000000000000
 	localhost.com/utils v0.0.0-00010101000000-000000000000
 )
 
 require (
 	github.com/golang/protobuf v1.2.0 // indirect
-	github.com/google/go-querystring v1.0.0 // indirect
+	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/gorilla/securecookie v1.1.1 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.1 // indirect
 	github.com/hashicorp/logutils v1.0.0 // indirect
@@ -37,7 +37,7 @@ require (
 	github.com/sunshine69/golang-tools/utils v0.0.0-20211013131004-c7ad428806b2 // indirect
 	github.com/sunshine69/sqlstruct v0.0.0-20210630145711-dae28ed37023 // indirect
 	github.com/xuri/efp v0.0.0-20210322160811-ab561f5b45e3 // indirect
-	golang.org/x/net v0.0.0-20210903162142-ad29c8ab022f // indirect
+	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
 	golang.org/x/oauth2 v0.0.0-20181106182150-f42d05182288 // indirect
 	golang.org/x/text v0.3.6 // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect

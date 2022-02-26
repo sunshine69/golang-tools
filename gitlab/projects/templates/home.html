@@ -2,16 +2,24 @@
     <head>
         <script type="text/javascript" src='https://gonote.duckdns.org:6919/assets/media/js/ajax.js'></script>
         <script language="javascript">
-        function run_command_action() {
+        function run_command_action(action="", postdata="") {
             var Token = encodeURIComponent(document.getElementsByName("token")[0].value);
             var headers = [ ["X-Authorization-Token", Token] ];
-            AJAX.postText("/run/"+encodeURIComponent(document.getElementById('action').value),
-                "",
+            if (action == "") { action = document.getElementById('action').value }
+            AJAX.postText("/run/"+encodeURIComponent(action),
+                postdata,
                 function(r) {
                     ele = document.getElementById("output");
                     ele.innerHTML = r;
                 },
                 headers);
+        }
+        function run_quick_project_xfer() {
+            pid = document.getElementById('quick_prj_id').value
+            project_new_path = document.getElementById('project_new_path').value
+            extra_registry_name = document.getElementById('extra_registry_name').value
+            postdata = "quick_prj_id="+pid+"&project_new_path="+project_new_path+"&extra_registry_name="+extra_registry_name
+            run_command_action("run_quick_project_xfer", postdata)
         }
         </script>
     <title>Go1 GitlabProjectDomain Console</title>
@@ -45,5 +53,13 @@
         <div id="output" name="output"></div>
         <div id="list_running_procs"><pre>Current running procs: (hit reload browser to refresh)
             {{ .running_procs }}</pre></div>
+        <hr/>
+        <h3>TransferProjectQuick</h3>
+        <p>Just transfer a project to new path and get/push images. No variable copying or replicate domain in between, assume the new path has been created already.<br/>
+        newPath should not started with slash /</p>
+        <label for="quick_prj_id">Project ID: </label> <input type="text" name="quick_prj_id" id="quick_prj_id" value="" /><br/>
+        <label for="project_new_path">New path:</label><input type="text" name="project_new_path" id="project_new_path" value="" /><br/>
+        <label for="extra_registry_name">extraRegistryImageName if do not know, leave it empty:</label><input type="text" name="extra_registry_name" id="extra_registry_name" value="" /><br/>
+        <input type="button" name="run_quick_project_xfer" value="run" onclick="return run_quick_project_xfer();">
     </body>
 </html>
