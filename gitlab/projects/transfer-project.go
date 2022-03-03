@@ -49,7 +49,7 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 				comChannel <- idx
 			}(_idx, oldImage, newImage)
 
-			if (totalJobsLeft > 0) && (totalJobsLeft % AppConfig["BatchSize"].(int) == 0) {
+			if (totalJobsLeft > 0) && (totalJobsLeft % int(AppConfig["BatchSize"].(float64)) == 0) {
 				j := <-comChannel
 				processImageCount++
 				fmt.Printf("job %d completed.\n", j)
