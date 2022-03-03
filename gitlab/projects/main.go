@@ -233,6 +233,7 @@ func main() {
 		"SessionKey": "<SESSION_RAN_DOM_KEY>",
 		"EmailFrom": "Go1 GitlabDomain Automation <steve.kieu@go1.com>",
 		"SharedToken": "<RANDOM_API_ACCESS_TOKEN>",
+		"BatchSize": 5,
 		"UsernamePattern": "<REGEX_PATTERN_FOR_USER_EMAIL_ALLOWED_TO_REGISTER>",
 		"gitlabAPIBaseURL": "https://code.go1.com.au/api/v4",
 		"gitlabToken": "<YOUR_GITLAB_TOKEN>",
