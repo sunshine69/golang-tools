@@ -1,6 +1,7 @@
 package main
 
 import (
+	"time"
 	"regexp"
 	"errors"
 	"fmt"
@@ -45,7 +46,21 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 					return
 				}
 				u.RunSystemCommand(fmt.Sprintf("docker tag %s  %s", oldImage, newImage), true)
-				u.RunSystemCommand(fmt.Sprintf("docker push %s", newImage), true)
+
+				for _trycount := 0; _trycount < 5; _trycount++ {
+					msg, err := u.RunSystemCommandV2(fmt.Sprintf("docker push %s", newImage), true)
+					if err != nil {
+						if _trycount == 4 {
+							log.Fatalf("ERROR maximum tries reached. I am tired\n")
+						} else{
+							log.Printf("ERROR try %d with message %s. Will retry after 1 minutes\n", _trycount, msg)
+							time.Sleep(60 * time.Second)
+						}
+					} else {
+						break
+					}
+				}
+
 				comChannel <- idx
 			}(_idx, oldImage, newImage)
 
