@@ -270,7 +270,11 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 	u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", gitlabProject.NameWithNamespace), "", fmt.Sprintf("<h2>Migration %s completed</h2> However we still need to move the images back. <b>You can start to rebuild and deploy now</b>. If you do not want to rebuild and just want to re-deploy qa and prod, check the container registry to be sure the latest image tag has been copied over and you can run the deploy job manualy.", gitlabProject.NameWithNamespace), []string{})
 
 	log.Printf("pid:%d - Move container image from temp\n", gitlabProjectId)
-	MoveProjectRegistryImagesUseShell(git, tempPrj, gitlabProject, user)
+	// MoveProjectRegistryImagesUseShell(git, tempPrj, gitlabProject, user)
+	_, err = MoveProjectRegistryImages(git, tempPrj, gitlabProject, user)
+	if err != nil {
+		log.Printf("[ERROR] while copying back the images from local to the project. Please check and re-run the docker push command\n")
+	}
 	log.Printf("pid:%d - Delete temporary project\n", gitlabProjectId)
 
 	WaitUntilAllRegistryTagCleared(git, tempPrj.ID)
