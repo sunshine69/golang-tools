@@ -37,35 +37,37 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 		_emailSubj = fmt.Sprintf("We are going to pull/push images From %s => %s", currentPrj.NameWithNamespace, newPrj.NameWithNamespace)
 	}
 	for _, repoReg := range registryRepos {
-		u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), _emailSubj, "", []string{})
+		if user != ""{
+			u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), _emailSubj, "", []string{})
+		}
 		_, tags := repoReg.Location, repoReg.Tags
 
-		comChannel := make(chan int)
+		comChannel := make(chan int, int(AppConfig["BatchSize"].(int64)))
 		defer close(comChannel)
-		currentJobCountInBatch := 0
 		for _idx, t := range tags {
 			oldImage := t.Location
 			oldImagesList = append(oldImagesList, oldImage)
 			extraName := u.Ternary(repoReg.Name == "", "", "/"+repoReg.Name)
 			newImage := fmt.Sprintf(`%s%s:%s`, GetContainerRegistryBaseLocation(git, newPrj.ID), extraName, t.Name)
 
-			currentJobCountInBatch++
 			go func(idx int, oldImage, newImage string) {
+				comChannel <- idx
 				if (ops == "pull") || (ops == "both") {
 					for _trycount := 0; _trycount < 5; _trycount++ {
 						if o, err := u.RunSystemCommandV2(fmt.Sprintf("docker pull %s", oldImage), true); err != nil {
 							log.Println(o)
 							if _trycount == 4 {
 								log.Printf("ERROR maximum tries reached. I am tired. But I will move on\n")
+								break
 							} else {
 								log.Printf("ERROR try %d with message %s. Will retry after 1 minutes\n", _trycount, o)
 								time.Sleep(60 * time.Second)
 							}
-							comChannel <- idx
-							return
-						}
-						if oldImage != newImage {
-							u.RunSystemCommand(fmt.Sprintf("docker tag %s  %s", oldImage, newImage), true)
+						} else {
+							if oldImage != newImage {
+								u.RunSystemCommand(fmt.Sprintf("docker tag %s  %s", oldImage, newImage), true)
+								break
+							}
 						}
 					}
 				}
@@ -75,7 +77,8 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 						if err != nil {
 							if _trycount == 4 {
 								log.Fatalf("ERROR maximum tries reached. I am tired\n")
-							} else{
+								break
+							} else {
 								log.Printf("ERROR try %d with message %s. Will retry after 1 minutes\n", _trycount, msg)
 								time.Sleep(60 * time.Second)
 							}
@@ -83,27 +86,9 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 							break
 						}
 					}
-					comChannel <- idx
+					<-comChannel
 				}
 			}(_idx, oldImage, newImage)
-
-			if (currentJobCountInBatch > 0) && (currentJobCountInBatch % int(AppConfig["BatchSize"].(float64)) == 0) {
-				j := <-comChannel
-				processImageCount++
-				fmt.Printf("job %d completed.\n", j)
-				currentJobCountInBatch--
-			}
-		}
-		if currentJobCountInBatch > 0 {
-			//Flush the rest
-			for j := range comChannel {
-				fmt.Printf("job %d completed\n", j)
-				currentJobCountInBatch--
-				processImageCount++
-				if currentJobCountInBatch == 0 {
-					break
-				}
-			}
 		}
 		//If we do not process any images but in the registry has images means all images are corrupted. We should error here
 		if (processImageCount == 0) && (len(oldImagesList) > 0) {
@@ -342,11 +327,12 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 	}
 	gitlabDomainGroup, _, err := git.Groups.GetGroup(d[0].GitlabNamespaceId, nil)
 	u.CheckErr(err, "TransferProject GetGroup")
-
+	log.Printf("[DEBUG] Start pull images\n")
 	_, err = MoveProjectRegistryImages(git, gitlabProject, gitlabProject, "None", "pull")
 	if u.CheckErrNonFatal(err, "TransferProjectQuick") != nil {
 		return
 	}
+	log.Printf("[DEBUG] Complete pull images\n")
 	returnTag := true
 	registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(gitlabProject.ID, &gitlab.ListRegistryRepositoriesOptions{
 		ListOptions: gitlab.ListOptions{
@@ -363,6 +349,7 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 		u.CheckErr(err, "TransferProjectQuick DeleteRegistryRepository "+repoReg.String())
 		repoImages = append(repoImages, repoImage)
 	}
+	log.Printf("[DEBUG] Start WaitUntilAllRegistryTagCleared\n")
 	WaitUntilAllRegistryTagCleared(git, gitlabProject.ID)
 	log.Printf("pid:%d - Transfer project to a new name space %s with id %d\n", gitlabProjectId, gitlabDomainGroup.Name, gitlabDomainGroup.ID)
 
