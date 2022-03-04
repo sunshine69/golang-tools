@@ -42,7 +42,7 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 		}
 		_, tags := repoReg.Location, repoReg.Tags
 
-		comChannel := make(chan int, int(AppConfig["BatchSize"].(int64)))
+		comChannel := make(chan int, int(AppConfig["BatchSize"].(float64)))
 		defer close(comChannel)
 		for _idx, t := range tags {
 			oldImage := t.Location
@@ -371,7 +371,7 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 	for _, _repoImage := range repoImages {
 		o := u.RunSystemCommand(fmt.Sprintf(`docker images %s --format "docker tag {{.Repository}}:{{.Tag}} %s:{{.Tag}} && docker push %s:{{.Tag}}"`, _repoImage, newRegistryImagePath, newRegistryImagePath), true)
 		cmdList := strings.Split(o, "\n")
-		batchChan := make(chan int, int(AppConfig["BatchSize"].(int64)) )
+		batchChan := make(chan int, int(AppConfig["BatchSize"].(float64)) )
 		defer close(batchChan)
 		for idx, cmd := range(cmdList) {
 			go func(_cmd string) {
