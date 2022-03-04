@@ -27,7 +27,6 @@ func (c *container) inc() {
 func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Project, user, ops string) (int, error) {
 	if ops == "" { ops = "both" }
 	returnTag := true
-	counter := container{counters: 0}
 	registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(currentPrj.ID, &gitlab.ListRegistryRepositoriesOptions{
 		ListOptions: gitlab.ListOptions{
 			Page: 1, PerPage: 100,
@@ -48,6 +47,7 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 		_emailSubj = fmt.Sprintf("We are going to pull/push images From %s => %s", currentPrj.NameWithNamespace, newPrj.NameWithNamespace)
 	}
 
+	counter := container{counters: 0}
 	for _, repoReg := range registryRepos {
 		if user != ""{
 			u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), _emailSubj, "", []string{})
@@ -76,8 +76,8 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 						} else {
 							if oldImage != newImage {
 								u.RunSystemCommand(fmt.Sprintf("docker tag %s  %s", oldImage, newImage), true)
-								co.inc()
 							}
+							co.inc()
 							break
 						}
 					}
