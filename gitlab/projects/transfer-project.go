@@ -66,8 +66,9 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 						} else {
 							if oldImage != newImage {
 								u.RunSystemCommand(fmt.Sprintf("docker tag %s  %s", oldImage, newImage), true)
-								break
 							}
+							processImageCount++
+							break
 						}
 					}
 				}
@@ -83,17 +84,20 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 								time.Sleep(60 * time.Second)
 							}
 						} else {
+							processImageCount++
 							break
 						}
 					}
-					<-comChannel
 				}
+				<-comChannel
 			}(_idx, oldImage, newImage)
 		}
 		//If we do not process any images but in the registry has images means all images are corrupted. We should error here
 		if (processImageCount == 0) && (len(oldImagesList) > 0) {
 			errMsg := "[ERROR] CRITICAL We have images in the repo but we can not move any. This implies all images are corrupted"
-			u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", errMsg, []string{})
+			if user != ""{
+				u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", errMsg, []string{})
+			}
 			return 0, errors.New(errMsg)
 		}
 	}
