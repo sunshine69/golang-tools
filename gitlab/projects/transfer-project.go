@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"time"
 	"regexp"
 	"errors"
@@ -342,6 +343,10 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 	gitlabDomainGroup, _, err := git.Groups.GetGroup(d[0].GitlabNamespaceId, nil)
 	u.CheckErr(err, "TransferProject GetGroup")
 
+	_, err = MoveProjectRegistryImages(git, gitlabProject, gitlabProject, "None", "pull")
+	if u.CheckErrNonFatal(err, "TransferProjectQuick") != nil {
+		return
+	}
 	returnTag := true
 	registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(gitlabProject.ID, &gitlab.ListRegistryRepositoriesOptions{
 		ListOptions: gitlab.ListOptions{
@@ -354,8 +359,6 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 	repoImages := []string{}
 	for _, repoReg := range registryRepos {
 		repoImage := repoReg.Location
-		u.RunSystemCommand(fmt.Sprintf("docker pull %s -a", repoImage), true)
-		log.Printf("[DEBUG] pull completed, start to remove registry")
 		_, err := git.ContainerRegistry.DeleteRegistryRepository(gitlabProject.ID, repoReg.ID, nil)
 		u.CheckErr(err, "TransferProjectQuick DeleteRegistryRepository "+repoReg.String())
 		repoImages = append(repoImages, repoImage)
@@ -375,7 +378,29 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 	}
 	newRegistryImagePath := fmt.Sprintf(`%s%s`, GetContainerRegistryBaseLocation(git, gitlabProject.ID), extraRegistryImageName)
 	for _, _repoImage := range repoImages {
-		u.RunSystemCommand(fmt.Sprintf(`docker images %s --format "docker tag {{.Repository}}:{{.Tag}} %s:{{.Tag}} && docker push %s:{{.Tag}}" | bash `, _repoImage, newRegistryImagePath, newRegistryImagePath), true)
+		o := u.RunSystemCommand(fmt.Sprintf(`docker images %s --format "docker tag {{.Repository}}:{{.Tag}} %s:{{.Tag}} && docker push %s:{{.Tag}}"`, _repoImage, newRegistryImagePath, newRegistryImagePath), true)
+		cmdList := strings.Split(o, "\n")
+		batchChan := make(chan int, int(AppConfig["BatchSize"].(int64)) )
+		defer close(batchChan)
+		for idx, cmd := range(cmdList) {
+			go func(_cmd string) {
+				batchChan <- idx
+				for _trycount := 0; _trycount < 5; _trycount++ {
+					if o, err := u.RunSystemCommandV2(fmt.Sprintf(`bash -c "%s"`, _cmd), true); err != nil {
+						log.Println(o)
+						if _trycount == 4 {
+							log.Printf("ERROR max try reached\n")
+							<-batchChan
+							return
+						} else {
+							log.Printf("ERRROR count %d - will retry\n", _trycount)
+							time.Sleep(60*time.Second)
+						}
+					} else { break }
+				}
+				<-batchChan
+			}(cmd)
+		}
 		log.Printf("Push %s completed\nStart to clean up ...\n", newRegistryImagePath)
 		u.RunSystemCommand(fmt.Sprintf(
 			`docker images %s --format "docker rmi {{.Repository}}:{{.Tag}}" | bash`,
