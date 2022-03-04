@@ -102,7 +102,7 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 				<-comChannel
 			}(_idx, oldImage, newImage, comChannel, &counter)
 		}
-		close(comChannel)
+		// close(comChannel)
 		//If we do not process any images but in the registry has images means all images are corrupted. We should error here
 		if (counter.counters == 0) && (len(oldImagesList) > 0) {
 			errMsg := "[ERROR] CRITICAL We have images in the repo but we can not move any. This implies all images are corrupted"
