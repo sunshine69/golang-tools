@@ -1,6 +1,7 @@
 package main
 
 import (
+	"sync"
 	"strings"
 	"time"
 	"regexp"
@@ -13,10 +14,20 @@ import (
 	. "localhost.com/gitlab/model"
 	u "localhost.com/utils"
 )
+type container struct {
+    mu       sync.Mutex
+    counters int
+}
+func (c *container) inc() {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    c.counters++
+}
 //Move registry images from current prj to new one, ops can be pull|push|both default is both
 func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Project, user, ops string) (int, error) {
 	if ops == "" { ops = "both" }
-	returnTag, processImageCount := true, 0
+	returnTag := true
+	counter := container{counters: 0}
 	registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(currentPrj.ID, &gitlab.ListRegistryRepositoriesOptions{
 		ListOptions: gitlab.ListOptions{
 			Page: 1, PerPage: 100,
@@ -36,6 +47,7 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 	case "both":
 		_emailSubj = fmt.Sprintf("We are going to pull/push images From %s => %s", currentPrj.NameWithNamespace, newPrj.NameWithNamespace)
 	}
+
 	for _, repoReg := range registryRepos {
 		if user != ""{
 			u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), _emailSubj, "", []string{})
@@ -48,7 +60,7 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 			oldImagesList = append(oldImagesList, oldImage)
 			extraName := u.Ternary(repoReg.Name == "", "", "/"+repoReg.Name)
 			newImage := fmt.Sprintf(`%s%s:%s`, GetContainerRegistryBaseLocation(git, newPrj.ID), extraName, t.Name)
-			go func(idx int, oldImage, newImage string) {
+			go func(idx int, oldImage, newImage string, comChannel chan int, co *container) {
 				comChannel <- idx
 				if (ops == "pull") || (ops == "both") {
 					for _trycount := 0; _trycount < 5; _trycount++ {
@@ -64,8 +76,8 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 						} else {
 							if oldImage != newImage {
 								u.RunSystemCommand(fmt.Sprintf("docker tag %s  %s", oldImage, newImage), true)
+								co.inc()
 							}
-							processImageCount++
 							break
 						}
 					}
@@ -82,17 +94,17 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 								time.Sleep(60 * time.Second)
 							}
 						} else {
-							processImageCount++
+							co.inc()
 							break
 						}
 					}
 				}
 				<-comChannel
-			}(_idx, oldImage, newImage)
+			}(_idx, oldImage, newImage, comChannel, &counter)
 		}
 		close(comChannel)
 		//If we do not process any images but in the registry has images means all images are corrupted. We should error here
-		if (processImageCount == 0) && (len(oldImagesList) > 0) {
+		if (counter.counters == 0) && (len(oldImagesList) > 0) {
 			errMsg := "[ERROR] CRITICAL We have images in the repo but we can not move any. This implies all images are corrupted"
 			if user != ""{
 				u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", errMsg, []string{})
@@ -109,7 +121,7 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 	for _, _oldImage := range oldImagesList {
 		go u.RunSystemCommandV2(fmt.Sprintf(`docker rmi %s`, _oldImage), false)
 	}
-	return processImageCount, nil
+	return counter.counters, nil
 }
 func MoveProjectRegistryImagesUseShell(git *gitlab.Client, currentPrj, newPrj *gitlab.Project, user string) {
 	returnTag := true
