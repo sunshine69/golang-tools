@@ -43,13 +43,11 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 		_, tags := repoReg.Location, repoReg.Tags
 
 		comChannel := make(chan int, int(AppConfig["BatchSize"].(float64)))
-		defer close(comChannel)
 		for _idx, t := range tags {
 			oldImage := t.Location
 			oldImagesList = append(oldImagesList, oldImage)
 			extraName := u.Ternary(repoReg.Name == "", "", "/"+repoReg.Name)
 			newImage := fmt.Sprintf(`%s%s:%s`, GetContainerRegistryBaseLocation(git, newPrj.ID), extraName, t.Name)
-
 			go func(idx int, oldImage, newImage string) {
 				comChannel <- idx
 				if (ops == "pull") || (ops == "both") {
@@ -92,6 +90,7 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 				<-comChannel
 			}(_idx, oldImage, newImage)
 		}
+		close(comChannel)
 		//If we do not process any images but in the registry has images means all images are corrupted. We should error here
 		if (processImageCount == 0) && (len(oldImagesList) > 0) {
 			errMsg := "[ERROR] CRITICAL We have images in the repo but we can not move any. This implies all images are corrupted"
@@ -372,7 +371,6 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 		o := u.RunSystemCommand(fmt.Sprintf(`docker images %s --format "docker tag {{.Repository}}:{{.Tag}} %s:{{.Tag}} && docker push %s:{{.Tag}}"`, _repoImage, newRegistryImagePath, newRegistryImagePath), true)
 		cmdList := strings.Split(o, "\n")
 		batchChan := make(chan int, int(AppConfig["BatchSize"].(float64)) )
-		defer close(batchChan)
 		for idx, cmd := range(cmdList) {
 			go func(_cmd string) {
 				batchChan <- idx
@@ -392,6 +390,7 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 				<-batchChan
 			}(cmd)
 		}
+		close(batchChan)
 		log.Printf("Push %s completed\nStart to clean up ...\n", newRegistryImagePath)
 		u.RunSystemCommand(fmt.Sprintf(
 			`docker images %s --format "docker rmi {{.Repository}}:{{.Tag}}" | bash`,
