@@ -12,8 +12,9 @@ import (
 	. "localhost.com/gitlab/model"
 	u "localhost.com/utils"
 )
-
-func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Project, user string) (int, error) {
+//Move registry images from current prj to new one, ops can be pull|push|both default is both
+func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Project, user, ops string) (int, error) {
+	if ops == "" { ops = "both" }
 	returnTag, processImageCount := true, 0
 	registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(currentPrj.ID, &gitlab.ListRegistryRepositoriesOptions{
 		ListOptions: gitlab.ListOptions{
@@ -25,59 +26,80 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 	u.CheckErr(err, "MoveProjectRegistryImages ListRegistryRepositories")
 
 	oldImagesList := []string{}
+	_emailSubj := ""
+	switch ops {
+	case "pull":
+		_emailSubj = fmt.Sprintf("We are going to pull images From %s => %s", currentPrj.NameWithNamespace, "local disk")
+	case "push":
+		_emailSubj = fmt.Sprintf("We are going to push images From %s => %s", "local disk", newPrj.NameWithNamespace)
+	case "both":
+		_emailSubj = fmt.Sprintf("We are going to pull/push images From %s => %s", currentPrj.NameWithNamespace, newPrj.NameWithNamespace)
+	}
 	for _, repoReg := range registryRepos {
-		u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), fmt.Sprintf("We are going to push images From %s => %s", currentPrj.NameWithNamespace, newPrj.NameWithNamespace), "", []string{})
+		u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), _emailSubj, "", []string{})
 		_, tags := repoReg.Location, repoReg.Tags
 
 		comChannel := make(chan int)
 		defer close(comChannel)
-		totalJobsLeft := 0
+		currentJobCountInBatch := 0
 		for _idx, t := range tags {
 			oldImage := t.Location
 			oldImagesList = append(oldImagesList, oldImage)
 			extraName := u.Ternary(repoReg.Name == "", "", "/"+repoReg.Name)
 			newImage := fmt.Sprintf(`%s%s:%s`, GetContainerRegistryBaseLocation(git, newPrj.ID), extraName, t.Name)
 
-			totalJobsLeft++
+			currentJobCountInBatch++
 			go func(idx int, oldImage, newImage string) {
-				if o, err := u.RunSystemCommandV2(fmt.Sprintf("docker pull %s", oldImage), true); err != nil {
-					log.Println(o)
-					comChannel <- idx
-					return
-				}
-				u.RunSystemCommand(fmt.Sprintf("docker tag %s  %s", oldImage, newImage), true)
-
-				for _trycount := 0; _trycount < 5; _trycount++ {
-					msg, err := u.RunSystemCommandV2(fmt.Sprintf("docker push %s", newImage), true)
-					if err != nil {
-						if _trycount == 4 {
-							log.Fatalf("ERROR maximum tries reached. I am tired\n")
-						} else{
-							log.Printf("ERROR try %d with message %s. Will retry after 1 minutes\n", _trycount, msg)
-							time.Sleep(60 * time.Second)
+				if (ops == "pull") || (ops == "both") {
+					for _trycount := 0; _trycount < 5; _trycount++ {
+						if o, err := u.RunSystemCommandV2(fmt.Sprintf("docker pull %s", oldImage), true); err != nil {
+							log.Println(o)
+							if _trycount == 4 {
+								log.Printf("ERROR maximum tries reached. I am tired. But I will move on\n")
+							} else {
+								log.Printf("ERROR try %d with message %s. Will retry after 1 minutes\n", _trycount, o)
+								time.Sleep(60 * time.Second)
+							}
+							comChannel <- idx
+							return
 						}
-					} else {
-						break
+						if oldImage != newImage {
+							u.RunSystemCommand(fmt.Sprintf("docker tag %s  %s", oldImage, newImage), true)
+						}
 					}
 				}
-
-				comChannel <- idx
+				if (ops == "push") || (ops == "both") {
+					for _trycount := 0; _trycount < 5; _trycount++ {
+						msg, err := u.RunSystemCommandV2(fmt.Sprintf("docker push %s", newImage), true)
+						if err != nil {
+							if _trycount == 4 {
+								log.Fatalf("ERROR maximum tries reached. I am tired\n")
+							} else{
+								log.Printf("ERROR try %d with message %s. Will retry after 1 minutes\n", _trycount, msg)
+								time.Sleep(60 * time.Second)
+							}
+						} else {
+							break
+						}
+					}
+					comChannel <- idx
+				}
 			}(_idx, oldImage, newImage)
 
-			if (totalJobsLeft > 0) && (totalJobsLeft % int(AppConfig["BatchSize"].(float64)) == 0) {
+			if (currentJobCountInBatch > 0) && (currentJobCountInBatch % int(AppConfig["BatchSize"].(float64)) == 0) {
 				j := <-comChannel
 				processImageCount++
 				fmt.Printf("job %d completed.\n", j)
-				totalJobsLeft--
+				currentJobCountInBatch--
 			}
 		}
-		if totalJobsLeft > 0 {
+		if currentJobCountInBatch > 0 {
 			//Flush the rest
 			for j := range comChannel {
 				fmt.Printf("job %d completed\n", j)
-				totalJobsLeft--
+				currentJobCountInBatch--
 				processImageCount++
-				if totalJobsLeft == 0 {
+				if currentJobCountInBatch == 0 {
 					break
 				}
 			}
@@ -134,6 +156,7 @@ func MoveProjectRegistryImagesUseShell(git *gitlab.Client, currentPrj, newPrj *g
 		log.Printf("Cleanup %s completed\n", repoImage)
 	}
 }
+// This create a temporary project and backup the image there
 func BackupProjectRegistryImages(git *gitlab.Client, p *gitlab.Project, user string) (*gitlab.Project, error) {
 	tempPrjPath := fmt.Sprintf("%s-temp", p.Path)
 	newNameSpaceId := ProjectDomainGet(map[string]string{"where": fmt.Sprintf("project_id = %d", p.ID)})[0].DomainId
@@ -149,10 +172,9 @@ func BackupProjectRegistryImages(git *gitlab.Client, p *gitlab.Project, user str
 		tempPrj = ps[0]
 	}
 	// MoveProjectRegistryImagesUseShell(git, p, tempPrj, user)
-	_, err = MoveProjectRegistryImages(git, p, tempPrj, user)
+	_, err = MoveProjectRegistryImages(git, p, tempPrj, user, "")
 	return tempPrj, err
 }
-
 // Take a project_id and automate the transfer process. This should be run on a dashboard manually per project
 // - Assign to new domain/team using gitlab API
 // - Trigger a build of the new project with the last release state
@@ -271,7 +293,7 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 
 	log.Printf("pid:%d - Move container image from temp\n", gitlabProjectId)
 	// MoveProjectRegistryImagesUseShell(git, tempPrj, gitlabProject, user)
-	_, err = MoveProjectRegistryImages(git, tempPrj, gitlabProject, user)
+	_, err = MoveProjectRegistryImages(git, tempPrj, gitlabProject, user, "")
 	if err != nil {
 		log.Printf("[ERROR] while copying back the images from local to the project. Please check and re-run the docker push command\n")
 	}
