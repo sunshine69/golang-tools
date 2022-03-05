@@ -63,9 +63,10 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 			extraName := u.Ternary(repoReg.Name == "", "", "/"+repoReg.Name)
 			newImage := fmt.Sprintf(`%s%s:%s`, GetContainerRegistryBaseLocation(git, newPrj.ID), extraName, t.Name)
             wg.Add(1)
-			go func(idx int, oldImage, newImage string, comChannel chan int, co *container) {
+			comChannel <- _idx
+			go func(oldImage, newImage string, comChannel chan int, co *container) {
                 defer wg.Done()
-				comChannel <- idx
+                defer func(ch chan int) { <-ch }(comChannel)
 				if (ops == "pull") || (ops == "both") {
 					for _trycount := 0; _trycount < 5; _trycount++ {
 						o, err := u.RunSystemCommandV2(fmt.Sprintf("docker pull %s", oldImage), true)
@@ -105,8 +106,7 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 					}
 				}
                 time.Sleep(1*time.Second)
-				<-comChannel
-			}(_idx, oldImage, newImage, comChannel, &counter)
+			}(oldImage, newImage, comChannel, &counter)
 		}
 		// close(comChannel)
 		//If we do not process any images but in the registry has images means all images are corrupted. We should error here
@@ -345,6 +345,7 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 		log.Printf("[ERROR] Project %s is in Archived mode, skipping\n", gitlabProject.NameWithNamespace)
 		return
 	}
+    if gitlabProject.PathWithNamespace == newPath + "/" + gitlabProject.Path { log.Printf("[ERROR] Project is already in the new path\n"); return }
 	u.CheckErr(err, "TransferProjectQuick GetProject")
 	log.Printf("TransferProject ID %d, name %s to new path: %s started\n", gitlabProjectId, gitlabProject.NameWithNamespace, newPath)
 	d := GitlabNamespaceGet(map[string]string{"where":"full_path = '"+newPath+"'"})
@@ -400,9 +401,9 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
         for idx, cmd := range(cmdList) {
             if cmd == "" { continue }
             wg.Add(1)
-			go func(_cmd string) {
+			batchChan <- idx
+			go func(_cmd string, batchChan chan int) {
                 defer wg.Done()
-				batchChan <- idx
                 defer func(c chan int) { <-batchChan }(batchChan)
                 log.Printf("[DEBUG] command '%s'\n", _cmd)
 				for _trycount := 0; _trycount < 5; _trycount++ {
@@ -419,7 +420,7 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 					}
                     break
 				}
-			}(cmd)
+			}(cmd, batchChan)
 		}
         wg.Wait()
 		log.Printf("Push %s completed\nStart to clean up ...\n", newRegistryImagePath)
