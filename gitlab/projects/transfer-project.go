@@ -460,7 +460,7 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 			_repoImage), true)
 		log.Printf("Cleanup %s completed\n", _repoImage)
 		if user != "" {
-			u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, "GitlabDomain Automation - run_quick_project_xfer COMPLETED", "", "run_quick_project_xfer COMPLETED", []string{})
+			u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, "GitlabDomain Automation - run_quick_project_xfer " + gitlabProject.NameWithNamespace + " COMPLETED", "", "Your task run_quick_project_xfer for project " + gitlabProject.NameWithNamespace + " has COMPLETED", []string{})
 		}
 	}
 }
