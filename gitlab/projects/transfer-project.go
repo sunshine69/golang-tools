@@ -1,31 +1,36 @@
 package main
 
 import (
-	"sync"
-	"strings"
-	"time"
-	"regexp"
 	"errors"
 	"fmt"
 	"log"
+	"regexp"
+	"strings"
+	"sync"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/xanzy/go-gitlab"
 	. "localhost.com/gitlab/model"
 	u "localhost.com/utils"
 )
+
 type container struct {
-    sync.Mutex
-    Counters int
+	sync.Mutex
+	Counters int
 }
+
 func (c *container) inc() {
-    c.Lock()
-    defer c.Unlock()
-    c.Counters++
+	c.Lock()
+	defer c.Unlock()
+	c.Counters++
 }
+
 //Move registry images from current prj to new one, ops can be pull|push|both default is both
 func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Project, user, ops string) (int, error) {
-	if ops == "" { ops = "both" }
+	if ops == "" {
+		ops = "both"
+	}
 	returnTag := true
 	registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(currentPrj.ID, &gitlab.ListRegistryRepositoriesOptions{
 		ListOptions: gitlab.ListOptions{
@@ -48,29 +53,29 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 	}
 
 	counter := container{Counters: 0}
-    var wg sync.WaitGroup
+	var wg sync.WaitGroup
 	comChannel := make(chan int, int(AppConfig["BatchSize"].(float64)))
 	for _, repoReg := range registryRepos {
-		if user != ""{
+		if user != "" {
 			u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), _emailSubj, "", []string{})
 		}
 		_, tags := repoReg.Location, repoReg.Tags
 
 		for _idx, t := range tags {
 			oldImage := t.Location
-            log.Printf("Processing %d -> %s\n", _idx, oldImage)
+			log.Printf("Processing %d -> %s\n", _idx, oldImage)
 			oldImagesList = append(oldImagesList, oldImage)
 			extraName := u.Ternary(repoReg.Name == "", "", "/"+repoReg.Name)
 			newImage := fmt.Sprintf(`%s%s:%s`, GetContainerRegistryBaseLocation(git, newPrj.ID), extraName, t.Name)
-            wg.Add(1)
+			wg.Add(1)
 			comChannel <- _idx
 			go func(oldImage, newImage string, comChannel chan int, co *container) {
-                defer wg.Done()
-                defer func(ch chan int) { <-ch }(comChannel)
+				defer wg.Done()
+				defer func(ch chan int) { <-ch }(comChannel)
 				if (ops == "pull") || (ops == "both") {
 					for _trycount := 0; _trycount < 5; _trycount++ {
 						o, err := u.RunSystemCommandV2(fmt.Sprintf("docker pull %s", oldImage), true)
-                        if err != nil {
+						if err != nil {
 							log.Println(o)
 							if _trycount == 4 {
 								log.Printf("ERROR maximum tries reached. I am tired. But I will move on\n")
@@ -78,10 +83,10 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 							} else {
 								log.Printf("ERROR try %d with message %s. Will retry after 1 minutes\n", _trycount, o)
 								time.Sleep(60 * time.Second)
-                                continue
+								continue
 							}
 						}
-                        co.inc()
+						co.inc()
 						if oldImage != newImage {
 							u.RunSystemCommand(fmt.Sprintf("docker tag %s  %s", oldImage, newImage), true)
 						}
@@ -98,22 +103,22 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 							} else {
 								log.Printf("ERROR try %d with message %s. Will retry after 1 minutes\n", _trycount, msg)
 								time.Sleep(60 * time.Second)
-                                continue
+								continue
 							}
 						}
-					    co.inc()
+						co.inc()
 						break
 					}
 				}
-                time.Sleep(1*time.Second)
+				time.Sleep(1 * time.Second)
 			}(oldImage, newImage, comChannel, &counter)
 		}
 		// close(comChannel)
 		//If we do not process any images but in the registry has images means all images are corrupted. We should error here
-        wg.Wait()
+		wg.Wait()
 		if (counter.Counters == 0) && (len(oldImagesList) > 0) {
 			errMsg := "[ERROR] CRITICAL We have images in the repo but we can not move any. This implies all images are corrupted"
-			if user != ""{
+			if user != "" {
 				u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", errMsg, []string{})
 			}
 			return 0, errors.New(errMsg)
@@ -122,18 +127,18 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 	for _, repoReg := range registryRepos {
 		u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", fmt.Sprintf("We are going to delete the container registry repository of the project name %s, ID %d. <b>This means your production k8s if using the old image will get errors. To minimize the outage of scaling please keep an eye for next email for action</b>", currentPrj.NameWithNamespace, currentPrj.ID), []string{})
 		if ops == "both" {
-            _, err := git.ContainerRegistry.DeleteRegistryRepository(currentPrj.ID, repoReg.ID, nil)
-		    u.CheckErr(err, "MoveProjectRegistryImages DeleteRegistryRepository "+repoReg.String())
-            // Clean up local docker images after pushing
-            var wg sync.WaitGroup
-            for _, _oldImage := range oldImagesList {
-                wg.Add(1)
-                go func() { defer wg.Done(); u.RunSystemCommandV2(fmt.Sprintf(`docker rmi %s`, _oldImage), false) }()
-            }
-            wg.Wait()
-        }
+			_, err := git.ContainerRegistry.DeleteRegistryRepository(currentPrj.ID, repoReg.ID, nil)
+			u.CheckErr(err, "MoveProjectRegistryImages DeleteRegistryRepository "+repoReg.String())
+			// Clean up local docker images after pushing
+			var wg sync.WaitGroup
+			for _, _oldImage := range oldImagesList {
+				wg.Add(1)
+				go func() { defer wg.Done(); u.RunSystemCommandV2(fmt.Sprintf(`docker rmi %s`, _oldImage), false) }()
+			}
+			wg.Wait()
+		}
 	}
-		return counter.Counters, nil
+	return counter.Counters, nil
 }
 func MoveProjectRegistryImagesUseShell(git *gitlab.Client, currentPrj, newPrj *gitlab.Project, user string) {
 	returnTag := true
@@ -169,6 +174,7 @@ func MoveProjectRegistryImagesUseShell(git *gitlab.Client, currentPrj, newPrj *g
 		log.Printf("Cleanup %s completed\n", repoImage)
 	}
 }
+
 // This create a temporary project and backup the image there
 func BackupProjectRegistryImages(git *gitlab.Client, p *gitlab.Project, user string) (*gitlab.Project, error) {
 	tempPrjPath := fmt.Sprintf("%s-temp", p.Path)
@@ -188,6 +194,7 @@ func BackupProjectRegistryImages(git *gitlab.Client, p *gitlab.Project, user str
 	_, err = MoveProjectRegistryImages(git, p, tempPrj, user, "")
 	return tempPrj, err
 }
+
 // Take a project_id and automate the transfer process. This should be run on a dashboard manually per project
 // - Assign to new domain/team using gitlab API
 // - Trigger a build of the new project with the last release state
@@ -217,7 +224,9 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 
 	existingGroupList := project.GetDomainList(git)
 	existingGroupListNames := []string{}
-	for _, _name := range existingGroupList { existingGroupListNames = append(existingGroupListNames, _name.FullPath ) }
+	for _, _name := range existingGroupList {
+		existingGroupListNames = append(existingGroupListNames, _name.FullPath)
+	}
 	log.Printf("[DEBUG] pid:%d existingGroupList %s\n", project.ID, u.JsonDump(existingGroupListNames, "  "))
 	existingRootGroup := existingGroupList[0]
 	log.Printf("pid: %d Check if existing root group %s is the same as the new group %s\n", gitlabProjectId, existingRootGroup.FullPath, gitlabDomainGroup.FullPath)
@@ -244,11 +253,11 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 					Path:     &eg.Path,
 					Name:     &eg.Path, //Simplify, maybe search replace - with space and Captialize word?
 				})
-				log.Printf("[DEBUG] pid: %d response from gitlab to create group path %s with parentID %d - %s\n",gitlabProjectId, eg.Path, parentID, u.JsonDump(res, "  "))
+				log.Printf("[DEBUG] pid: %d response from gitlab to create group path %s with parentID %d - %s\n", gitlabProjectId, eg.Path, parentID, u.JsonDump(res, "  "))
 				if u.CheckNonErrIfMatch(err, "has already been taken", "") != nil {
 					log.Printf("Group %s seems to exists in gitlab but not in database as we hit error from gitlab says 'has already been taken'\n", eg.Path)
 					_gs, _, err := git.Groups.ListGroups(&gitlab.ListGroupsOptions{
-						Search:     &eg.Path,
+						Search: &eg.Path,
 					})
 					u.CheckErr(err, "TransferProject")
 					for _, _g := range _gs {
@@ -265,7 +274,7 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 				// GitlabGroup2Team(git, &p)
 				// GitlabGroup2Domain(git, &p)
 			} else {
-				log.Printf("pid: %d Group %s exist. Use this groupID %d from database to get group from gitlab\n", gitlabProjectId, eg.Path, gs[0].GitlabNamespaceId )
+				log.Printf("pid: %d Group %s exist. Use this groupID %d from database to get group from gitlab\n", gitlabProjectId, eg.Path, gs[0].GitlabNamespaceId)
 				lastNewGroup, _, err = git.Groups.GetGroup(gs[0].GitlabNamespaceId, nil)
 				u.CheckErr(err, "TransferProject GetGroup")
 			}
@@ -280,7 +289,9 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 	// all before. Delete/backup is handled in MoveProjectRegistryImages func
 	log.Printf("pid: %d - Backup container reg and remove all existing tags\n", gitlabProjectId)
 	tempPrj, err := BackupProjectRegistryImages(git, gitlabProject, user)
-	if u.CheckErrNonFatal(err, "TransferProject BackupProjectRegistryImages") != nil { return }
+	if u.CheckErrNonFatal(err, "TransferProject BackupProjectRegistryImages") != nil {
+		return
+	}
 	//Check the current project and be sure we don't have any image tags exists before transferring
 	WaitUntilAllRegistryTagCleared(git, gitlabProject.ID)
 
@@ -291,7 +302,7 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 	if u.CheckErrNonFatal(err, "TransferProject TransferGroup") != nil {
 		log.Fatalf("[ERROR] pid:%d gitlab response is %s. Error object: %s\n", gitlabProject.ID, u.JsonDump(res, "  "), u.JsonDump(err, "  "))
 	} else {
-		log.Printf("[DEBUG] pid:%d gitlab response is %s\n", gitlabProject.ID, u.JsonDump	(res, "  "))
+		log.Printf("[DEBUG] pid:%d gitlab response is %s\n", gitlabProject.ID, u.JsonDump(res, "  "))
 	}
 	project.DomainOwnershipConfirmed = 1
 	project.Update()
@@ -337,6 +348,7 @@ func WaitUntilAllRegistryTagCleared(git *gitlab.Client, gitlabProjectId int) {
 		}
 	}
 }
+
 // Just transfer a project to new path and get/push images. No variable copying or replicate domain in between, assume the new path has been created already
 //newPath should not started with slash /
 func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extraRegistryImageName string) {
@@ -345,22 +357,24 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 		log.Printf("[ERROR] Project %s is in Archived mode, skipping\n", gitlabProject.NameWithNamespace)
 		return
 	}
-    if gitlabProject.PathWithNamespace == newPath + "/" + gitlabProject.Path { log.Printf("[ERROR] Project is already in the new path\n"); return }
+	if gitlabProject.PathWithNamespace == newPath+"/"+gitlabProject.Path {
+		log.Printf("[ERROR] Project is already in the new path\n")
+		return
+	}
 	u.CheckErr(err, "TransferProjectQuick GetProject")
 	log.Printf("TransferProject ID %d, name %s to new path: %s started\n", gitlabProjectId, gitlabProject.NameWithNamespace, newPath)
-	d := GitlabNamespaceGet(map[string]string{"where":"full_path = '"+newPath+"'"})
-	if ! u.Assert(len(d) == 1, "Expect to get 1 domain", false) {
+	d := GitlabNamespaceGet(map[string]string{"where": "full_path = '" + newPath + "'"})
+	if !u.Assert(len(d) == 1, "Expect to get 1 domain", false) {
 		log.Printf("[ERROR] Can not find the group with full_path: %s make sure the path exists\n", newPath)
 		return
 	}
 	u.CheckErr(err, "TransferProject GetGroup")
 	log.Printf("[DEBUG] Start pull images\n")
-	_, err = MoveProjectRegistryImages(git, gitlabProject, gitlabProject, "None", "pull")
+	_, err = MoveProjectRegistryImages(git, gitlabProject, gitlabProject, "", "pull")
 	if u.CheckErrNonFatal(err, "TransferProjectQuick") != nil {
 		return
 	}
 	log.Printf("[DEBUG] Complete pull images\n")
-	gitlabDomainGroup, _, err := git.Groups.GetGroup(d[0].GitlabNamespaceId, nil)
 	returnTag := true
 	registryRepos, _, err := git.ContainerRegistry.ListRegistryRepositories(gitlabProject.ID, &gitlab.ListRegistryRepositoriesOptions{
 		ListOptions: gitlab.ListOptions{
@@ -379,6 +393,13 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 	}
 	log.Printf("[DEBUG] Start WaitUntilAllRegistryTagCleared\n")
 	WaitUntilAllRegistryTagCleared(git, gitlabProject.ID)
+
+	gitlabDomainGroup, _, _ := git.Groups.GetGroup(d[0].GitlabNamespaceId, nil)
+	_pathItems := strings.Split(gitlabProject.PathWithNamespace, "/")
+	_pathItems = _pathItems[:len(_pathItems)-1]
+	currentD := GitlabNamespaceGet(map[string]string{"where": "full_path = '" + strings.Join(_pathItems, "/") + "'"})
+	currentGroup, _, _ := git.Groups.GetGroup(currentD[0].GitlabNamespaceId, nil)
+
 	log.Printf("pid:%d - Transfer project to a new name space %s with id %d\n", gitlabProjectId, gitlabDomainGroup.Name, gitlabDomainGroup.ID)
 
 	_, res, err := git.Projects.TransferProject(gitlabProject.ID, &gitlab.TransferProjectOptions{
@@ -387,25 +408,27 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 	if u.CheckErrNonFatal(err, "TransferProject TransferGroup") != nil {
 		log.Fatalf("[ERROR] gitlab response is %s. pid:%d \n", u.JsonDump(res, "  "), gitlabProjectId)
 	}
+	CopyGroupVars(git, currentGroup, gitlabDomainGroup)
+
 	if extraRegistryImageName != "" {
 		ptn := regexp.MustCompile(`^[\/]+`)
 		extraRegistryImageName = "/" + ptn.ReplaceAllString(extraRegistryImageName, "")
 	}
 	newRegistryImagePath := fmt.Sprintf(`%s%s`, GetContainerRegistryBaseLocation(git, gitlabProject.ID), extraRegistryImageName)
-	batchChan := make(chan int, int(AppConfig["BatchSize"].(float64)) )
+	batchChan := make(chan int, int(AppConfig["BatchSize"].(float64)))
 	for _, _repoImage := range repoImages {
 		o := u.RunSystemCommand(fmt.Sprintf(`docker images %s --format "docker tag {{.Repository}}:{{.Tag}} %s:{{.Tag}} && docker push %s:{{.Tag}}"`, _repoImage, newRegistryImagePath, newRegistryImagePath), true)
-        log.Printf("[DEBUG] output o '%s'\n", o)
 		cmdList := strings.Split(o, "\n")
 		var wg sync.WaitGroup
-        for idx, cmd := range(cmdList) {
-            if cmd == "" { continue }
-            wg.Add(1)
+		for idx, cmd := range cmdList {
+			if cmd == "" {
+				continue
+			}
+			wg.Add(1)
 			batchChan <- idx
 			go func(_cmd string, batchChan chan int) {
-                defer wg.Done()
-                defer func(c chan int) { <-batchChan }(batchChan)
-                log.Printf("[DEBUG] command '%s'\n", _cmd)
+				defer wg.Done()
+				defer func(c chan int) { <-batchChan }(batchChan)
 				for _trycount := 0; _trycount < 5; _trycount++ {
 					if o, err := u.RunSystemCommandV2(fmt.Sprintf(`%s`, _cmd), true); err != nil {
 						log.Println(o)
@@ -414,15 +437,15 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 							break
 						} else {
 							log.Printf("ERRROR count %d - will retry\n", _trycount)
-							time.Sleep(60*time.Second)
-                            continue
+							time.Sleep(60 * time.Second)
+							continue
 						}
 					}
-                    break
+					break
 				}
 			}(cmd, batchChan)
 		}
-        wg.Wait()
+		wg.Wait()
 		log.Printf("Push %s completed\nStart to clean up ...\n", newRegistryImagePath)
 		u.RunSystemCommand(fmt.Sprintf(
 			`docker images %s --format "docker rmi {{.Repository}}:{{.Tag}}" | bash`,
