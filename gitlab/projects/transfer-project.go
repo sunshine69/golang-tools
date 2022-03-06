@@ -408,7 +408,10 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 	if u.CheckErrNonFatal(err, "TransferProject TransferGroup") != nil {
 		log.Fatalf("[ERROR] gitlab response is %s. pid:%d \n", u.JsonDump(res, "  "), gitlabProjectId)
 	}
+
+	log.Printf("pid:%d - Start CopyGroupVars %s => %s\n", gitlabProjectId, currentGroup.FullName, gitlabDomainGroup.FullName)
 	CopyGroupVars(git, currentGroup, gitlabDomainGroup)
+	log.Printf("pid:%d - Complete CopyGroupVars %s => %s\n", gitlabProjectId, currentGroup.FullName, gitlabDomainGroup.FullName)
 
 	if extraRegistryImageName != "" {
 		ptn := regexp.MustCompile(`^[\/]+`)
