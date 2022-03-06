@@ -51,10 +51,10 @@
         <input type="hidden" name="token" value="{{ .token }}"/>
         <hr/>
         <h3>TransferProjectQuick</h3>
-        <p>Just transfer a project to new path and get/push images.<br/>
-            Variable copying is from root domain => new root group domain.<br/>
-            No replicate domain in between. Assume the new path has been created already.<br/>
-            newPath should not started with slash / <br/>
+        <p>Just transfer a project to new path and get/push images.<ul>
+            <li>Variable is safely copied from root group domain => new root group domain</li>
+            <li>No replicate groups in between. Assume the new path (that is new group) has been created already</li>
+            <li>newPath should not started with slash /</li>
         </p>
         <label for="quick_prj_id">Project ID: </label> <input type="text" name="quick_prj_id" id="quick_prj_id" value="" /><br/>
         <label for="project_new_path">New path: </label><input type="text" name="project_new_path" id="project_new_path" value="" /><br/>
