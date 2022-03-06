@@ -351,7 +351,7 @@ func WaitUntilAllRegistryTagCleared(git *gitlab.Client, gitlabProjectId int) {
 
 // Just transfer a project to new path and get/push images. No variable copying or replicate domain in between, assume the new path has been created already
 //newPath should not started with slash /
-func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extraRegistryImageName string) {
+func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extraRegistryImageName, user  string) {
 	gitlabProject, _, err := git.Projects.GetProject(gitlabProjectId, nil)
 	if gitlabProject.Archived {
 		log.Printf("[ERROR] Project %s is in Archived mode, skipping\n", gitlabProject.NameWithNamespace)
@@ -422,7 +422,7 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 		extraRegistryImageName = "/" + ptn.ReplaceAllString(extraRegistryImageName, "")
 	}
 	newRegistryImagePath := fmt.Sprintf(`%s%s`, GetContainerRegistryBaseLocation(git, gitlabProject.ID), extraRegistryImageName)
-	
+
 	batchChan := make(chan int, int(AppConfig["BatchSize"].(float64)))
 	for _, _repoImage := range repoImages {
 		o := u.RunSystemCommand(fmt.Sprintf(`docker images %s --format "docker tag {{.Repository}}:{{.Tag}} %s:{{.Tag}} && docker push %s:{{.Tag}}"`, _repoImage, newRegistryImagePath, newRegistryImagePath), true)
@@ -459,5 +459,8 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 			`docker images %s --format "docker rmi {{.Repository}}:{{.Tag}}" | bash`,
 			_repoImage), true)
 		log.Printf("Cleanup %s completed\n", _repoImage)
+		if user != "" {
+			u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, "GitlabDomain Automation - run_quick_project_xfer COMPLETED", "", "run_quick_project_xfer COMPLETED", []string{})
+		}
 	}
 }

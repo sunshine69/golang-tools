@@ -174,7 +174,7 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 			defer log.SetOutput(os.Stdout)
             defer os.Remove(lockFileName)
 			log.Printf("[DEBUG] TransferProjectQuick action with pid %d - new path: %s - extra registry name: %s", pid, u.GetRequestValue(r, "project_new_path"), u.GetRequestValue(r, "extra_registry_name"))
-			TransferProjectQuick(git, pid, u.GetRequestValue(r, "project_new_path"), u.GetRequestValue(r, "extra_registry_name"))
+			TransferProjectQuick(git, pid, u.GetRequestValue(r, "project_new_path"), u.GetRequestValue(r, "extra_registry_name"), user)
 		}()
 	}
 	fmt.Fprintf(w, "<p>Process %s started. You can see the log <a href='/log/%s'>here</a></p>", func_name, logFile)
