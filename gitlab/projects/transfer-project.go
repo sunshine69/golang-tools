@@ -396,9 +396,13 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 
 	gitlabDomainGroup, _, _ := git.Groups.GetGroup(d[0].GitlabNamespaceId, nil)
 	_pathItems := strings.Split(gitlabProject.PathWithNamespace, "/")
-	_pathItems = _pathItems[:len(_pathItems)-1]
-	currentD := GitlabNamespaceGet(map[string]string{"where": "full_path = '" + strings.Join(_pathItems, "/") + "'"})
-	currentGroup, _, _ := git.Groups.GetGroup(currentD[0].GitlabNamespaceId, nil)
+	_rootPath := _pathItems[0]
+	currentD := GitlabNamespaceGet(map[string]string{"where": "full_path = '" + _rootPath + "'"})
+	currentRootGroup, _, _ := git.Groups.GetGroup(currentD[0].GitlabNamespaceId, nil)
+	_pathItems = strings.Split(newPath, "/")
+	_rootPath = _pathItems[0]
+	newD := GitlabNamespaceGet(map[string]string{"where": "full_path = '" + _rootPath + "'"})
+	newRootGroup, _, _ := git.Groups.GetGroup(newD[0].GitlabNamespaceId, nil)
 
 	log.Printf("pid:%d - Transfer project to a new name space %s with id %d\n", gitlabProjectId, gitlabDomainGroup.Name, gitlabDomainGroup.ID)
 
@@ -409,15 +413,16 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 		log.Fatalf("[ERROR] gitlab response is %s. pid:%d \n", u.JsonDump(res, "  "), gitlabProjectId)
 	}
 
-	log.Printf("pid:%d - Start CopyGroupVars %s => %s\n", gitlabProjectId, currentGroup.FullName, gitlabDomainGroup.FullName)
-	CopyGroupVars(git, currentGroup, gitlabDomainGroup)
-	log.Printf("pid:%d - Complete CopyGroupVars %s => %s\n", gitlabProjectId, currentGroup.FullName, gitlabDomainGroup.FullName)
+	log.Printf("pid:%d - Start CopyGroupVars %s => %s\n", gitlabProjectId, currentRootGroup.FullName, gitlabDomainGroup.FullName)
+	CopyGroupVars(git, currentRootGroup, newRootGroup)
+	log.Printf("pid:%d - Complete CopyGroupVars %s => %s\n", gitlabProjectId, currentRootGroup.FullName, gitlabDomainGroup.FullName)
 
 	if extraRegistryImageName != "" {
 		ptn := regexp.MustCompile(`^[\/]+`)
 		extraRegistryImageName = "/" + ptn.ReplaceAllString(extraRegistryImageName, "")
 	}
 	newRegistryImagePath := fmt.Sprintf(`%s%s`, GetContainerRegistryBaseLocation(git, gitlabProject.ID), extraRegistryImageName)
+	
 	batchChan := make(chan int, int(AppConfig["BatchSize"].(float64)))
 	for _, _repoImage := range repoImages {
 		o := u.RunSystemCommand(fmt.Sprintf(`docker images %s --format "docker tag {{.Repository}}:{{.Tag}} %s:{{.Tag}} && docker push %s:{{.Tag}}"`, _repoImage, newRegistryImagePath, newRegistryImagePath), true)
