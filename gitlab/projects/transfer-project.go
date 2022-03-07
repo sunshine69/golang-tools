@@ -339,7 +339,7 @@ func WaitUntilAllRegistryTagCleared(git *gitlab.Client, gitlabProjectId int) {
 			Tags:      &returnTag,
 			TagsCount: &returnTag,
 		})
-		u.CheckErr(err, "WaitUntilAllRegistryTagCleared ListRegistryRepositories")
+		u.CheckErrNonFatal(err, "WaitUntilAllRegistryTagCleared ListRegistryRepositories")
 		if len(registryRepos) == 0 {
 			log.Printf("No repo, no tags")
 			break
