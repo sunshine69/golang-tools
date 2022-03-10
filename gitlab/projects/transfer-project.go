@@ -339,9 +339,14 @@ func WaitUntilAllRegistryTagCleared(git *gitlab.Client, gitlabProjectId int) {
 			Tags:      &returnTag,
 			TagsCount: &returnTag,
 		})
-		u.CheckErrNonFatal(err, "WaitUntilAllRegistryTagCleared ListRegistryRepositories")
+		if u.CheckErrNonFatal(err, "WaitUntilAllRegistryTagCleared ListRegistryRepositories") != nil {
+			log.Printf("[WARN] Unknown error from gitlab. Sleep for 1 minutes, might be the registry will be cleared\n")
+			u.Sleep("60s")
+		}
 		if len(registryRepos) == 0 {
 			log.Printf("No repo, no tags")
+			//Saw one case that even we reach here, the transfer still fail with error msg "Project cannot be transferred, because tags are present in its container registry". So sleep one more
+			u.Sleep("15s")
 			break
 		} else {
 			u.Sleep("15s")
