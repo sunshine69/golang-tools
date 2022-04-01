@@ -51,13 +51,17 @@
         <input type="hidden" name="token" value="{{ .token }}"/>
         <hr/>
         <h3>TransferProjectQuick</h3>
-        <p>Just transfer a project to new path and get/push images. No variable copying or replicate domain in between, assume the new path has been created already.<br/>
-        newPath should not started with slash /</p>
+        <p>Just transfer a project to new path and get/push images.<ul>
+            <li>Variable is safely copied from root group domain => new root group domain</li>
+            <li>No replicate groups in between. Assume the new path (that is new group) has been created already</li>
+            <li>newPath should not started with slash /</li>
+        </p>
         <label for="quick_prj_id">Project ID: </label> <input type="text" name="quick_prj_id" id="quick_prj_id" value="" /><br/>
         <label for="project_new_path">New path: </label><input type="text" name="project_new_path" id="project_new_path" value="" /><br/>
         <label for="extra_registry_name">extraRegistryImageName if do not know, leave it empty:</label><input type="text" name="extra_registry_name" id="extra_registry_name" value="" /><br/>
         <input type="button" name="run_quick_project_xfer" value="run" onclick="return run_quick_project_xfer();">
-
+        </ul>
+        
         <hr/><h4><a href="/log/">Log</a></h4>
         <div id="output" name="output"></div>
         <div id="list_running_procs"><pre>Current running procs: (hit reload browser to refresh)
