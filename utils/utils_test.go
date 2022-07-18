@@ -12,10 +12,10 @@ func TestUtils(t *testing.T) {
 	log.Println(a)
 }
 
-func TestUnzip(t *testing.T) {
-	err := Unzip("Downloads/artifacts.zip", ".")
-	CheckErr(err, "  ")
-}
+// func TestUnzip(t *testing.T) {
+// 	err := Unzip("Downloads/artifacts.zip", ".")
+// 	CheckErr(err, "  ")
+// }
 
 func TestBcryptHash(t *testing.T) {
 	hashed, _ := BcryptHashPassword("1q2w3e", -1)

@@ -8,10 +8,12 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha512"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"database/sql"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -20,7 +22,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math/big"
-	mr "math/rand"
+	mrand "math/rand"
 	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
@@ -55,6 +57,161 @@ const (
 var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
+
+//Time handling
+const (
+	millisPerSecond     = int64(time.Second / time.Millisecond)
+	nanosPerMillisecond = int64(time.Millisecond / time.Nanosecond)
+	nanosPerSecond      = int64(time.Second / time.Nanosecond)
+)
+
+//NsToTime -
+func NsToTime(ns int64) time.Time {
+	secs := ns / nanosPerSecond
+	nanos := ns - secs*nanosPerSecond
+	return time.Unix(secs, nanos)
+}
+
+//ChunkString -
+func ChunkString(s string, chunkSize int) []string {
+	var chunks []string
+	runes := []rune(s)
+
+	if len(runes) == 0 {
+		return []string{s}
+	}
+	for i := 0; i < len(runes); i += chunkSize {
+		nn := i + chunkSize
+		if nn > len(runes) {
+			nn = len(runes)
+		}
+		chunks = append(chunks, string(runes[i:nn]))
+	}
+	return chunks
+}
+
+//GetMapByKey -
+func GetMapByKey(in map[string]interface{}, key string, defaultValue interface{}) interface{} {
+	// log.Printf("%v - %v - %v\n", in, key, defaultValue )
+	var o interface{}
+	v, ok := in[key]
+	if !ok {
+		o = defaultValue
+	} else {
+		o = v
+	}
+	// log.Printf("RETURN: %v\n", o)
+	return o
+}
+
+//MakeRandNum -
+func MakeRandNum(max int) int {
+	var src cryptoSource
+	rnd := mrand.New(src)
+	// fmt.Println(rnd.Intn(1000)) // a truly random number 0 to 999
+	return rnd.Intn(max)
+}
+
+type cryptoSource struct{}
+
+func (s cryptoSource) Seed(seed int64) {}
+
+func (s cryptoSource) Int63() int64 {
+	return int64(s.Uint64() & ^uint64(1<<63))
+}
+
+func (s cryptoSource) Uint64() (v uint64) {
+	err := binary.Read(rand.Reader, binary.BigEndian, &v)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return v
+}
+
+//MakePassword -
+func MakePassword(length int) string {
+	b := make([]byte, length)
+	// seededRand := rand.New(rand.NewSource(time.Now().UnixNano() ))
+	const charset = `abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_-+=`
+	for i := range b {
+		b[i] = charset[MakeRandNum(len(charset))]
+	}
+	return string(b)
+}
+
+func ComputeHash(plainText string, salt []byte) string {
+	plainTextWithSalt := []byte(plainText)
+	plainTextWithSalt = append(plainTextWithSalt, salt...)
+	sha_512 := sha512.New()
+	sha_512.Write(plainTextWithSalt)
+	out := sha_512.Sum(nil)
+	out = append(out, []byte(salt)...)
+	return base64.StdEncoding.EncodeToString(out)
+}
+
+func VerifyHash(password string, passwordHashString string, saltLength int) bool {
+	// log.Printf("DEBUG VerifyHash input pass: %s - Hash %s s_len %d\n", password, passwordHashString, saltLength)
+	passwordHash, _ := base64.StdEncoding.DecodeString(passwordHashString)
+	saltBytes := []byte(passwordHash[len(passwordHash)-saltLength:])
+	result := ComputeHash(password, saltBytes)
+	return result == passwordHashString
+}
+
+func MakeSalt(length int8) (salt *[]byte) {
+	asalt := make([]byte, length)
+	rand.Read(asalt)
+	return &asalt
+}
+
+func ZipEncript(filePath ...string) string {
+	src, dest, key := filePath[0], "", ""
+	argCount := len(filePath)
+	if argCount > 1 {
+		dest = filePath[1]
+	} else {
+		dest = src + ".zip"
+	}
+	if argCount > 2 {
+		key = filePath[2]
+	} else {
+		key = MakePassword(42)
+	}
+	os.Remove(dest)
+	srcDir := filepath.Dir(src)
+	srcName := filepath.Base(src)
+	absDest, _ := filepath.Abs(dest)
+
+	fmt.Printf("DEBUG srcDir %s - srcName %s\n", srcDir, srcName)
+	cmd := exec.Command("/bin/sh", "-c", "cd "+srcDir+"; /usr/bin/zip -r -e -P '"+key+"' "+absDest+" "+srcName)
+	_, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Println(cmd.String())
+		log.Fatal(err)
+	}
+	return key
+}
+
+func ZipDecrypt(filePath ...string) error {
+	argCount := len(filePath)
+	if argCount < 2 {
+		return fmt.Errorf("ERROR Must supply file name and key")
+	}
+	src, key := filePath[0], filePath[1]
+
+	srcDir := filepath.Dir(src)
+	srcName := filepath.Base(src)
+
+	fmt.Printf("DEBUG srcDir %s - srcName %s\n", srcDir, srcName)
+	cmd := exec.Command("/bin/sh", "-c", "cd "+srcDir+"; /usr/bin/unzip -P '"+key+"' "+srcName)
+
+	_, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Println(cmd.String())
+		log.Printf("ERROR ZipDecrypt %v\n", err)
+		return fmt.Errorf("ERROR command unzip return error")
+	}
+	return nil
+}
 
 //GetRequestValue - Attempt to get a val by key from the request in all cases.
 //First from the mux variables in the route path such as /dosomething/{var1}/{var2}
@@ -284,10 +441,10 @@ func FileExists(name string) (bool, error) {
 	return false, err
 }
 func GenRandomString(n int) string {
-	mr.Seed(time.Now().UnixNano())
+	mrand.Seed(time.Now().UnixNano())
 	b := make([]byte, n)
 	for i := range b {
-		b[i] = LetterBytes[mr.Intn(len(LetterBytes))]
+		b[i] = LetterBytes[mrand.Intn(len(LetterBytes))]
 	}
 	return string(b)
 }
@@ -421,6 +578,11 @@ func Ternary(expr bool, x, y interface{}) interface{} {
 	} else {
 		return y
 	}
+}
+
+func FileNameWithoutExtension(fileName string) string {
+	// return strings.TrimSuffix(fileName, filepath.Ext(fileName))
+	return fileName[:len(fileName)-len(filepath.Ext(fileName))]
 }
 
 func ConfigureLogging(w *os.File) {
