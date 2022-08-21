@@ -46,7 +46,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-//TimeISO8601LayOut
+// TimeISO8601LayOut
 const (
 	TimeISO8601LayOut     = "2006-01-02T15:04:05-0700"
 	AUTimeLayout          = "02/01/2006 15:04:05 MST"
@@ -58,21 +58,21 @@ var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
-//Time handling
+// Time handling
 const (
 	millisPerSecond     = int64(time.Second / time.Millisecond)
 	nanosPerMillisecond = int64(time.Millisecond / time.Nanosecond)
 	nanosPerSecond      = int64(time.Second / time.Nanosecond)
 )
 
-//NsToTime -
+// NsToTime -
 func NsToTime(ns int64) time.Time {
 	secs := ns / nanosPerSecond
 	nanos := ns - secs*nanosPerSecond
 	return time.Unix(secs, nanos)
 }
 
-//ChunkString -
+// ChunkString -
 func ChunkString(s string, chunkSize int) []string {
 	var chunks []string
 	runes := []rune(s)
@@ -90,7 +90,7 @@ func ChunkString(s string, chunkSize int) []string {
 	return chunks
 }
 
-//GetMapByKey -
+// GetMapByKey -
 func GetMapByKey(in map[string]interface{}, key string, defaultValue interface{}) interface{} {
 	// log.Printf("%v - %v - %v\n", in, key, defaultValue )
 	var o interface{}
@@ -104,7 +104,7 @@ func GetMapByKey(in map[string]interface{}, key string, defaultValue interface{}
 	return o
 }
 
-//MakeRandNum -
+// MakeRandNum -
 func MakeRandNum(max int) int {
 	var src cryptoSource
 	rnd := mrand.New(src)
@@ -128,7 +128,7 @@ func (s cryptoSource) Uint64() (v uint64) {
 	return v
 }
 
-//MakePassword -
+// MakePassword -
 func MakePassword(length int) string {
 	b := make([]byte, length)
 	// seededRand := rand.New(rand.NewSource(time.Now().UnixNano() ))
@@ -213,12 +213,12 @@ func ZipDecrypt(filePath ...string) error {
 	return nil
 }
 
-//GetRequestValue - Attempt to get a val by key from the request in all cases.
-//First from the mux variables in the route path such as /dosomething/{var1}/{var2}
-//Then check the query string values such as /dosomething?var1=x&var2=y
-//Then check the form values if any
-//Then check the default value if supplied to use as return value
-//For performance we split each type into each function so it can be called independantly
+// GetRequestValue - Attempt to get a val by key from the request in all cases.
+// First from the mux variables in the route path such as /dosomething/{var1}/{var2}
+// Then check the query string values such as /dosomething?var1=x&var2=y
+// Then check the form values if any
+// Then check the default value if supplied to use as return value
+// For performance we split each type into each function so it can be called independantly
 func GetRequestValue(r *http.Request, key ...string) string {
 	o := GetMuxValue(r, key[0], "")
 	if o == "" {
@@ -237,7 +237,7 @@ func GetRequestValue(r *http.Request, key ...string) string {
 	return o
 }
 
-//GetMuxValue -
+// GetMuxValue -
 func GetMuxValue(r *http.Request, key ...string) string {
 	vars := mux.Vars(r)
 	val, ok := vars[key[0]]
@@ -250,7 +250,7 @@ func GetMuxValue(r *http.Request, key ...string) string {
 	return val
 }
 
-//GetFormValue -
+// GetFormValue -
 func GetFormValue(r *http.Request, key ...string) string {
 	val := r.FormValue(key[0])
 	if val == "" {
@@ -261,7 +261,7 @@ func GetFormValue(r *http.Request, key ...string) string {
 	return val
 }
 
-//GetQueryValue -
+// GetQueryValue -
 func GetQueryValue(r *http.Request, key ...string) string {
 	vars := r.URL.Query()
 	val, ok := vars[key[0]]
@@ -344,6 +344,15 @@ func Unzip(src, dest string) error {
 		}
 	}
 	return nil
+}
+
+func Format(tmplStr string, data interface{}) string {
+	var buff bytes.Buffer
+	template.Must(template.New("").Parse(tmplStr)).Execute(
+		&buff,
+		data,
+	)
+	return buff.String()
 }
 
 func FindAndParseTemplates(rootDir, fileExtention string, funcMap template.FuncMap) (*template.Template, []string, error) {
@@ -651,9 +660,9 @@ func JsonDumpByte(obj interface{}, indent string) []byte {
 	return []byte("")
 }
 
-//Given a duration string return a tuple of start time, end time satisfy the duration.
-//If duration string is dd/mm/yyyy hh:mm:ss - dd/mm/yyyy hh:mm:ss it simply return two time object.
-//If duration is like 15m then endtime is now, start time is 15 minutes ago. This applies for all case if input is not parsable
+// Given a duration string return a tuple of start time, end time satisfy the duration.
+// If duration string is dd/mm/yyyy hh:mm:ss - dd/mm/yyyy hh:mm:ss it simply return two time object.
+// If duration is like 15m then endtime is now, start time is 15 minutes ago. This applies for all case if input is not parsable
 func ParseTimeRange(durationStr, tz string) (time.Time, time.Time) {
 	var start, end time.Time
 	if tz == "" {
@@ -877,7 +886,7 @@ func Upload(client *http.Client, url string, values map[string]io.Reader, mimety
 	return nil
 }
 
-//Add or delete attrbs set in a to b
+// Add or delete attrbs set in a to b
 func MergeAttributes(a, b []interface{}, action string) []interface{} {
 	if len(a) == 0 {
 		return b
