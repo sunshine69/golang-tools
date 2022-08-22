@@ -36,6 +36,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/stvoidit/gosmtp"
+
 	"github.com/gorilla/mux"
 	"github.com/hashicorp/logutils"
 	jsoniter "github.com/json-iterator/go"
@@ -421,6 +423,24 @@ func SendMailSendGrid(from, to, subject, plainTextContent, htmlContent string, a
 		fmt.Printf("[DEBUG] %v", response.Headers)
 	}
 	return err
+}
+func SendMail(from string, to []string, subject string, message string, attachments []string, server, username, password string) error {
+	client := gosmtp.NewSender(
+		username,
+		password,
+		from,
+		server)
+	//for _, recs := range to {
+	var msg = gosmtp.NewMessage().
+		SetTO(to...).
+		SetSubject(subject).
+		SetText(message).
+		AddAttaches(attachments...)
+	if err := client.SendMessage(msg); err != nil {
+		return err
+	}
+	//}
+	return nil
 }
 func FileTouch(fileName string) error {
 	_, err := os.Stat(fileName)
