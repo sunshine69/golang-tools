@@ -92,19 +92,8 @@ func ChunkString(s string, chunkSize int) []string {
 	return chunks
 }
 
-// GetMapByKey -
-func GetMapByKey(in map[string]interface{}, key string, defaultValue interface{}) interface{} {
-	// log.Printf("%v - %v - %v\n", in, key, defaultValue )
-	var o interface{}
-	v, ok := in[key]
-	if !ok {
-		o = defaultValue
-	} else {
-		o = v
-	}
-	// log.Printf("RETURN: %v\n", o)
-	return o
-}
+// GetMapByKey - we have LookupMap
+var GetMapByKey = LookupMap
 
 // MakeRandNum -
 func MakeRandNum(max int) int {
