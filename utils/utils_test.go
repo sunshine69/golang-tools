@@ -34,3 +34,9 @@ func TestSendMail(t *testing.T) {
 		log.Fatalf("ERROR %v\n", err)
 	}
 }
+//go test -timeout 30s -run '^TestCurl$'  -v
+func TestCurl(t *testing.T) {
+	o, err := Curl("GET", "https://kernel.org", "", "", []string{})
+	CheckErr(err, "ERROR")
+	log.Println(o)
+}

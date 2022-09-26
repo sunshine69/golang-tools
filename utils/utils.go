@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha512"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"database/sql"
@@ -736,7 +737,48 @@ func Assert(cond bool, msg string, fatal bool) bool {
 	return cond
 }
 func Curl(method, url, data, savefilename string, headers []string) (string, error) {
-	client := http.Client{}
+	ca_cert_file := Getenv("CA_CERT_FILE", "")
+	ssl_key_file := Getenv("SSL_KEY_FILE", "")
+	ssl_cert_file := Getenv("SSL_CERT_FILE", "")
+	var cert *tls.Certificate = nil
+	var err error
+	if ssl_cert_file != "" && ssl_key_file != "" {
+		*cert, err = tls.LoadX509KeyPair(ssl_cert_file, ssl_key_file)
+		if err != nil {
+			return "", err
+		}
+	}
+	var caCertPool *x509.CertPool = nil
+	if ca_cert_file != "" {
+		// Load CA cert
+		caCert, err := ioutil.ReadFile(ca_cert_file)
+		if err != nil {
+			return "", err
+		}
+		caCertPool = x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+	}
+	var tlsConfig *tls.Config = nil
+
+	if caCertPool != nil || cert != nil {
+		tlsConfig := &tls.Config{}
+		if cert != nil {
+			tlsConfig.Certificates = []tls.Certificate{*cert}
+		}
+		if caCertPool != nil {
+			tlsConfig.RootCAs = caCertPool
+		}
+	}
+
+	var client *http.Client = nil
+
+	if tlsConfig != nil {
+		transport := &http.Transport{TLSClientConfig: tlsConfig}
+		client = &http.Client{Transport: transport}
+	} else {
+		client = &http.Client{}
+	}
+
 	req, err := http.NewRequest(method, url, bytes.NewBuffer([]byte(data)))
 	if err != nil {
 		return "", err
