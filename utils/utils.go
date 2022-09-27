@@ -737,6 +737,7 @@ func Assert(cond bool, msg string, fatal bool) bool {
 	return cond
 }
 func Curl(method, url, data, savefilename string, headers []string) (string, error) {
+	CURL_DEBUG := Getenv("CURL_DEBUG", "no")
 	ca_cert_file := Getenv("CA_CERT_FILE", "")
 	ssl_key_file := Getenv("SSL_KEY_FILE", "")
 	ssl_cert_file := Getenv("SSL_CERT_FILE", "")
@@ -745,25 +746,38 @@ func Curl(method, url, data, savefilename string, headers []string) (string, err
 	var cert *tls.Certificate = nil
 	var err error
 	if ssl_cert_file != "" && ssl_key_file != "" {
+		if CURL_DEBUG == "yes" {
+			log.Printf("Load ssl cert %s and key %s\n", ssl_cert_file, ssl_key_file)
+		}
 		*cert, err = tls.LoadX509KeyPair(ssl_cert_file, ssl_key_file)
 		if err != nil {
+			log.Printf("[ERROR] can not LoadX509KeyPair\n")
 			return "", err
 		}
 	}
 	var caCertPool *x509.CertPool = nil
 	if ca_cert_file != "" {
-		// Load CA cert
-		caCert, err := ioutil.ReadFile(ca_cert_file)
+		if CURL_DEBUG == "yes" {
+			log.Printf("Load CA cert %s\n", ca_cert_file)
+		}
+		caCert, err := os.ReadFile(ca_cert_file)
 		if err != nil {
+			log.Println("[ERROR] Load CA cert")
 			return "", err
 		}
 		caCertPool = x509.NewCertPool()
-		caCertPool.AppendCertsFromPEM(caCert)
+		if ok := caCertPool.AppendCertsFromPEM(caCert); !ok {
+			log.Printf("[ERROR] can not AppendCertsFromPEM\n")
+		}
 	}
 	var tlsConfig *tls.Config = nil
 
 	if caCertPool != nil || cert != nil {
-		tlsConfig := &tls.Config{InsecureSkipVerify: InsecureSkipVerify.(bool)}
+		if CURL_DEBUG == "yes" {
+			log.Printf("[DEBUG] going to create tlsConfig with caCertPool '%v' - cert '%v'\n", caCertPool, cert)
+		}
+		tlsConfig = &tls.Config{InsecureSkipVerify: InsecureSkipVerify.(bool)}
+
 		if cert != nil {
 			tlsConfig.Certificates = []tls.Certificate{*cert}
 		}
@@ -775,10 +789,22 @@ func Curl(method, url, data, savefilename string, headers []string) (string, err
 	var client *http.Client = nil
 
 	if tlsConfig != nil {
+		if CURL_DEBUG == "yes" {
+			log.Printf("[DEBUG] going to create transport with tlsConfig '%v'\n", tlsConfig)
+		}
 		transport := &http.Transport{TLSClientConfig: tlsConfig}
 		client = &http.Client{Transport: transport}
 	} else {
+		if CURL_DEBUG == "yes" {
+			log.Println("[DEBUG] no tlsconfig is set, use default http client")
+		}
 		client = &http.Client{}
+	}
+
+	if CURL_DEBUG == "yes" {
+		log.Printf("[DEBUG] http client - %v\n", client)
+		log.Printf("[DEBUG] tls config %v\n", tlsConfig)
+		log.Printf("[DEBUG] ca_cert_file '%v' - ssl_key_file '%v' ssl_cert_file '%v' insecureSkipVerify %b\n", ca_cert_file, ssl_key_file, ssl_cert_file, InsecureSkipVerify.(bool))
 	}
 
 	req, err := http.NewRequest(method, url, bytes.NewBuffer([]byte(data)))
