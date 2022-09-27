@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"log"
 	"math/big"
 	mrand "math/rand"
@@ -361,7 +360,7 @@ func FindAndParseTemplates(rootDir, fileExtention string, funcMap template.FuncM
 			if e1 != nil {
 				return e1
 			}
-			b, e2 := ioutil.ReadFile(path)
+			b, e2 := os.ReadFile(path)
 			if e2 != nil {
 				return e2
 			}
@@ -380,7 +379,7 @@ func FindAndParseTemplates(rootDir, fileExtention string, funcMap template.FuncM
 func ReadFileToBase64Content(filename string) string {
 	f, _ := os.Open(filename)
 	reader := bufio.NewReader(f)
-	content, _ := ioutil.ReadAll(reader)
+	content, _ := io.ReadAll(reader)
 	// Encode as base64.
 	return base64.StdEncoding.EncodeToString(content)
 }
@@ -580,7 +579,7 @@ func ParseConfig(configFile string) map[string]interface{} {
 	if configFile == "" {
 		log.Fatalf("Config file required. Run with -h for help")
 	}
-	configDataBytes, err := ioutil.ReadFile(configFile)
+	configDataBytes, err := os.ReadFile(configFile)
 	CheckErr(err, "ParseConfig")
 	config := map[string]interface{}{}
 	err = json.Unmarshal(configDataBytes, &config)
@@ -821,7 +820,7 @@ func Curl(method, url, data, savefilename string, headers []string) (string, err
 	}
 	defer resp.Body.Close()
 	if savefilename == "" {
-		content, err := ioutil.ReadAll(resp.Body)
+		content, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return "", err
 		}
@@ -872,7 +871,7 @@ func MakeRequest(method string, config map[string]interface{}, data []byte, jar 
 	resp, err := client.Do(req)
 	CheckErrNonFatal(err, "MakeRequest client.Do")
 	defer resp.Body.Close()
-	content, err := ioutil.ReadAll(resp.Body)
+	content, err := io.ReadAll(resp.Body)
 	CheckErrNonFatal(err, "MakeRequest Readall")
 	if content[0] == []byte("[")[0] {
 		var m []interface{}
@@ -1105,13 +1104,13 @@ func GenSelfSignedKey(keyfilename string) {
 	out := &bytes.Buffer{}
 	pem.Encode(out, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
 	// fmt.Println(out.String())
-	if err := ioutil.WriteFile(fmt.Sprintf("%s.crt", keyfilename), out.Bytes(), 0640); err != nil {
+	if err := os.WriteFile(fmt.Sprintf("%s.crt", keyfilename), out.Bytes(), 0640); err != nil {
 		log.Fatalf("can not write public key %v\n", err)
 	}
 
 	out.Reset()
 	pem.Encode(out, pemBlockForKey(priv))
-	if err := ioutil.WriteFile(fmt.Sprintf("%s.key", keyfilename), out.Bytes(), 0600); err != nil {
+	if err := os.WriteFile(fmt.Sprintf("%s.key", keyfilename), out.Bytes(), 0600); err != nil {
 		log.Fatalf("can not write private key %v\n", err)
 	}
 	// fmt.Println(out.String())
