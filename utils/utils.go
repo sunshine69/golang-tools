@@ -740,6 +740,8 @@ func Curl(method, url, data, savefilename string, headers []string) (string, err
 	ca_cert_file := Getenv("CA_CERT_FILE", "")
 	ssl_key_file := Getenv("SSL_KEY_FILE", "")
 	ssl_cert_file := Getenv("SSL_CERT_FILE", "")
+	InsecureSkipVerify := Ternary(Getenv("INSECURE_SKIP_VERIFY", "no") == "yes", true, false)
+
 	var cert *tls.Certificate = nil
 	var err error
 	if ssl_cert_file != "" && ssl_key_file != "" {
@@ -761,7 +763,7 @@ func Curl(method, url, data, savefilename string, headers []string) (string, err
 	var tlsConfig *tls.Config = nil
 
 	if caCertPool != nil || cert != nil {
-		tlsConfig := &tls.Config{}
+		tlsConfig := &tls.Config{InsecureSkipVerify: InsecureSkipVerify.(bool)}
 		if cert != nil {
 			tlsConfig.Certificates = []tls.Certificate{*cert}
 		}
