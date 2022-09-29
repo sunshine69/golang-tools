@@ -8,6 +8,8 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha1"
+	"crypto/sha256"
 	"crypto/sha512"
 	"crypto/tls"
 	"crypto/x509"
@@ -101,6 +103,22 @@ func MakeRandNum(max int) int {
 	rnd := mrand.New(src)
 	// fmt.Println(rnd.Intn(1000)) // a truly random number 0 to 999
 	return rnd.Intn(max)
+}
+
+func Sha1Sum(in string) string {
+	sum := sha1.Sum([]byte(in))
+	return fmt.Sprintf("%x", sum)
+}
+
+func Sha256Sum(in string) string {
+	h := sha256.New()
+	io.WriteString(h, in)
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+func Sha512Sum(in string) string {
+	sum := sha512.Sum512([]byte(in))
+	return fmt.Sprintf("%x", sum)
 }
 
 type cryptoSource struct{}
@@ -803,7 +821,7 @@ func Curl(method, url, data, savefilename string, headers []string) (string, err
 	if CURL_DEBUG == "yes" {
 		log.Printf("[DEBUG] http client - %v\n", client)
 		log.Printf("[DEBUG] tls config %v\n", tlsConfig)
-		log.Printf("[DEBUG] ca_cert_file '%v' - ssl_key_file '%v' ssl_cert_file '%v' insecureSkipVerify %b\n", ca_cert_file, ssl_key_file, ssl_cert_file, InsecureSkipVerify.(bool))
+		log.Printf("[DEBUG] ca_cert_file '%v' - ssl_key_file '%v' ssl_cert_file '%v' insecureSkipVerify %v\n", ca_cert_file, ssl_key_file, ssl_cert_file, InsecureSkipVerify.(bool))
 	}
 
 	req, err := http.NewRequest(method, url, bytes.NewBuffer([]byte(data)))
