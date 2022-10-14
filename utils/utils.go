@@ -4,8 +4,11 @@ import (
 	"archive/zip"
 	"bufio"
 	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/md5"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
@@ -17,6 +20,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -105,6 +109,12 @@ func MakeRandNum(max int) int {
 	return rnd.Intn(max)
 }
 
+func Md5Sum(key string) string {
+	hasher := md5.New()
+	hasher.Write([]byte(key))
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
 func Sha1Sum(in string) string {
 	sum := sha1.Sum([]byte(in))
 	return fmt.Sprintf("%x", sum)
@@ -119,6 +129,64 @@ func Sha256Sum(in string) string {
 func Sha512Sum(in string) string {
 	sum := sha512.Sum512([]byte(in))
 	return fmt.Sprintf("%x", sum)
+}
+
+func Encrypt(text, key string) string {
+	text1 := []byte(text)
+	// generate a new aes cipher using our 32 byte long key
+	c, err := aes.NewCipher([]byte(Md5Sum(key)))
+
+	if err != nil {
+		fmt.Println(err)
+	}
+	gcm, err := cipher.NewGCM(c)
+	if err != nil {
+		fmt.Println(err)
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		fmt.Println(err)
+	}
+	encData := gcm.Seal(nonce, nonce, text1, nil)
+	return base64.StdEncoding.EncodeToString(encData)
+}
+
+func Decrypt(ciphertextBase64 string, key string) (string, error) {
+	key1 := []byte(Md5Sum(key))
+
+	ciphertext, err := base64.StdEncoding.DecodeString(ciphertextBase64)
+	if err != nil {
+		return "Decode error", err
+	}
+	c, err := aes.NewCipher(key1)
+	if err != nil {
+		return "NewCipher error", err
+	}
+
+	gcm, err := cipher.NewGCM(c)
+	if err != nil {
+		return "NewGCM error", err
+	}
+
+	nonceSize := gcm.NonceSize()
+	if len(ciphertext) < nonceSize {
+		return "Unexpected size with nonce data", err
+	}
+
+	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "Decrypt error", err
+	}
+	return string(plaintext), nil
+}
+
+func RandomHex(n int) (string, error) {
+	bytes := make([]byte, n)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
 }
 
 type cryptoSource struct{}
