@@ -1150,7 +1150,7 @@ func ReadPropertiesFile(filename string) (AppConfigProperties, error) {
 	return config, nil
 }
 
-func LookupMap(m map[string]interface{}, key string, default_val string) interface{} {
+func LookupMap(m map[string]interface{}, key string, default_val interface{}) interface{} {
 	if v, ok := m[key]; ok {
 		return v
 	} else {
