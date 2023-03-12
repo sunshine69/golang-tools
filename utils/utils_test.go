@@ -60,3 +60,15 @@ func TestCurl(t *testing.T) {
 	CheckErr(err, "ERROR")
 	log.Println(o)
 }
+
+func TestGetRandomNumberUseQrng(t *testing.T) {
+	o := GetRandomNumberUseQrng(12)
+	log.Println(o)
+}
+// Use https://www.nexcess.net/web-tools/secure-password-generator/ to test randomness it seems both version generates strong enough. No one wins over in terms of entropy though
+func TestGenrateRandomStringV2(t *testing.T) {
+	o := GenRandomStringV2(12)
+	log.Println(o)
+	o = GenRandomString(12)
+	log.Println(o)
+}

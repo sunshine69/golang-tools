@@ -59,7 +59,7 @@ const (
 	TimeISO8601LayOut     = "2006-01-02T15:04:05-0700"
 	AUTimeLayout          = "02/01/2006 15:04:05 MST"
 	CleanStringDateLayout = "2006-01-02-150405"
-	LetterBytes           = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#%^()"
+	LetterBytes           = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#%^()-,."
 )
 
 var (
@@ -552,6 +552,41 @@ func GenRandomString(n int) string {
 	}
 	return string(b)
 }
+
+func GenRandomStringV2(n int) string {
+	b := make([]string, n)
+	rand_nums := GetRandomNumberUseQrng(n)
+	fmt.Printf("DEBUG: %v\n", rand_nums)
+	LetterBytesLength := len(LetterBytes)
+	if len(rand_nums) > 0 {
+		for idx, i := range rand_nums {
+			b[idx] = string(LetterBytes[i%LetterBytesLength])
+		}
+		return strings.Join(b, "")
+	}
+	return "ERROR"
+}
+
+func GetRandomNumberUseQrng(length int) []int {
+	qrng_url := fmt.Sprintf("https://qrng.anu.edu.au/API/jsonI.php?length=%d&type=uint16", length)
+	if output_json, err := Curl("GET", qrng_url, "", "", []string{}); err == nil {
+		output := map[string]interface{}{}
+		if err := json.Unmarshal([]byte(output_json), &output); err == nil {
+			output1 := output["data"].([]interface{})
+			output2 := []int{}
+			for _, i := range output1 {
+				output2 = append(output2, int(i.(float64)))
+			}
+			return output2
+		} else {
+			fmt.Printf("Error Unmarshal %s\n", err)
+		}
+	} else {
+		fmt.Printf("Error GET %s -  %v\n", qrng_url, err)
+	}
+	return []int{}
+}
+
 func RunDSL(dbc *sql.DB, sql string) map[string]interface{} {
 	stmt, err := dbc.Prepare(sql)
 	if err != nil {
