@@ -570,14 +570,21 @@ func GenRandomStringV2(n int) string {
 func GetRandomNumberUseQrng(length int) []int {
 	qrng_url := fmt.Sprintf("https://qrng.anu.edu.au/API/jsonI.php?length=%d&type=uint16", length)
 	if output_json, err := Curl("GET", qrng_url, "", "", []string{}); err == nil {
-		output := map[string]interface{}{}
+		// output := map[string]interface{}{}
+		output := struct {
+			Data_type string `json:"type"`
+			Length    int    `json:"length"`
+			Data      []int  `json:"data"`
+			Success   bool   `json:"success"`
+		}{}
 		if err := json.Unmarshal([]byte(output_json), &output); err == nil {
-			output1 := output["data"].([]interface{})
-			output2 := []int{}
-			for _, i := range output1 {
-				output2 = append(output2, int(i.(float64)))
-			}
-			return output2
+			// output1 := output["data"].([]interface{})
+			// output2 := []int{}
+			// for _, i := range output1 {
+			// 	output2 = append(output2, int(i.(float64)))
+			// }
+			// return output2
+			if output.Success { return output.Data }
 		} else {
 			fmt.Printf("Error Unmarshal %s\n", err)
 		}
