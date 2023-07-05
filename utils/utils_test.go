@@ -69,6 +69,6 @@ func TestGetRandomNumberUseQrng(t *testing.T) {
 func TestGenrateRandomStringV2(t *testing.T) {
 	o := GenRandomStringV2(12)
 	log.Println(o)
-	o = GenRandomString(12)
-	log.Println(o)
+	// o = GenRandomString(12)
+	// log.Println(o)
 }

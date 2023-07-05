@@ -568,25 +568,41 @@ func GenRandomStringV2(n int) string {
 }
 
 func GetRandomNumberUseQrng(length int) []int {
-	qrng_url := fmt.Sprintf("https://qrng.anu.edu.au/API/jsonI.php?length=%d&type=uint16", length)
-	if output_json, err := Curl("GET", qrng_url, "", "", []string{}); err == nil {
-		// output := map[string]interface{}{}
-		output := struct {
-			Data_type string `json:"type"`
-			Length    int    `json:"length"`
-			Data      []int  `json:"data"`
-			Success   bool   `json:"success"`
-		}{}
+	api_key := os.Getenv("QRNG_API_KEY")
+	var qrng_url string
+	var curl_header []string = []string{}
+	if api_key != "" {
+		log.Println("DEBUG Use quantum rng")
+		qrng_url = fmt.Sprintf("https://api.quantumnumbers.anu.edu.au?length=%d&type=uint16", length)
+		curl_header = []string{fmt.Sprintf("x-api-key:%s", api_key)}
+	} else {
+		qrng_url = fmt.Sprintf("https://qrng.anu.edu.au/API/jsonI.php?length=%d&type=uint16", length)
+	}
+	output := struct {
+		Data_type string `json:"type"`
+		Length    string `json:"length"`
+		Data      []int  `json:"data"`
+		Success   bool   `json:"success"`
+	}{}
+	if output_json, err := Curl("GET", qrng_url, "", "", curl_header); err == nil {
 		if err := json.Unmarshal([]byte(output_json), &output); err == nil {
-			// output1 := output["data"].([]interface{})
-			// output2 := []int{}
-			// for _, i := range output1 {
-			// 	output2 = append(output2, int(i.(float64)))
-			// }
-			// return output2
-			if output.Success { return output.Data }
-		} else {
-			fmt.Printf("Error Unmarshal %s\n", err)
+			if output.Success {
+				return output.Data
+			}
+		} else { // Old API, will remove soon
+			output1 := struct {
+				Data_type string `json:"type"`
+				Length    int    `json:"length"`
+				Data      []int  `json:"data"`
+				Success   bool   `json:"success"`
+			}{}
+			if err := json.Unmarshal([]byte(output_json), &output1); err == nil {
+				if output.Success {
+					return output.Data
+				}
+			} else { //All error
+				fmt.Printf("Error Unmarshal %s\nInput: '%s'\n", err, output_json)
+			}
 		}
 	} else {
 		fmt.Printf("Error GET %s -  %v\n", qrng_url, err)
