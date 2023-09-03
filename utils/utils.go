@@ -28,7 +28,6 @@ import (
 	"io"
 	"log"
 	"math/big"
-	mrand "math/rand"
 	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
@@ -103,10 +102,8 @@ var GetMapByKey = LookupMap
 
 // MakeRandNum -
 func MakeRandNum(max int) int {
-	var src cryptoSource
-	rnd := mrand.New(src)
-	// fmt.Println(rnd.Intn(1000)) // a truly random number 0 to 999
-	return rnd.Intn(max)
+	gen_number, _ := rand.Int(rand.Reader, big.NewInt(int64(max)))
+	return int(gen_number.Int64())
 }
 
 func Md5Sum(key string) string {
@@ -545,12 +542,13 @@ func FileExists(name string) (bool, error) {
 	return false, err
 }
 func GenRandomString(n int) string {
-	mrand.Seed(time.Now().UnixNano())
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = LetterBytes[mrand.Intn(len(LetterBytes))]
-	}
-	return string(b)
+	return MakePassword(n)
+	// mrand.Seed(time.Now().UnixNano())
+	// b := make([]byte, n)
+	// for i := range b {
+	// 	b[i] = LetterBytes[mrand.Intn(len(LetterBytes))]
+	// }
+	// return string(b)
 }
 
 func GenRandomStringV2(n int) string {
@@ -567,6 +565,7 @@ func GenRandomStringV2(n int) string {
 	return "ERROR"
 }
 
+// OK seems ANU is too scared of abuse, even using with api key it still limit reqeust severely. Offer no so much value unless we need to buy? Yuk!
 func GetRandomNumberUseQrng(length int) []int {
 	api_key := os.Getenv("QRNG_API_KEY")
 	var qrng_url string
@@ -585,6 +584,7 @@ func GetRandomNumberUseQrng(length int) []int {
 		Success   bool   `json:"success"`
 	}{}
 	if output_json, err := Curl("GET", qrng_url, "", "", curl_header); err == nil {
+		log.Println(output_json)
 		if err := json.Unmarshal([]byte(output_json), &output); err == nil {
 			if output.Success {
 				return output.Data
