@@ -65,6 +65,10 @@ var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
+// ArrayFlags to be used for standard golang flag to store multiple values. Something like -f file1 -f file2
+// will store list of file1, file2 in the var of this type.
+// var myvar ArrayFlags
+// flag.Var(&myvar, "-f", "", "File names")
 type ArrayFlags []string
 
 func (i *ArrayFlags) String() string {
@@ -752,8 +756,8 @@ func Ternary(expr bool, x, y interface{}) interface{} {
 	}
 }
 
+// return strings.TrimSuffix(fileName, filepath.Ext(fileName))
 func FileNameWithoutExtension(fileName string) string {
-	// return strings.TrimSuffix(fileName, filepath.Ext(fileName))
 	return fileName[:len(fileName)-len(filepath.Ext(fileName))]
 }
 
@@ -1047,12 +1051,13 @@ func MakeRequest(method string, config map[string]interface{}, data []byte, jar 
 		}
 	}
 }
+
+// Prepare a form that you will submit to that URL.
+// This is not working for RP basically golang somehow send it using : Content type 'application/octet-stream' (or the server complain about that not supported). There are two parts each of them has different content type and it seems golang implementation does not fully support it? (the jsonPaths must be application-json).
+// Forwhatever it is, even the header printed out correct - server complain. Curl work though so we will use curl for now
+// I think golang behaviour is correct it should be 'application/octet-stream' for the file part, but the RP java server does not behave.
+// So we add a manual set heasder map in for this case
 func Upload(client *http.Client, url string, values map[string]io.Reader, mimetype map[string]string, headers map[string]string) (err error) {
-	// Prepare a form that you will submit to that URL.
-	//This is not working for RP basically golang somehow send it using : Content type 'application/octet-stream' (or the server complain about that not supported). There are two parts each of them has different content type and it seems golang implementation does not fully support it? (the jsonPaths must be application-json).
-	//Forwhatever it is, even the header printed out correct - server complain. Curl work though so we will use curl for now
-	//I think golang behaviour is correct it should be 'application/octet-stream' for the file part, but the RP java server does not behave.
-	//So we add a manual set heasder map in for this case
 	if client == nil {
 		client = &http.Client{}
 	}
@@ -1228,8 +1233,7 @@ func LookupMap(m map[string]interface{}, key string, default_val interface{}) in
 
 var MapLookup = LookupMap
 
-//Crypto utils
-
+// Crypto utils
 func GenSelfSignedKey(keyfilename string) {
 	// priv, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	priv, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
@@ -1296,7 +1300,7 @@ func pemBlockForKey(priv interface{}) *pem.Block {
 	}
 }
 
-// Pass an interface, return same interface if they are string as key or list of string as key
+// Pass an interface, return same interface if they are map of string to interface or list of string as key
 func ValidateInterfaceWithStringKeys(val interface{}) (interface{}, error) {
 	switch val := val.(type) {
 	case map[interface{}]interface{}:
@@ -1304,7 +1308,7 @@ func ValidateInterfaceWithStringKeys(val interface{}) (interface{}, error) {
 		for k, v := range val {
 			k, ok := k.(string)
 			if !ok {
-				return nil, errors.New(fmt.Sprintf("found non-string key '%v'", k))
+				return nil, fmt.Errorf("found non-string key '%v'", k)
 			}
 			m[k] = v
 		}
