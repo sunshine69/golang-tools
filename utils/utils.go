@@ -67,6 +67,8 @@ var (
 
 // ArrayFlags to be used for standard golang flag to store multiple values. Something like -f file1 -f file2
 // will store list of file1, file2 in the var of this type.
+// Example:
+//
 // var myvar ArrayFlags
 // flag.Var(&myvar, "-f", "", "File names")
 type ArrayFlags []string
