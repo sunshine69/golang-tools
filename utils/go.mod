@@ -1,6 +1,6 @@
 module github.com/sunshine69/golang-tools/utils
 
-go 1.17
+go 1.20
 
 require (
 	github.com/gorilla/mux v1.8.1

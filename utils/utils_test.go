@@ -71,3 +71,8 @@ func TestGenrateRandomStringV2(t *testing.T) {
 	// o = GenRandomString(12)
 	// log.Println(o)
 }
+
+func TestRemoveItem(t *testing.T) {
+	RemoveItem([]string{"1", "2", "3"}, 1)
+
+}

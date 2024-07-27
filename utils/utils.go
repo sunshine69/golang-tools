@@ -1143,7 +1143,7 @@ STARTLOOP:
 						found = true
 						continue STARTLOOP
 					} else {
-						b = RemoveItem(b, idxb)
+						b = RemoveItemByIndex(b, idxb)
 						found = true
 						continue
 					}
@@ -1153,7 +1153,7 @@ STARTLOOP:
 						if action == "add" {
 							continue
 						} else {
-							b = RemoveItem(b, idxb)
+							b = RemoveItemByIndex(b, idxb)
 						}
 					}
 				}
@@ -1173,10 +1173,27 @@ func MustOpenFile(f string) *os.File {
 	return r
 }
 
+// RemoveItem This func is depricated
 func RemoveItem(s []interface{}, i int) []interface{} {
 	s[i] = s[len(s)-1]
 	// We do not need to put s[i] at the end, as it will be discarded anyway
 	return s[:len(s)-1]
+}
+
+// RemoveItemByIndex removes an item from a slice of any type. Using the index of the item.
+func RemoveItemByIndex[T comparable](s []T, i int) []T {
+	s[i] = s[len(s)-1]
+	return s[:len(s)-1]
+}
+
+// RemoveItemByVal removes an item from a slice of any type
+func RemoveItemByVal[T comparable](slice []T, item T) []T {
+	for i, v := range slice {
+		if v == item {
+			return append(slice[:i], slice[i+1:]...)
+		}
+	}
+	return slice
 }
 
 type AppConfigProperties map[string]string
