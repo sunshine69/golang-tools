@@ -73,6 +73,8 @@ func TestGenrateRandomStringV2(t *testing.T) {
 }
 
 func TestRemoveItem(t *testing.T) {
-	RemoveItem([]string{"1", "2", "3"}, 1)
-
+	o := RemoveItemByIndex([]interface{}{"a", 21, "3"}, 1)
+	log.Printf("%s\n", JsonDump(o, "   "))
+	o = RemoveItemByVal([]interface{}{"a", 21, "3"}, "3")
+	log.Printf("%s\n", JsonDump(o, "   "))
 }

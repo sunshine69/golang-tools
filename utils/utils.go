@@ -19,7 +19,6 @@ import (
 	"crypto/x509/pkix"
 	"database/sql"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
@@ -144,6 +143,7 @@ func Sha512Sum(in string) string {
 	return fmt.Sprintf("%x", sum)
 }
 
+// AES encrypt a string. Output is cipher text base64 encoded
 func Encrypt(text, key string) string {
 	text1 := []byte(text)
 	// generate a new aes cipher using our 32 byte long key
@@ -164,6 +164,7 @@ func Encrypt(text, key string) string {
 	return base64.StdEncoding.EncodeToString(encData)
 }
 
+// AES decrypt a ciphertext base64 encoded string
 func Decrypt(ciphertextBase64 string, key string) (string, error) {
 	key1 := []byte(Md5Sum(key))
 
@@ -202,21 +203,21 @@ func RandomHex(n int) (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
-type cryptoSource struct{}
+// type cryptoSource struct{}
 
-func (s cryptoSource) Seed(seed int64) {}
+// func (s cryptoSource) Seed(seed int64) {}
 
-func (s cryptoSource) Int63() int64 {
-	return int64(s.Uint64() & ^uint64(1<<63))
-}
+// func (s cryptoSource) Int63() int64 {
+// 	return int64(s.Uint64() & ^uint64(1<<63))
+// }
 
-func (s cryptoSource) Uint64() (v uint64) {
-	err := binary.Read(rand.Reader, binary.BigEndian, &v)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return v
-}
+// func (s cryptoSource) Uint64() (v uint64) {
+// 	err := binary.Read(rand.Reader, binary.BigEndian, &v)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	return v
+// }
 
 // MakePassword -
 func MakePassword(length int) string {
@@ -436,6 +437,7 @@ func Unzip(src, dest string) error {
 	return nil
 }
 
+// golang template helper Format
 func Format(tmplStr string, data interface{}) string {
 	var buff bytes.Buffer
 	template.Must(template.New("").Parse(tmplStr)).Execute(
@@ -512,6 +514,8 @@ func SendMailSendGrid(from, to, subject, plainTextContent, htmlContent string, a
 	}
 	return err
 }
+
+// Sendmail
 func SendMail(from string, to []string, subject string, message string, attachments []string, server, username, password string) error {
 	client := gosmtp.NewSender(
 		username,
@@ -1173,7 +1177,7 @@ func MustOpenFile(f string) *os.File {
 	return r
 }
 
-// RemoveItem This func is depricated
+// RemoveItem This func is depricated. Remove an item of the index i in a slice
 func RemoveItem(s []interface{}, i int) []interface{} {
 	s[i] = s[len(s)-1]
 	// We do not need to put s[i] at the end, as it will be discarded anyway
