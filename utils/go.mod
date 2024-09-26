@@ -1,15 +1,14 @@
 module github.com/sunshine69/golang-tools/utils
 
-go 1.20
+go 1.22
 
 require (
-	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/logutils v1.0.0
 	github.com/json-iterator/go v1.1.12
-	github.com/sendgrid/sendgrid-go v3.14.0+incompatible
+	github.com/sendgrid/sendgrid-go v3.16.0+incompatible
 	github.com/stvoidit/gosmtp v1.0.7
-	golang.org/x/crypto v0.25.0
-	golang.org/x/net v0.27.0
+	golang.org/x/crypto v0.27.0
+	golang.org/x/net v0.29.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
