@@ -311,10 +311,7 @@ func ZipDecrypt(filePath ...string) error {
 // Then check the default value if supplied to use as return value
 // For performance we split each type into each function so it can be called independantly
 func GetRequestValue(r *http.Request, key ...string) string {
-	o := GetMuxValue(r, key[0], "")
-	if o == "" {
-		o = GetQueryValue(r, key[0], "")
-	}
+	o := GetQueryValue(r, key[0], "")
 	if o == "" {
 		o = GetFormValue(r, key[0], "")
 	}
@@ -326,19 +323,6 @@ func GetRequestValue(r *http.Request, key ...string) string {
 		}
 	}
 	return o
-}
-
-// GetMuxValue -
-func GetMuxValue(r *http.Request, key ...string) string {
-	vars := mux.Vars(r)
-	val, ok := vars[key[0]]
-	if !ok {
-		if len(key) > 1 {
-			return key[1]
-		}
-		return ""
-	}
-	return val
 }
 
 // GetFormValue -
