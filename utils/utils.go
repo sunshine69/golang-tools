@@ -42,7 +42,6 @@ import (
 
 	"github.com/stvoidit/gosmtp"
 
-	"github.com/gorilla/mux"
 	"github.com/hashicorp/logutils"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/sendgrid/sendgrid-go"
