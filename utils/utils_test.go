@@ -1,7 +1,9 @@
 package utils
 
 import (
+	"fmt"
 	"log"
+	"strings"
 	"testing"
 )
 
@@ -34,19 +36,6 @@ func TestBcryptHash(t *testing.T) {
 	Assert(BcryptCheckPasswordHash("1q2w3e", hashed), "OK", false)
 }
 
-func TestSendMail(t *testing.T) {
-	mypassword := Getenv("SMTP_PASSWORD", "")
-	if mypassword == "" {
-		log.Println("Need to set these env vars before running test. MAIL_FROM MAIL_TO MAIL_USER SMTP_PASSWORD. We use smtp.gmail.com:465 for the server. Test Skipped")
-		return
-	}
-	from, to, user := Getenv("MAIL_FROM", ""), Getenv("MAIL_TO", ""), Getenv("MAIL_USER", "")
-	err := SendMail(from, []string{to}, "test golang sendmail", "test content", []string{"utils.go"}, "smtp.gmail.com:465", user, mypassword)
-	if err != nil {
-		log.Fatalf("ERROR %v\n", err)
-	}
-}
-
 // go test -timeout 30s -run '^TestCurl$'  -v
 func TestCurl(t *testing.T) {
 	o, err := Curl("GET", "https://kernel.org", "", "", []string{})
@@ -77,4 +66,72 @@ func TestRemoveItem(t *testing.T) {
 	log.Printf("%s\n", JsonDump(o, "   "))
 	o = RemoveItemByVal([]interface{}{"a", 21, "3"}, "3")
 	log.Printf("%s\n", JsonDump(o, "   "))
+}
+
+func TestAddhoc(t *testing.T) {
+	text := `Header 1
+	This is some content
+	for the first section.
+	Header 2
+	This is some content
+	for the second section.
+
+	Header 3
+	This is some content
+	for the third section.`
+
+	sections := SplitTextByPattern(text, `(?m)Header.*`, false)
+	for idx, r := range sections {
+		fmt.Printf("Rows %d\n%s\n", idx+1, r)
+	}
+
+	fmt.Println("Done test")
+}
+
+func TestLineinfile(t *testing.T) {
+	err, changed := LineInFile("../tmp/tests.yaml", NewLineInfileOpt(&LineInfileOpt{
+		// Regexp:     `v1.0.1(.*)`,
+		Search_string: "This is new line",
+		Line:          "This is new line to be reaplced at line 4",
+		// ReplaceAll: true,
+	}))
+	CheckErr(err, "Error")
+	fmt.Println(changed)
+}
+
+func TestPickLinesInFile(t *testing.T) {
+	fmt.Println(strings.Join(PickLinesInFile("../tmp/tests.yaml", 70, 1), "\n"))
+}
+
+func TestLineInLines(t *testing.T) {
+	o, _, _, _ := ExtractTextBlockContains("../tmp/tests.yaml", []string{`- [^\s]+:[ ]?[^\s]*`}, []string{`- [^\s]+:[ ]?[^\s]*`}, []string{`helm_chart_resource_fact: "{{ helm_chart_resource }}"`})
+	fmt.Printf("'%s'\n", o)
+	r := LineInLines(strings.Split(o, "\n"), `- set_fact:`, `- ansible.builtin.set_fact: `)
+	fmt.Printf("'%s'\n", strings.Join(r, "\n"))
+}
+
+func TestJoinFunc(t *testing.T) {
+	// tmpl := template.Must(template.New("").Funcs(template.FuncMap{"join": func(inlist []string, sep string) string { return strings.Join(inlist, sep) }}).Parse(`<?php  var2 - {{.var2}} this is output {{ join .var1 ","}} - ?>`))
+	// tmpl.Execute(os.Stdout, map[string]any{"var1": []string{"a", "b", "c"}, "var2": "Value var2"})
+	o := GoTemplateString(`<?php  var2 - {{.var2}} this is output {{ join .var1 ","}} - ?>`, map[string]any{"var1": []string{"a", "b", "c"}, "var2": "Value var2"})
+	println("[DEBUG]", o)
+}
+
+func BenchmarkGoTemplateString(b *testing.B) { // go template is about 6 times faster than the gonja version
+	for n := 0; n < b.N; n++ {
+		GoTemplateString(`<?php  var2 - {{.var2}} this is output {{ join .var1 ","}} - ?>`, map[string]any{"var1": []string{"a", "b", "c"}, "var2": "Value var2"})
+	}
+}
+
+func TestLinesInBlock(t *testing.T) {
+	textfile := "/home/stevek/tmp/tmp.txt"
+	_, start, end, blocklines := ExtractTextBlockContains(textfile, []string{`5.2 Inclusions provided`}, []string{`Part 2 Standard Terms`}, []string{`6.3 Ending on`})
+	block1 := blocklines[start:end]
+	start_block_lines := ExtractLineInLines(block1, `6.3 Ending on`, `([\d]+\/[\d]+\/[\d]+)`, `Fixed term agreements only`)
+	// println(u.JsonDump(start_block_lines, ""))
+	block, _, _, _ := ExtractTextBlockContains(textfile, []string{`Item 2.1 Tenant\/s`}, []string{`2.2 Address for service`}, []string{`1. Full name/s`})
+	tenantBlocks := SplitTextByPattern(block, `(?m)[\d]\. Full name\/s ([a-zA-Z0-9\s]+)`, true)
+	println(JsonDump(tenantBlocks, ""))
+	start_block_lines = ExtractLineInLines(tenantBlocks, `Full name\/s (.*)$`, `Email ([^\@]+\@[^\@]+)`, `Emergency contact full name`)
+	println(JsonDump(start_block_lines, ""))
 }
