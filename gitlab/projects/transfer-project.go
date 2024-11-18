@@ -12,6 +12,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/xanzy/go-gitlab"
 	. "localhost.com/gitlab/model"
+	ug "localhost.com/gitlab/utils"
 	u "localhost.com/utils"
 )
 
@@ -26,7 +27,7 @@ func (c *container) inc() {
 	c.Counters++
 }
 
-//Move registry images from current prj to new one, ops can be pull|push|both default is both
+// Move registry images from current prj to new one, ops can be pull|push|both default is both
 func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Project, user, ops string) (int, error) {
 	if ops == "" {
 		ops = "both"
@@ -57,7 +58,7 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 	comChannel := make(chan int, int(AppConfig["BatchSize"].(float64)))
 	for _, repoReg := range registryRepos {
 		if user != "" {
-			u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), _emailSubj, "", []string{})
+			ug.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), _emailSubj, "", []string{})
 		}
 		_, tags := repoReg.Location, repoReg.Tags
 
@@ -119,13 +120,13 @@ func MoveProjectRegistryImages(git *gitlab.Client, currentPrj, newPrj *gitlab.Pr
 		if (counter.Counters == 0) && (len(oldImagesList) > 0) {
 			errMsg := "[ERROR] CRITICAL We have images in the repo but we can not move any. This implies all images are corrupted"
 			if user != "" {
-				u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", errMsg, []string{})
+				ug.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", errMsg, []string{})
 			}
 			return 0, errors.New(errMsg)
 		}
 	}
 	for _, repoReg := range registryRepos {
-		u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", fmt.Sprintf("We are going to delete the container registry repository of the project name %s, ID %d. <b>This means your production k8s if using the old image will get errors. To minimize the outage of scaling please keep an eye for next email for action</b>", currentPrj.NameWithNamespace, currentPrj.ID), []string{})
+		ug.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", fmt.Sprintf("We are going to delete the container registry repository of the project name %s, ID %d. <b>This means your production k8s if using the old image will get errors. To minimize the outage of scaling please keep an eye for next email for action</b>", currentPrj.NameWithNamespace, currentPrj.ID), []string{})
 		if ops == "both" {
 			_, err := git.ContainerRegistry.DeleteRegistryRepository(currentPrj.ID, repoReg.ID, nil)
 			u.CheckErr(err, "MoveProjectRegistryImages DeleteRegistryRepository "+repoReg.String())
@@ -157,12 +158,12 @@ func MoveProjectRegistryImagesUseShell(git *gitlab.Client, currentPrj, newPrj *g
 		u.RunSystemCommand(fmt.Sprintf("docker pull %s -a", repoImage), true)
 		log.Printf("Pull %s completed\nStart to push ...\n", repoImage)
 
-		u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), fmt.Sprintf("We are going to push images From %s => %s", currentPrj.NameWithNamespace, newPrj.NameWithNamespace), "", []string{})
+		ug.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), fmt.Sprintf("We are going to push images From %s => %s", currentPrj.NameWithNamespace, newPrj.NameWithNamespace), "", []string{})
 
 		u.RunSystemCommand(fmt.Sprintf(`docker images %s --format "docker tag {{.Repository}}:{{.Tag}} %s:{{.Tag}} && docker push %s:{{.Tag}}" | bash `, repoImage, newImage, newImage), true)
 		log.Printf("Push %s completed\nStart to clean up ...\n", newImage)
 
-		u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", fmt.Sprintf("We are going to delete the container registry repository of the project name %s, ID %d. <b>This means your production k8s if using the old image will get errors. To minimize the outage of scaling please keep an eye for next email for action</b>", currentPrj.NameWithNamespace, currentPrj.ID), []string{})
+		ug.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", currentPrj.NameWithNamespace), "", fmt.Sprintf("We are going to delete the container registry repository of the project name %s, ID %d. <b>This means your production k8s if using the old image will get errors. To minimize the outage of scaling please keep an eye for next email for action</b>", currentPrj.NameWithNamespace, currentPrj.ID), []string{})
 
 		_, err := git.ContainerRegistry.DeleteRegistryRepository(currentPrj.ID, repoReg.ID, nil)
 		u.CheckErr(err, "MoveProjectRegistryImages DeleteRegistryRepository "+repoReg.String())
@@ -313,7 +314,7 @@ func TransferProject(git *gitlab.Client, gitlabProjectId int, user string) {
 		log.Printf("[WARN] pid:%d Can not copy these vars, it does exist but having different values\n%s\n", gitlabProjectId, u.JsonDump(nonCopyableVars1, "  "))
 	}
 
-	u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", gitlabProject.NameWithNamespace), "", fmt.Sprintf("<h2>Migration %s completed</h2> However we still need to move the images back. <b>You can start to rebuild and deploy now</b>. If you do not want to rebuild and just want to re-deploy qa and prod, check the container registry to be sure the latest image tag has been copied over and you can run the deploy job manualy.", gitlabProject.NameWithNamespace), []string{})
+	ug.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("Gitlab migration progress. Project %s", gitlabProject.NameWithNamespace), "", fmt.Sprintf("<h2>Migration %s completed</h2> However we still need to move the images back. <b>You can start to rebuild and deploy now</b>. If you do not want to rebuild and just want to re-deploy qa and prod, check the container registry to be sure the latest image tag has been copied over and you can run the deploy job manualy.", gitlabProject.NameWithNamespace), []string{})
 
 	log.Printf("pid:%d - Move container image from temp\n", gitlabProjectId)
 	// MoveProjectRegistryImagesUseShell(git, tempPrj, gitlabProject, user)
@@ -355,8 +356,8 @@ func WaitUntilAllRegistryTagCleared(git *gitlab.Client, gitlabProjectId int) {
 }
 
 // Just transfer a project to new path and get/push images. No variable copying or replicate domain in between, assume the new path has been created already
-//newPath should not started with slash /
-func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extraRegistryImageName, user  string) {
+// newPath should not started with slash /
+func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extraRegistryImageName, user string) {
 	gitlabProject, _, err := git.Projects.GetProject(gitlabProjectId, nil)
 	if gitlabProject.Archived {
 		log.Printf("[ERROR] Project %s is in Archived mode, skipping\n", gitlabProject.NameWithNamespace)
@@ -465,7 +466,7 @@ func TransferProjectQuick(git *gitlab.Client, gitlabProjectId int, newPath, extr
 			_repoImage), true)
 		log.Printf("Cleanup %s completed\n", _repoImage)
 		if user != "" {
-			u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, "GitlabDomain Automation - run_quick_project_xfer " + gitlabProject.NameWithNamespace + " COMPLETED", "", "Your task run_quick_project_xfer for project " + gitlabProject.NameWithNamespace + " has COMPLETED", []string{})
+			ug.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, "GitlabDomain Automation - run_quick_project_xfer "+gitlabProject.NameWithNamespace+" COMPLETED", "", "Your task run_quick_project_xfer for project "+gitlabProject.NameWithNamespace+" has COMPLETED", []string{})
 		}
 	}
 }

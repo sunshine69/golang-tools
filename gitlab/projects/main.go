@@ -1,21 +1,23 @@
 package main
 
 import (
-	"regexp"
 	"flag"
 	"fmt"
 	"log"
+	"os"
+	"regexp"
 	"strconv"
 	"strings"
-	. "localhost.com/gitlab/model"
-	u "localhost.com/utils"
-	"os"
+
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/xanzy/go-gitlab"
+	. "localhost.com/gitlab/model"
+	ug "localhost.com/gitlab/utils"
+	u "localhost.com/utils"
 )
 
 var (
-    action string
+	action        string
 	UsernameRegex *regexp.Regexp
 )
 
@@ -24,7 +26,7 @@ func ParseConfig() {
 		log.Fatalf("Config file required. Run with -h for help")
 	}
 	AppConfig = u.ParseConfig(ConfigFile)
-	log.Printf("[DEBUG] AppConfig %s\n",u.JsonDump(AppConfig,"  "))
+	log.Printf("[DEBUG] AppConfig %s\n", u.JsonDump(AppConfig, "  "))
 	if SearchStr == "" && AppConfig["SearchStr"].(string) != "" {
 		SearchStr = AppConfig["SearchStr"].(string)
 	}
@@ -71,20 +73,22 @@ func DumpOrUpdateProject(git *gitlab.Client, SearchStr string) {
 					p.OwnerName = "null"
 				}
 				p.TagList = strings.Join(row.Topics, ",")
-                labels, _, err := git.Labels.ListLabels(row.ID, &gitlab.ListLabelsOptions{
-                    ListOptions: gitlab.ListOptions{
-                        Page: 1, PerPage: 100,
-                    },
-                })
-                u.CheckErr(err, "Project Labels.ListLabels")
-                labelList := []string{}
-                for _, _label := range labels {
-                    labelList = append(labelList, _label.Name)
-                }
+				labels, _, err := git.Labels.ListLabels(row.ID, &gitlab.ListLabelsOptions{
+					ListOptions: gitlab.ListOptions{
+						Page: 1, PerPage: 100,
+					},
+				})
+				u.CheckErr(err, "Project Labels.ListLabels")
+				labelList := []string{}
+				for _, _label := range labels {
+					labelList = append(labelList, _label.Name)
+				}
 				p.Pid, p.Weburl, p.Name, p.NameWithSpace, p.Path, p.PathWithNamespace, p.NamespaceKind, p.NamespaceName, p.NamespaceId, p.GitlabCreatedAt, p.Labels = row.ID, row.WebURL, row.Name, row.NameWithNamespace, row.Path, row.PathWithNamespace, row.Namespace.Kind, row.Namespace.Name, row.Namespace.ID, row.CreatedAt.Format(u.CleanStringDateLayout), strings.Join(labelList, ",")
-				if ! strings.Contains(p.PathWithNamespace, "domain-") { p.DomainOwnershipConfirmed = 0 }
+				if !strings.Contains(p.PathWithNamespace, "domain-") {
+					p.DomainOwnershipConfirmed = 0
+				}
 				p.Update()
-                UpdateTeamProject(git, row)
+				UpdateTeamProject(git, row)
 			}
 		}
 		// Exit the loop when we've seen all pages.
@@ -96,12 +100,12 @@ func DumpOrUpdateProject(git *gitlab.Client, SearchStr string) {
 		opt.Page = resp.NextPage
 	}
 	//Update database for project that is no longer in gitlab
-	projects := ProjectGet(map[string]string{"where":"1 ORDER BY ts DESC"})
+	projects := ProjectGet(map[string]string{"where": "1 ORDER BY ts DESC"})
 	for _, p := range projects {
 		gp, _, err := projectService.GetProject(p.Pid, nil)
 		if u.CheckNonErrIfMatch(err, "404 Project Not Found", "") != nil {
 			p.Delete(nil)
-		} else{
+		} else {
 			if p.PathWithNamespace != gp.PathWithNamespace { //This entry in the DB no longer up-to-date
 				p.Delete(nil)
 			}
@@ -124,18 +128,20 @@ func DumpOrUpdateNamespace(git *gitlab.Client, SearchStr string) {
 		u.CheckErr(err, "nsService.ListNamespaces")
 		for _, row := range o {
 			p := GitlabNamespaceNew(row.FullPath)
-            lList := []string{}
-            if row.Kind == "group"{
-                labels, _, err := git.GroupLabels.ListGroupLabels(row.ID, &gitlab.ListGroupLabelsOptions{
-                    Page: 1, PerPage: 100,
-                })
-                u.CheckErr(err, "GroupLabels.ListGroupLabels")
-                for _, l := range labels { lList = append(lList, l.Name ) }
-            }
+			lList := []string{}
+			if row.Kind == "group" {
+				labels, _, err := git.GroupLabels.ListGroupLabels(row.ID, &gitlab.ListGroupLabelsOptions{
+					Page: 1, PerPage: 100,
+				})
+				u.CheckErr(err, "GroupLabels.ListGroupLabels")
+				for _, l := range labels {
+					lList = append(lList, l.Name)
+				}
+			}
 			p.Name, p.ParentId, p.Path, p.Kind, p.FullPath, p.MembersCountWithDescendants, p.GitlabNamespaceId, p.Labels = row.Name, row.ParentID, row.Path, row.Kind, row.FullPath, row.MembersCountWithDescendants, row.ID, strings.Join(lList, ",")
 			p.Update()
-            GitlabGroup2Team(git, &p)
-            GitlabGroup2Domain(git, &p)
+			GitlabGroup2Team(git, &p)
+			GitlabGroup2Domain(git, &p)
 		}
 		if resp.CurrentPage >= resp.TotalPages {
 			break
@@ -146,7 +152,8 @@ func DumpOrUpdateNamespace(git *gitlab.Client, SearchStr string) {
 	}
 	log.Printf("DumpOrUpdateNamespace Done\n")
 }
-//From the team table update its gitlab id. If not found, warning. Maybe in the future we can automate creation of the team.
+
+// From the team table update its gitlab id. If not found, warning. Maybe in the future we can automate creation of the team.
 func UpdateTeam() {
 	log.Printf("Update Team Started\n")
 	currentTeamList := TeamGet(map[string]string{
@@ -154,7 +161,7 @@ func UpdateTeam() {
 	})
 	for _, row := range currentTeamList {
 		ns := GitlabNamespace{}
-        //Assume Team Name must be unique. Gitlab group does not require that but it is go1 business rule
+		//Assume Team Name must be unique. Gitlab group does not require that but it is go1 business rule
 		ns.GetOne(map[string]string{
 			"where": fmt.Sprintf("name = '%s'", row.Name),
 		})
@@ -168,45 +175,49 @@ func UpdateTeam() {
 	}
 	log.Printf("Update Team Done\n")
 }
-//For each group if it started with `Team ` then add a record to team table with data
+
+// For each group if it started with `Team ` then add a record to team table with data
 func GitlabGroup2Team(git *gitlab.Client, ns *GitlabNamespace) {
-    if strings.HasPrefix( ns.Name, "Team -" ) {
-        log.Printf("[DEBUG] Found gitlab namespace '%s' started with Team. Create - Update Team\n", ns.Name)
-        newTeam := TeamNew(ns.Name)
-        log.Printf("[DEBUG] %s\n",u.JsonDump(ns, "  "))
-        aGroup, _, err := git.Groups.GetGroup(ns.GitlabNamespaceId, nil); u.CheckErr(err, "GitlabGroup2Team Groups.GetGroup")
-        newTeam.CreatedAt = aGroup.CreatedAt.Format(u.CleanStringDateLayout)
-        newTeam.GitlabNamespaceId = ns.GitlabNamespaceId
-        newTeam.Update()
-    }
+	if strings.HasPrefix(ns.Name, "Team -") {
+		log.Printf("[DEBUG] Found gitlab namespace '%s' started with Team. Create - Update Team\n", ns.Name)
+		newTeam := TeamNew(ns.Name)
+		log.Printf("[DEBUG] %s\n", u.JsonDump(ns, "  "))
+		aGroup, _, err := git.Groups.GetGroup(ns.GitlabNamespaceId, nil)
+		u.CheckErr(err, "GitlabGroup2Team Groups.GetGroup")
+		newTeam.CreatedAt = aGroup.CreatedAt.Format(u.CleanStringDateLayout)
+		newTeam.GitlabNamespaceId = ns.GitlabNamespaceId
+		newTeam.Update()
+	}
 }
-//For each group if it started with `Domain ` then add a record to domain table with data
+
+// For each group if it started with `Domain ` then add a record to domain table with data
 // Maybe we need to check if it has at least a member named started with `Team -` ?
 func GitlabGroup2Domain(git *gitlab.Client, ns *GitlabNamespace) {
-    if strings.HasPrefix( ns.Name, "Domain -" ) && (ns.MembersCountWithDescendants > 0)  {
-        childGroup := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("parent_id = %d AND name LIKE 'Team - %%'", ns.GitlabNamespaceId)})
-        newDomain := DomainNew(ns.Name)
-        if len(childGroup) > 0 {
-            log.Printf("[DEBUG] Found gitlab namespace '%s' started with Domain. Create - Update Domain\n", ns.Name)
-            newDomain.HasTeam = 1
-        } else {
-            newDomain.HasTeam = 0
-        }
-        aGroup, _, err := git.Groups.GetGroup(ns.GitlabNamespaceId, nil); u.CheckErr(err, "GitlabGroup2Team Groups.GetGroup")
-        newDomain.CreatedAt = aGroup.CreatedAt.Format(u.CleanStringDateLayout)
-        newDomain.GitlabNamespaceId = ns.GitlabNamespaceId
-        newDomain.Update()
-    }
+	if strings.HasPrefix(ns.Name, "Domain -") && (ns.MembersCountWithDescendants > 0) {
+		childGroup := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("parent_id = %d AND name LIKE 'Team - %%'", ns.GitlabNamespaceId)})
+		newDomain := DomainNew(ns.Name)
+		if len(childGroup) > 0 {
+			log.Printf("[DEBUG] Found gitlab namespace '%s' started with Domain. Create - Update Domain\n", ns.Name)
+			newDomain.HasTeam = 1
+		} else {
+			newDomain.HasTeam = 0
+		}
+		aGroup, _, err := git.Groups.GetGroup(ns.GitlabNamespaceId, nil)
+		u.CheckErr(err, "GitlabGroup2Team Groups.GetGroup")
+		newDomain.CreatedAt = aGroup.CreatedAt.Format(u.CleanStringDateLayout)
+		newDomain.GitlabNamespaceId = ns.GitlabNamespaceId
+		newDomain.Update()
+	}
 }
 func GetGitlabClient() *gitlab.Client {
-    if GitLabToken = u.Getenv("GITLAB_TOKEN", "-1"); GitLabToken == "-1" {
+	if GitLabToken = u.Getenv("GITLAB_TOKEN", "-1"); GitLabToken == "-1" {
 		if GitLabToken = AppConfig["gitlabToken"].(string); GitLabToken == "changeme" || GitLabToken == "" {
 			log.Fatalf("Requires env var GITLAB_TOKEN")
 		}
 	}
 	git, err := gitlab.NewClient(GitLabToken, gitlab.WithBaseURL(AppConfig["gitlabAPIBaseURL"].(string)))
 	u.CheckErr(err, "GetGitlabClient NewClient")
-    return git
+	return git
 }
 func UpdateAllWrapper(git *gitlab.Client, SearchStr string) {
 	DumpOrUpdateProject(git, SearchStr)
@@ -257,8 +268,8 @@ func main() {
 	flag.Parse()
 
 	ParseConfig()
-    git := GetGitlabClient()
-	u.ConfigureLogging(os.Stdout)
+	git := GetGitlabClient()
+	ug.ConfigureLogging(os.Stdout)
 	SetUpLogDatabase()
 
 	dbc := GetDBConn()
@@ -270,22 +281,22 @@ func main() {
 		DumpOrUpdateProject(git, SearchStr)
 	case "update-namespace":
 		DumpOrUpdateNamespace(git, SearchStr)
-        UpdateGroupMember(git)
+		UpdateGroupMember(git)
 	case "update-team":
 		UpdateTeam()
 	case "UpdateGitlabUser":
 		UpdateGitlabUser(git)
-    //From now is function name - adhoc run
-    case "UpdateGroupMember":
-        UpdateGroupMember(git)
+	//From now is function name - adhoc run
+	case "UpdateGroupMember":
+		UpdateGroupMember(git)
 	case "get-first10mr-peruser":
 		Addhoc_getfirst10mrperuser(git)
-    case "UpdateProjectDomainFromCSV":
-        UpdateProjectDomainFromCSV("data/MigrationServices.csv")
-    case "UpdateProjectDomainFromCSVSheet3":
-        UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv")
+	case "UpdateProjectDomainFromCSV":
+		UpdateProjectDomainFromCSV("data/MigrationServices.csv")
+	case "UpdateProjectDomainFromCSVSheet3":
+		UpdateProjectDomainFromCSVSheet3("data/MigrationServices-sheet3.csv")
 	case "UpdateProjectDomainFromExcelNext":
-        u.RunSystemCommand("rm -rf data/GitlabProject-Domain-Status.xlsx || true ; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", true)
+		u.RunSystemCommand("rm -rf data/GitlabProject-Domain-Status.xlsx || true ; sleep 1; rclone sync onedrive:/GitlabProject-Domain-Status.xlsx data/", true)
 		UpdateProjectDomainFromExcelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 		UpdateTeamDomainFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 	case "UpdateProjectMigrationStatus":

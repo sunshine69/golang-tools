@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -132,6 +133,27 @@ func TestLinesInBlock(t *testing.T) {
 	block, _, _, _ := ExtractTextBlockContains(textfile, []string{`Item 2.1 Tenant\/s`}, []string{`2.2 Address for service`}, []string{`1. Full name/s`})
 	tenantBlocks := SplitTextByPattern(block, `(?m)[\d]\. Full name\/s ([a-zA-Z0-9\s]+)`, true)
 	println(JsonDump(tenantBlocks, ""))
-	start_block_lines = ExtractLineInLines(tenantBlocks, `Full name\/s (.*)$`, `Email ([^\@]+\@[^\@]+)`, `Emergency contact full name`)
+	lineblocks := []string{}
+	for _, l := range tenantBlocks {
+		sp := strings.Split(l, "\n")
+		for _, l1 := range sp {
+			l1 = strings.TrimSpace(l1)
+			if l1 != "" {
+				lineblocks = append(lineblocks, l1)
+			}
+		}
+	}
+	start_block_lines = ExtractLineInLines(lineblocks, `Item 2.1 Tenant`, `Full name\/s (.*)$`, `Emergency contact full name`)
 	println(JsonDump(start_block_lines, ""))
+	start_block_lines = ExtractLineInLines(lineblocks, `Emergency contact full name`, `Full name\/s (.*)$`, `Emergency contact full name`)
+	println(JsonDump(start_block_lines, ""))
+	tenantNamePtn := regexp.MustCompile(`(?m)[\d]\. Full name\/s (.*)`)
+	tenantNames := []string{}
+	for _, l := range tenantBlocks {
+		parsed := tenantNamePtn.FindStringSubmatch(l)
+		if parsed != nil {
+			tenantNames = append(tenantNames, parsed[1])
+		}
+	}
+	println("Tenants: ", JsonDump(tenantNames, ""))
 }

@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"time"
+
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	_ "github.com/mattn/go-sqlite3"
@@ -17,6 +18,7 @@ import (
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	. "localhost.com/gitlab/model"
+	ug "localhost.com/gitlab/utils"
 	u "localhost.com/utils"
 )
 
@@ -68,10 +70,10 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 			log.SetOutput(f)
 			defer f.Close()
 			defer log.SetOutput(os.Stdout)
-			u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, "GitlabDomain Automation - update-all", "", fmt.Sprintf("update-all Started. Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{})
+			ug.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, "GitlabDomain Automation - update-all", "", fmt.Sprintf("update-all Started. Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{})
 			UpdateAllWrapper(git, SearchStr)
 			os.Remove(lockFileName)
-			u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, "GitlabDomain Automation - update-all", "", fmt.Sprintf("update-all Completed. Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
+			ug.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, "GitlabDomain Automation - update-all", "", fmt.Sprintf("update-all Completed. Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
 		}()
 	case "update-project":
 		go func() {
@@ -147,7 +149,7 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 			os.Remove(lockFileName)
 		}()
 	case "UpdateProjectDomainFromExcelNext":
-		u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, "GitlabDomain Automation - UpdateProjectDomainFromExcelNext", "", fmt.Sprintf("UpdateProjectDomainFromExcelNext Started. Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{})
+		ug.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, "GitlabDomain Automation - UpdateProjectDomainFromExcelNext", "", fmt.Sprintf("UpdateProjectDomainFromExcelNext Started. Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{})
 		go func() {
 			log.SetOutput(f)
 			defer f.Close()
@@ -159,22 +161,22 @@ func RunFunction(w http.ResponseWriter, r *http.Request) {
 			UpdateTeamProjectFromExelNext(git, "data/GitlabProject-Domain-Status.xlsx")
 			os.Remove(lockFileName)
 
-			u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, "GitlabDomain Automation - UpdateProjectDomainFromExcelNext", "", fmt.Sprintf("UpdateProjectDomainFromExcelNext Completed. Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
+			ug.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, "GitlabDomain Automation - UpdateProjectDomainFromExcelNext", "", fmt.Sprintf("UpdateProjectDomainFromExcelNext Completed. Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
 		}()
 	case "run_quick_project_xfer":
-		u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, "GitlabDomain Automation - run_quick_project_xfer", "", fmt.Sprintf("run_quick_project_xfer Started. Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{})
-		pid, err := strconv.Atoi(u.GetRequestValue(r, "quick_prj_id"))
+		ug.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, "GitlabDomain Automation - run_quick_project_xfer", "", fmt.Sprintf("run_quick_project_xfer Started. Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{})
+		pid, err := strconv.Atoi(ug.GetRequestValue(r, "quick_prj_id"))
 		if u.CheckErrNonFatal(err, "") != nil {
-			fmt.Fprintf(w, "ERROR Project ID must be an integer. Got %s", u.GetRequestValue(r, "quick_prj_id"))
+			fmt.Fprintf(w, "ERROR Project ID must be an integer. Got %s", ug.GetRequestValue(r, "quick_prj_id"))
 			return
 		}
 		go func() {
 			log.SetOutput(f)
 			defer f.Close()
 			defer log.SetOutput(os.Stdout)
-            defer os.Remove(lockFileName)
-			log.Printf("[DEBUG] TransferProjectQuick action with pid %d - new path: %s - extra registry name: %s", pid, u.GetRequestValue(r, "project_new_path"), u.GetRequestValue(r, "extra_registry_name"))
-			TransferProjectQuick(git, pid, u.GetRequestValue(r, "project_new_path"), u.GetRequestValue(r, "extra_registry_name"), user)
+			defer os.Remove(lockFileName)
+			log.Printf("[DEBUG] TransferProjectQuick action with pid %d - new path: %s - extra registry name: %s", pid, ug.GetRequestValue(r, "project_new_path"), ug.GetRequestValue(r, "extra_registry_name"))
+			TransferProjectQuick(git, pid, ug.GetRequestValue(r, "project_new_path"), ug.GetRequestValue(r, "extra_registry_name"), user)
 		}()
 	}
 	fmt.Fprintf(w, "<p>Process %s started. You can see the log <a href='/log/%s'>here</a></p>", func_name, logFile)
@@ -185,7 +187,7 @@ func DisplayTransferProjectConsole(w http.ResponseWriter, r *http.Request) {
 	searchName := r.FormValue("keyword")
 	migrated := r.FormValue("migrated")
 	// ses.Values["migrated"] = migrated
-	currentOffsetStr := u.Ternary(vars["page_offset"] != "" && searchName == "", vars["page_offset"], "0").(string)
+	currentOffsetStr := u.Ternary((vars["page_offset"] != "" && searchName == ""), vars["page_offset"], "0")
 	currentOffset, _ := strconv.Atoi(currentOffsetStr)
 	sqlwhere := fmt.Sprintf(`project.namespace_kind = 'group' AND project.labels NOT LIKE '%%personal%%' AND is_active = 1 AND domain_ownership_confirmed = %s AND project.name LIKE '%%%s%%' AND project.pid IN (SELECT p.pid from project AS p, project_domain AS pd, domain AS d WHERE p.pid = pd.project_id AND pd.domain_id = d.gitlab_ns_id AND p.path_with_namespace NOT LIKE 'disabled-microservices/%%' ORDER BY pd.ts) ORDER BY ts LIMIT 25 OFFSET %d`, migrated, searchName, currentOffset)
 	projectList := ProjectGet(map[string]string{"where": sqlwhere})
@@ -232,11 +234,11 @@ func RunTransferProject(w http.ResponseWriter, r *http.Request) {
 		project_id, _ := strconv.Atoi(vars["project_id"])
 		log.Printf("TransferProject Started with ID %d - \n", project_id)
 
-		u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("ProjectID %d Migration Started", project_id), "", fmt.Sprintf("Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{})
+		ug.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("ProjectID %d Migration Started", project_id), "", fmt.Sprintf("Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{})
 
 		TransferProject(git, project_id, user)
 
-		u.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("ProjectID %d Migration Status", project_id), "", fmt.Sprintf("Migration fully completed. Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
+		ug.SendMailSendGrid(AppConfig["EmailFrom"].(string), user, fmt.Sprintf("ProjectID %d Migration Status", project_id), "", fmt.Sprintf("Migration fully completed. Please find the log attached or click <a href='https://%s/log/%s'>here</a>", r.Host, logFile), []string{"log/" + logFile})
 		os.Remove(lockFileName)
 	}(f)
 	fmt.Fprintf(w, "Started Project ID %s - <a href='/log/%s'>Log</a><br/>Also check your email for notification.", vars["project_id"], logFile)
@@ -246,12 +248,12 @@ func GetRootDomain(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, u.JsonDump(domainList, "  "))
 }
 
-//HandleRequests -
+// HandleRequests -
 func HandleRequests() {
 	router := mux.NewRouter()
 
 	staticFS := http.FileServer(http.Dir("./log"))
-	router.PathPrefix("/log/").Handler(BasicAuthHandler(http.StripPrefix("/log/", staticFS), AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm") )
+	router.PathPrefix("/log/").Handler(BasicAuthHandler(http.StripPrefix("/log/", staticFS), AppConfig["AuthUser"].(string), AppConfig["SharedToken"].(string), "default realm"))
 
 	router.HandleFunc("/register/{username}", RegisterUser)
 	router.HandleFunc("/", BasicAuth(homePage, AppConfig["AuthUser"].(string), "default realm")).Methods("GET")
@@ -318,7 +320,7 @@ func isAuthorized(endpoint func(http.ResponseWriter, *http.Request)) http.Handle
 		tokens := r.Header["X-Authorization-Token"]
 		session, _ := SessionStore.Get(r, SessionName)
 		apiToken := AppConfig["SharedToken"].(string)
-		if len(tokens) > 0 && ((tokens[0] == session.Values["token"]) || ( tokens[0] == apiToken)) {
+		if len(tokens) > 0 && ((tokens[0] == session.Values["token"]) || (tokens[0] == apiToken)) {
 			endpoint(w, r)
 		} else {
 			fmt.Fprintf(w, `{"error":"isAuthorized","message":"Not Authorized"}`)
@@ -327,33 +329,42 @@ func isAuthorized(endpoint func(http.ResponseWriter, *http.Request)) http.Handle
 }
 
 func VerifyAuthentication(reqUsername, reqPassword, realm string) error {
-	if ! UsernameRegex.MatchString(reqUsername) {  return fmt.Errorf("username %s not accepted", reqUsername) }
-	users := UserGet(map[string]string{"where":"email = '"+reqUsername+"'"})
-	if len(users) == 0 { return  fmt.Errorf("user %s not found", reqUsername) }
+	if !UsernameRegex.MatchString(reqUsername) {
+		return fmt.Errorf("username %s not accepted", reqUsername)
+	}
+	users := UserGet(map[string]string{"where": "email = '" + reqUsername + "'"})
+	if len(users) == 0 {
+		return fmt.Errorf("user %s not found", reqUsername)
+	}
 	//The eventlog can be used for nearly anything, if schema is not enough, use json string
 	// and sqlite3 json extention. In this example we do not need to though
-	evts := EventLogGet(map[string]string{"where":"host = 'AUTH' AND application = '"+reqUsername+"'  ORDER BY ts DESC LIMIT 1"})
-	if len(evts) == 0 { return  fmt.Errorf("user %s does not have password set", reqUsername) }
-	if ! u.BcryptCheckPasswordHash(reqPassword, evts[0].Message) { return  fmt.Errorf("user %s wrong password", reqUsername) }
+	evts := EventLogGet(map[string]string{"where": "host = 'AUTH' AND application = '" + reqUsername + "'  ORDER BY ts DESC LIMIT 1"})
+	if len(evts) == 0 {
+		return fmt.Errorf("user %s does not have password set", reqUsername)
+	}
+	if !u.BcryptCheckPasswordHash(reqPassword, evts[0].Message) {
+		return fmt.Errorf("user %s wrong password", reqUsername)
+	}
 	return nil
 }
 func RegisterUser(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	username := vars["username"]
-	if ! UsernameRegex.MatchString(username) {
+	if !UsernameRegex.MatchString(username) {
 		fmt.Fprintf(w, "username %s not accepted", username)
 		return
 	}
 	password := u.GenRandomString(24)
 	passhash, err := u.BcryptHashPassword(password, 10) // cost 14 makes it slow in responsive
 	u.CheckErr(err, "RegisterUser BcryptHashPassword")
-	evt := EventLogNew( passhash )
+	evt := EventLogNew(passhash)
 	evt.Host, evt.Application = "AUTH", username
 	evt.Update()
-	u.SendMailSendGrid(AppConfig["EmailFrom"].(string), username, "Go1 Gitlab Domain Tool - User registration", "", fmt.Sprintf("Please login using your %s as username and password is '%s' without quote", username, password), []string{})
+	ug.SendMailSendGrid(AppConfig["EmailFrom"].(string), username, "Go1 Gitlab Domain Tool - User registration", "", fmt.Sprintf("Please login using your %s as username and password is '%s' without quote", username, password), []string{})
 	fmt.Fprintf(w, "Registration completed. Please check your email for details")
 }
-//This func is used to load the home page and generate tempo token for the ajax post
+
+// This func is used to load the home page and generate tempo token for the ajax post
 func BasicAuth(handlerFunc http.HandlerFunc, username, realm string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, pass, _ := r.BasicAuth()
