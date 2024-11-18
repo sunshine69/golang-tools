@@ -1,23 +1,23 @@
 package main
 
 import (
-	"regexp"
-	"os"
 	"flag"
-	"log"
 	"fmt"
-	"io/ioutil"
-	"strings"
-	"time"
 	"github.com/araddon/dateparse"
 	jsoniter "github.com/json-iterator/go"
+	"io/ioutil"
 	u "localhost.com/utils"
+	"log"
+	"os"
+	"regexp"
+	"strings"
+	"time"
 )
 
 var (
-	json      = jsoniter.ConfigCompatibleWithStandardLibrary
+	json                                = jsoniter.ConfigCompatibleWithStandardLibrary
 	inputFile, k8sNamespace, objectType string
-    autoExecute bool
+	autoExecute                         bool
 )
 
 func processCommand(objType, inputFile, namePattern string) {
@@ -39,10 +39,10 @@ func processCommand(objType, inputFile, namePattern string) {
 		objName := _val["name"].(string)
 		doAppendToList := true
 		if filterNameRegex != nil {
-			doAppendToList = u.Ternary( filterNameRegex.MatchString(objName), true, false  ).(bool)
+			doAppendToList = u.Ternary(filterNameRegex.MatchString(objName), true, false)
 		}
 		doAppendToList = u.Ternary(
-			(objType == "service") && (_spec["type"].(string) == "ExternalName"), false, doAppendToList	).(bool)
+			(objType == "service") && (_spec["type"].(string) == "ExternalName"), false, doAppendToList)
 
 		if doAppendToList {
 			output = append(output, map[string]string{
@@ -72,11 +72,12 @@ func main() {
 
 	flag.StringVar(&inputFile, "f", "", "Input fname. Run 'kubectl -n review get <object_type> -o json > deployments.json' to get the file. object_type can be: deployment, svc, hpa, ingress")
 	flag.StringVar(&objectType, "t", "deployment", "Object type. Can be: deployment, svc, hpa, ingress, all. all is all of them")
-    flag.BoolVar(&autoExecute, "autoexec", false, "Auto exec. This will automatically run kubectl to get deployment and print out the command")
-    flag.StringVar(&k8sNamespace, "n", "review", "k8s namespace when automatically run kubectl to get deployment and print out the command")
+	flag.BoolVar(&autoExecute, "autoexec", false, "Auto exec. This will automatically run kubectl to get deployment and print out the command")
+	flag.StringVar(&k8sNamespace, "n", "review", "k8s namespace when automatically run kubectl to get deployment and print out the command")
 	flag.Parse()
 
-	tempFile, err := ioutil.TempFile("", objectType + ".json"); defer os.Remove(tempFile.Name())
+	tempFile, err := ioutil.TempFile("", objectType+".json")
+	defer os.Remove(tempFile.Name())
 
 	u.CheckErr(err, "Create temp file")
 
@@ -85,9 +86,9 @@ func main() {
 	}
 	nameRegexLookup := map[string]string{
 		"deployment": ``,
-		"service": ``,
-		"ingress": ``,
-		"hpa": ``,
+		"service":    ``,
+		"ingress":    ``,
+		"hpa":        ``,
 	}
 	if isSupport, ok := supportObjectType[objectType]; ok {
 		if isSupport {
@@ -95,10 +96,10 @@ func main() {
 				if objectType == "all" {
 					for _, objType := range []string{"deployment", "service", "ingress", "hpa"} {
 						u.RunSystemCommand(fmt.Sprintf("kubectl -n %s get %s -o json > %s", k8sNamespace, objType, tempFile.Name()), false)
-						processCommand(objType, tempFile.Name(), nameRegexLookup[objType] )
+						processCommand(objType, tempFile.Name(), nameRegexLookup[objType])
 					}
 				} else {
-					u.RunSystemCommand(fmt.Sprintf("kubectl -n %s get %s -o json > %s", k8sNamespace, objectType,tempFile.Name()), false)
+					u.RunSystemCommand(fmt.Sprintf("kubectl -n %s get %s -o json > %s", k8sNamespace, objectType, tempFile.Name()), false)
 					processCommand(objectType, tempFile.Name(), nameRegexLookup[objectType])
 				}
 			} else {
