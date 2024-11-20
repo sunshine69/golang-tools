@@ -262,6 +262,27 @@ func GoFindExec(directory, filetype string, path_pattern []string, callback func
 	}
 }
 
+// ReadFileToLines will read a file and return content as a slice of lines. If cleanline is true then each line will be trim and empty line will be removed
+func ReadFileToLines(filename string, cleanline bool) []string {
+	if datab, err := os.ReadFile(filename); err == nil {
+		lines := strings.Split(string(datab), "\n")
+		if !cleanline {
+			return lines
+		} else {
+			o := []string{}
+			for _, l := range lines {
+				l = strings.TrimSpace(l)
+				if l != "" {
+					o = append(o, l)
+				}
+			}
+			return o
+		}
+	} else {
+		return []string{}
+	}
+}
+
 func ComputeHash(plainText string, salt []byte) string {
 	plainTextWithSalt := []byte(plainText)
 	plainTextWithSalt = append(plainTextWithSalt, salt...)
@@ -2067,15 +2088,19 @@ func CamelCaseToWords(s string) []string {
 	return words
 }
 
-// Pick some lines from a line number.
+// PickLinesInFile - Pick some lines from a line number with count. If count is -1 pick to the end, -2 then to the end - 1 etc..
 func PickLinesInFile(filename string, line_no, count int) (lines []string) {
 	datab := Must(os.ReadFile(filename))
 
 	datalines := strings.Split(string(datab), "\n")
 	max_lines := len(datalines)
-	if count == 0 {
+	switch {
+	case count == 0:
 		count = 1
+	case count < 0:
+		count = max_lines + count
 	}
+
 	start_index := line_no
 	if start_index >= max_lines {
 		return

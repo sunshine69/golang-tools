@@ -90,7 +90,7 @@ func TestAddhoc(t *testing.T) {
 }
 
 func TestLineinfile(t *testing.T) {
-	err, changed := LineInFile("../tmp/tests.yaml", NewLineInfileOpt(&LineInfileOpt{
+	err, changed := LineInFile("/tmp/test.yaml", NewLineInfileOpt(&LineInfileOpt{
 		// Regexp:     `v1.0.1(.*)`,
 		Search_string: "This is new line",
 		Line:          "This is new line to be reaplced at line 4",
@@ -101,11 +101,15 @@ func TestLineinfile(t *testing.T) {
 }
 
 func TestPickLinesInFile(t *testing.T) {
-	fmt.Println(strings.Join(PickLinesInFile("../tmp/tests.yaml", 70, 1), "\n"))
+	fmt.Println(strings.Join(PickLinesInFile("/tmp/test.yaml", 0, -2), "\n"))
+}
+
+func TestReadFileToLines(t *testing.T) {
+	fmt.Println(strings.Join(ReadFileToLines("/tmp/test.yaml", true), "\n"))
 }
 
 func TestLineInLines(t *testing.T) {
-	o, _, _, _ := ExtractTextBlockContains("../tmp/tests.yaml", []string{`- [^\s]+:[ ]?[^\s]*`}, []string{`- [^\s]+:[ ]?[^\s]*`}, []string{`helm_chart_resource_fact: "{{ helm_chart_resource }}"`})
+	o, _, _, _ := ExtractTextBlockContains("/tmp/test.yaml", []string{`- [^\s]+:[ ]?[^\s]*`}, []string{`- [^\s]+:[ ]?[^\s]*`}, []string{`helm_chart_resource_fact: "{{ helm_chart_resource }}"`})
 	fmt.Printf("'%s'\n", o)
 	r := LineInLines(strings.Split(o, "\n"), `- set_fact:`, `- ansible.builtin.set_fact: `)
 	fmt.Printf("'%s'\n", strings.Join(r, "\n"))
