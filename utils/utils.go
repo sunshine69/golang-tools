@@ -232,14 +232,26 @@ func MakePassword(length int) string {
 }
 
 // GoFindExec take a directory path and list of regex pattern to match the file name. If it matches then it call the callback function for that file name.
-// filetype can be 'f' which id file, and 'd' which is directory
-func GoFindExec(directories []string, filetype string, path_pattern []string, callback func(filename string) error) {
+// filetype is parsed from the directory prefix, file:// for file, dir:// for directory
+func GoFindExec(directories []string, path_pattern []string, callback func(filename string) error) {
 	pathPtn := []*regexp.Regexp{}
 	for _, p := range path_pattern {
 		pathPtn = append(pathPtn, regexp.MustCompile(p))
 	}
 	for _, rootdir := range directories {
-		err1 := filepath.Walk(rootdir, func(fpath string, info fs.FileInfo, err error) error {
+		var filetype, rootdir1 string
+		switch {
+		case strings.HasPrefix(rootdir, `file://`):
+			filetype = "f"
+			rootdir1 = strings.TrimPrefix(rootdir, `file://`)
+		case strings.HasPrefix(rootdir, `dir://`):
+			filetype = "d"
+			rootdir1 = strings.TrimPrefix(rootdir, `dir://`)
+		default:
+			filetype = "f"
+			rootdir1 = rootdir
+		}
+		err1 := filepath.Walk(rootdir1, func(fpath string, info fs.FileInfo, err error) error {
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err.Error())
 				return nil
