@@ -10,6 +10,7 @@ import (
 	"syscall"
 )
 
+// CopyDirectory copy the content of src => dest. Both src and dest dir need to exists
 func CopyDirectory(scrDir, dest string) error {
 	entries, err := os.ReadDir(scrDir)
 	if err != nil {
