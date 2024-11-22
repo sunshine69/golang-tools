@@ -1,3 +1,5 @@
+//go:build windows
+
 package utils
 
 import (
@@ -5,8 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
-	"syscall"
 )
 
 func CopyDirectory(scrDir, dest string) error {
@@ -22,7 +22,10 @@ func CopyDirectory(scrDir, dest string) error {
 		if err != nil {
 			return err
 		}
-
+		// stat, ok := fileInfo.Sys().(*syscall.Stat_t)
+		// if !ok {
+		// 	return fmt.Errorf("failed to get raw syscall.Stat_t data for '%s'", sourcePath)
+		// }
 		switch fileInfo.Mode() & os.ModeType {
 		case os.ModeDir:
 			if err := CreateIfNotExists(destPath, fileInfo.Mode()); err != nil {
@@ -40,16 +43,9 @@ func CopyDirectory(scrDir, dest string) error {
 				return err
 			}
 		}
-		if runtime.GOOS != "windows" {
-			stat, ok := fileInfo.Sys().(*syscall.Stat_t)
-			if !ok {
-				return fmt.Errorf("failed to get raw syscall.Stat_t data for '%s'", sourcePath)
-			}
-			if err := os.Lchown(destPath, int(stat.Uid), int(stat.Gid)); err != nil {
-				return err
-			}
-		}
-
+		// if err := os.Lchown(destPath, int(stat.Uid), int(stat.Gid)); err != nil {
+		// 	return err
+		// }
 		fInfo, err := entry.Info()
 		if err != nil {
 			return err
