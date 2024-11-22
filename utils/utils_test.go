@@ -133,7 +133,7 @@ func TestLinesInBlock(t *testing.T) {
 	_, start, end, blocklines := ExtractTextBlockContains(textfile, []string{`5.2 Inclusions provided`}, []string{`Part 2 Standard Terms`}, []string{`6.3 Ending on`})
 	block1 := blocklines[start:end]
 	start_block_lines := ExtractLineInLines(block1, `6.3 Ending on`, `([\d]+\/[\d]+\/[\d]+)`, `Fixed term agreements only`)
-	// println(u.JsonDump(start_block_lines, ""))
+	println(JsonDump(start_block_lines, ""))
 	block, _, _, _ := ExtractTextBlockContains(textfile, []string{`Item 2.1 Tenant\/s`}, []string{`2.2 Address for service`}, []string{`1. Full name/s`})
 	tenantBlocks := SplitTextByPattern(block, `(?m)[\d]\. Full name\/s ([a-zA-Z0-9\s]+)`, true)
 	println(JsonDump(tenantBlocks, ""))

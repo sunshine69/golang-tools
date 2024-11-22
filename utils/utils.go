@@ -1419,7 +1419,7 @@ func Must[T any](res T, err error) T {
 	return res
 }
 
-// Common usefull go text template funcs
+// Common usefull go text template funcs. Not thread safe, you should modify it once before spawning all others if you need to modify it
 var GoTextTemplateFuncMap = template.FuncMap{
 	// The name "inc" is what the function will be called in the template text.
 	"inc": func(i int) int {
@@ -1484,12 +1484,30 @@ func GoTemplateString(srcString string, data any) string {
 
 // This func use text/template to avoid un-expected html escaping.
 func GoTemplateFile(src, dest string, data map[string]interface{}, fileMode os.FileMode) {
+	goTemplateDelimeter := []string{`{{`, `}}`}
+	if firstLine, restFile, matchedPrefix, err := ReadFirstLineWithPrefix(src, []string{`#gotmpl:`, `//gotmpl:`}); err == nil {
+		// Example first line is (similar to jinja2 ansible first line format so we do not need to remember new thing again)
+		//gotmpl:variable_start_string:'{$', variable_end_string:'$}'
+		for _, _token := range strings.Split(strings.TrimPrefix(firstLine, matchedPrefix), ",") {
+			_token0 := strings.TrimSpace(_token)
+			_data := strings.Split(_token0, ":")
+			switch _data[0] {
+			case "variable_start_string":
+				goTemplateDelimeter[0] = strings.Trim(strings.Trim(_data[1], `'`), `"`)
+			case "variable_end_string":
+				goTemplateDelimeter[0] = strings.Trim(strings.Trim(_data[1], `'`), `"`)
+			}
+		}
+		if restFile != "" {
+			src = restFile // We now read the source of template using this file which has the first line removed
+			defer os.RemoveAll(restFile)
+		}
+	}
 	if fileMode == 0 {
-		fileMode = 0755
+		fileMode = 0o777
 	}
 	srcByte := Must(os.ReadFile(src))
-	t1 := template.Must(template.New("").Funcs(GoTextTemplateFuncMap).Parse(string(srcByte)))
-
+	t1 := template.Must(template.New("").Delims(goTemplateDelimeter[0], goTemplateDelimeter[1]).Funcs(GoTextTemplateFuncMap).Parse(string(srcByte)))
 	destFile := Must(os.Create(dest))
 	CheckErr(destFile.Chmod(fileMode), fmt.Sprintf("[ERROR] GoTemplateFile can not chmod %d for file %s\n", fileMode, dest))
 	defer destFile.Close()
@@ -1566,21 +1584,6 @@ func MapKeysToSlice(m map[string]interface{}) []string {
 		keys = append(keys, key)
 	}
 	return keys
-}
-
-// Read the first line of a file
-func ReadFirstLineOfFile(filepath string) string {
-	file := Must(os.Open(filepath))
-	defer file.Close()
-	scanner := bufio.NewScanner(file)
-	if scanner.Scan() {
-		// Check for errors during scanning
-		CheckErr(scanner.Err(), "[ERROR] readFirstLineOfFile error scanning file")
-		return scanner.Text()
-	} else {
-		// Handle the case where there's no line in the file
-		return ""
-	}
 }
 
 // Function to convert interface{} => list string
@@ -2100,6 +2103,56 @@ func CamelCaseToWords(s string) []string {
 	words = append(words, string(runes[start:]))
 
 	return words
+}
+
+// ReadFirstLine read the first line in a file. Optimized for performance thus we do not re-use PickLinesInFile
+// Also return the reader to the caller if caller need to
+func ReadFirstLineWithPrefix(filePath string, prefix []string) (firstLine string, temp_file, matchedPrefix string, err error) {
+	// Open the file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	// Use a buffered reader for efficient reading
+	reader := bufio.NewReader(file)
+
+	// Read the first line
+	firstLine, err = reader.ReadString('\n')
+	if err != nil {
+		// Handle EOF as a valid case for files without newlines. This is not useful file but not an error case
+		if err.Error() == "EOF" && len(firstLine) > 0 {
+			return firstLine, "", "", nil
+		}
+		return "", "", "", fmt.Errorf("failed to read first line: %w", err)
+	}
+	foundPrefix := false
+	for _, p := range prefix {
+		if strings.HasPrefix(firstLine, p) {
+			foundPrefix = true
+			matchedPrefix = p
+			break
+		}
+	}
+	if foundPrefix {
+		tempFile, err1 := os.CreateTemp("", "restContent_*.txt")
+		if err1 != nil {
+			fmt.Println("Error creating temporary file:", err)
+			return "", "", matchedPrefix, err1
+		}
+		defer tempFile.Close()
+
+		// Copy the rest of the content from the reader to the temporary file
+		_, err1 = io.Copy(tempFile, reader)
+		if err1 != nil {
+			fmt.Println("Error copying the rest of the content to the temporary file:", err)
+			return "", "", matchedPrefix, err1
+		}
+		return firstLine, tempFile.Name(), matchedPrefix, nil
+	} else {
+		return "", "", matchedPrefix, fmt.Errorf("File does not have first line with these prefixes string")
+	}
 }
 
 // PickLinesInFile - Pick some lines from a line number with count. If count is -1 pick to the end, -2 then to the end - 1 etc..
