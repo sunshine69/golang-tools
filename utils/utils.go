@@ -1495,7 +1495,7 @@ func GoTemplateFile(src, dest string, data map[string]interface{}, fileMode os.F
 			case "variable_start_string":
 				goTemplateDelimeter[0] = strings.Trim(strings.Trim(_data[1], `'`), `"`)
 			case "variable_end_string":
-				goTemplateDelimeter[0] = strings.Trim(strings.Trim(_data[1], `'`), `"`)
+				goTemplateDelimeter[1] = strings.Trim(strings.Trim(_data[1], `'`), `"`)
 			}
 		}
 		if restFile != "" {
