@@ -1437,25 +1437,25 @@ var GoTextTemplateFuncMap = template.FuncMap{
 	"upper": func(word string) string {
 		return cases.Upper(language.English, cases.NoLower).String(word)
 	},
-	"time_fmt": func(timeticks int64, timelayout string) string {
+	"time_fmt": func(timelayout string, timeticks int64) string {
 		return NsToTime(timeticks).Format(timelayout)
 	},
 	"now": func(timelayout string) string {
 		return time.Now().Format(timelayout)
 	},
-	"join": func(inlist []string, sep string) string { return strings.Join(inlist, sep) },
-	"truncatechars": func(in string, length int) string {
+	"join": func(sep string, inlist []string) string { return strings.Join(inlist, sep) },
+	"truncatechars": func(length int, in string) string {
 		return string(ChunkString(in, length)[0])
 	},
 	"cycle": func(idx int, vals ...string) string {
 		_idx := idx % len(vals)
 		return string(vals[_idx])
 	},
-	"replace": func(data, old, new string) string {
+	"replace": func(old, new, data string) string {
 		o := strings.ReplaceAll(data, old, new)
 		return o
 	},
-	"contains": func(data, subStr string) bool {
+	"contains": func(subStr, data string) bool {
 		return strings.Contains(data, subStr)
 	},
 	"int_range": func(start, end int) []int {
