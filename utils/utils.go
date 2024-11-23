@@ -1420,95 +1420,174 @@ func Must[T any](res T, err error) T {
 }
 
 // Common usefull go text template funcs. Not thread safe, you should modify it once before spawning all others if you need to modify it
-var GoTextTemplateFuncMap = template.FuncMap{
-	// The name "inc" is what the function will be called in the template text.
-	"inc": func(i int) int {
-		return i + 1
-	},
-	"add": func(x, y int) int {
-		return x + y
-	},
-	"title": func(word string) string {
-		return cases.Title(language.English, cases.NoLower).String(word)
-	},
-	"lower": func(word string) string {
-		return cases.Lower(language.English, cases.NoLower).String(word)
-	},
-	"upper": func(word string) string {
-		return cases.Upper(language.English, cases.NoLower).String(word)
-	},
-	"time_fmt": func(timelayout string, timeticks int64) string {
-		return NsToTime(timeticks).Format(timelayout)
-	},
-	"now": func(timelayout string) string {
-		return time.Now().Format(timelayout)
-	},
-	"join": func(sep string, inlist []string) string { return strings.Join(inlist, sep) },
-	"truncatechars": func(length int, in string) string {
-		return string(ChunkString(in, length)[0])
-	},
-	"cycle": func(idx int, vals ...string) string {
-		_idx := idx % len(vals)
-		return string(vals[_idx])
-	},
-	"replace": func(old, new, data string) string {
-		o := strings.ReplaceAll(data, old, new)
-		return o
-	},
-	"contains": func(subStr, data string) bool {
-		return strings.Contains(data, subStr)
-	},
-	"int_range": func(start, end int) []int {
-		n := end - start
-		result := make([]int, n)
-		for i := 0; i < n; i++ {
-			result[i] = start + i
-		}
-		return result
-	},
-	"basename": func(file_path string) string {
-		return filepath.Base(file_path)
-	},
-	"dirname": func(file_path string) string {
-		return filepath.Dir(file_path)
-	},
-	// Stole it from here https://github.com/helm/helm/blob/main/pkg/engine/funcs.go
-	"to_yaml": func(v interface{}) string {
-		data, err := yaml.Marshal(v)
-		if err != nil {
-			return ""
-		}
-		return strings.TrimSuffix(string(data), "\n")
-	},
-	"to_nice_yaml": func(v interface{}) string {
-		var data bytes.Buffer
-		encoder := yaml.NewEncoder(&data)
-		encoder.SetIndent(2)
-		err := encoder.Encode(v)
+func tmpl_inc(i int) int {
+	return i + 1
+}
+func tmpl_add(x, y int) int {
+	return x + y
+}
+func tmpl_lower(word string) string {
+	return cases.Lower(language.English, cases.NoLower).String(word)
+}
+func tmpl_title(word string) string {
+	return cases.Title(language.English, cases.NoLower).String(word)
+}
+func tmpl_upper(word string) string {
+	return cases.Upper(language.English, cases.NoLower).String(word)
+}
+func tmpl_time_fmt(timelayout string, timeticks int64) string {
+	return NsToTime(timeticks).Format(timelayout)
+}
+func tmpl_now(timelayout string) string {
+	return time.Now().Format(timelayout)
+}
+func tmpl_join(sep string, inlist []string) string { return strings.Join(inlist, sep) }
 
-		if err != nil {
-			// Swallow errors inside of a template.
-			return ""
-		}
-		return strings.TrimSuffix(data.String(), "\n")
-	},
-	"to_json": func(v interface{}) string {
-		data, err := json.Marshal(v)
-		if err != nil {
-			return ""
-		}
-		return string(data)
-	},
-	// stole from here https://github.com/Masterminds/sprig. If more than these we probably just use them :)
-	"indent": indent,
-	"nindent": func(spaces int, v string) string {
-		return "\n" + indent(spaces, v)
-	},
+func tmpl_truncatechars(length int, in string) string {
+	return string(ChunkString(in, length)[0])
+}
+func tmpl_cycle(idx int, vals ...string) string {
+	_idx := idx % len(vals)
+	return string(vals[_idx])
+}
+func tmpl_replace(old, new, data string) string {
+	o := strings.ReplaceAll(data, old, new)
+	return o
+}
+func tmpl_contains(subStr, data string) bool {
+	return strings.Contains(data, subStr)
+}
+func tmpl_int_range(start, end int) []int {
+	n := end - start
+	result := make([]int, n)
+	for i := 0; i < n; i++ {
+		result[i] = start + i
+	}
+	return result
+}
+func tmpl_basename(file_path string) string {
+	return filepath.Base(file_path)
+}
+func tmpl_dirname(file_path string) string {
+	return filepath.Dir(file_path)
+}
+func tmpl_toyaml(v interface{}) string {
+	data, err := yaml.Marshal(v)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSuffix(string(data), "\n")
 }
 
+// Stole it from here https://github.com/helm/helm/blob/main/pkg/engine/funcs.go
+func tmpl_to_niceyaml(v interface{}) string {
+	var data bytes.Buffer
+	encoder := yaml.NewEncoder(&data)
+	encoder.SetIndent(2)
+	err := encoder.Encode(v)
+
+	if err != nil {
+		// Swallow errors inside of a template.
+		return ""
+	}
+	return strings.TrimSuffix(data.String(), "\n")
+}
+
+// stole from here https://github.com/Masterminds/sprig. If more than these we probably just use them :)
+func tmpl_tojson(v interface{}) string {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
 func indent(spaces int, v string) string {
 	pad := strings.Repeat(" ", spaces)
 	return pad + strings.Replace(v, "\n", "\n"+pad, -1)
+}
+
+// Common func for go text template
+var GoTextTemplateFuncMap = template.FuncMap{
+	"inc":           tmpl_inc,
+	"add":           tmpl_add,
+	"title":         tmpl_title,
+	"lower":         tmpl_lower,
+	"upper":         tmpl_upper,
+	"time_fmt":      tmpl_time_fmt,
+	"now":           tmpl_now,
+	"join":          tmpl_join,
+	"truncatechars": tmpl_truncatechars,
+	"cycle":         tmpl_cycle,
+	"replace":       tmpl_replace,
+	"contains":      tmpl_contains,
+	"int_range":     tmpl_int_range,
+	"basename":      tmpl_basename,
+	"dirname":       tmpl_dirname,
+	"to_yaml":       tmpl_toyaml,
+	"to_nice_yaml":  tmpl_to_niceyaml,
+	"to_json":       tmpl_tojson,
+	"indent":        indent,
+	"nindent": func(spaces int, v string) string {
+		return "\n" + indent(spaces, v)
+	},
+	"regex_search": func(regex string, s string) bool {
+		match, _ := regexp.MatchString(regex, s)
+		return match
+	},
+	"regex_replace": func(regex string, repl string, s string) string {
+		r := regexp.MustCompile(regex)
+		return r.ReplaceAllString(s, repl)
+	},
+}
+
+// Common usefull go html template funcs
+var GoTemplateFuncMap = htmltemplate.FuncMap{
+	// The name "inc" is what the function will be called in the template text.
+	"inc":      tmpl_inc,
+	"add":      tmpl_add,
+	"title":    tmpl_title,
+	"lower":    tmpl_lower,
+	"upper":    tmpl_upper,
+	"time_fmt": tmpl_time_fmt,
+	"now":      tmpl_now,
+	"raw_html": func(html string) htmltemplate.HTML {
+		return htmltemplate.HTML(html)
+	},
+	"unsafe_raw_html": func(html string) htmltemplate.HTML {
+		return htmltemplate.HTML(html)
+	},
+	"if_ie": func() htmltemplate.HTML {
+		return htmltemplate.HTML("<!--[if IE]>")
+	},
+	"end_if_ie": func() htmltemplate.HTML {
+		return htmltemplate.HTML("<![endif]-->")
+	},
+	"join": tmpl_join,
+	"truncatechars": func(in string, length int) htmltemplate.HTML {
+		return htmltemplate.HTML(ChunkString(in, length)[0])
+	},
+	"cycle": func(idx int, vals ...string) htmltemplate.HTML {
+		_idx := idx % len(vals)
+		return htmltemplate.HTML(vals[_idx])
+	},
+	"replace": func(data, old, new string) htmltemplate.HTML {
+		o := strings.ReplaceAll(data, old, new)
+		return htmltemplate.HTML(o)
+	},
+	"contains": func(data, subStr string) bool {
+		return strings.Contains(data, subStr)
+	},
+	"int_range": tmpl_int_range,
+	"basename":  tmpl_basename,
+	"dirname":   tmpl_dirname,
+	"regex_search": func(regex string, s string) bool {
+		match, _ := regexp.MatchString(regex, s)
+		return match
+	},
+	"regex_replace": func(regex string, repl string, s string) string {
+		r := regexp.MustCompile(regex)
+		return r.ReplaceAllString(s, repl)
+	},
 }
 
 // This func use text/template to avoid un-expected html escaping.
@@ -2474,72 +2553,6 @@ func CustomJsonMarshal(v interface{}) ([]byte, error) {
 func CustomJsonMarshalIndent(v interface{}, indent int) ([]byte, error) {
 	converted := convertInterface(v)
 	return json.MarshalIndent(converted, "", strings.Repeat(" ", indent))
-}
-
-// Common usefull go html template funcs
-var GoTemplateFuncMap = htmltemplate.FuncMap{
-	// The name "inc" is what the function will be called in the template text.
-	"inc": func(i int) int {
-		return i + 1
-	},
-	"add": func(x, y int) int {
-		return x + y
-	},
-	"title": func(word string) string {
-		return cases.Title(language.English, cases.NoLower).String(word)
-	},
-	"lower": func(word string) string {
-		return cases.Lower(language.English, cases.NoLower).String(word)
-	},
-	"upper": func(word string) string {
-		return cases.Upper(language.English, cases.NoLower).String(word)
-	},
-	"time_fmt": func(timeticks int64, timelayout string) string {
-		return NsToTime(timeticks).Format(timelayout)
-	},
-	"now": func(timelayout string) string {
-		return time.Now().Format(timelayout)
-	},
-	"raw_html": func(html string) htmltemplate.HTML {
-		return htmltemplate.HTML(html)
-	},
-	"join": func(inlist []string, sep string) string { return strings.Join(inlist, sep) },
-	"truncatechars": func(in string, length int) htmltemplate.HTML {
-		return htmltemplate.HTML(ChunkString(in, length)[0])
-	},
-	"cycle": func(idx int, vals ...string) htmltemplate.HTML {
-		_idx := idx % len(vals)
-		return htmltemplate.HTML(vals[_idx])
-	},
-	"replace": func(data, old, new string) htmltemplate.HTML {
-		o := strings.ReplaceAll(data, old, new)
-		return htmltemplate.HTML(o)
-	},
-	"contains": func(data, subStr string) bool {
-		return strings.Contains(data, subStr)
-	},
-	"int_range": func(start, end int) []int {
-		n := end - start
-		result := make([]int, n)
-		for i := 0; i < n; i++ {
-			result[i] = start + i
-		}
-		return result
-	},
-	"basename": func(file_path string) string {
-		return filepath.Base(file_path)
-	},
-	"dirname": func(file_path string) string {
-		return filepath.Dir(file_path)
-	},
-	"regex_search": func(regex string, s string) bool {
-		match, _ := regexp.MatchString(regex, s)
-		return match
-	},
-	"regex_replace": func(regex string, repl string, s string) string {
-		r := regexp.MustCompile(regex)
-		return r.ReplaceAllString(s, repl)
-	},
 }
 
 func CreateDirTree(srcDirpath, targetRoot string) error {
