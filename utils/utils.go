@@ -50,7 +50,7 @@ import (
 	"golang.org/x/net/publicsuffix"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // TimeISO8601LayOut
@@ -1472,6 +1472,43 @@ var GoTextTemplateFuncMap = template.FuncMap{
 	"dirname": func(file_path string) string {
 		return filepath.Dir(file_path)
 	},
+	// Stole it from here https://github.com/helm/helm/blob/main/pkg/engine/funcs.go
+	"to_yaml": func(v interface{}) string {
+		data, err := yaml.Marshal(v)
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSuffix(string(data), "\n")
+	},
+	"to_nice_yaml": func(v interface{}) string {
+		var data bytes.Buffer
+		encoder := yaml.NewEncoder(&data)
+		encoder.SetIndent(2)
+		err := encoder.Encode(v)
+
+		if err != nil {
+			// Swallow errors inside of a template.
+			return ""
+		}
+		return strings.TrimSuffix(data.String(), "\n")
+	},
+	"to_json": func(v interface{}) string {
+		data, err := json.Marshal(v)
+		if err != nil {
+			return ""
+		}
+		return string(data)
+	},
+	// stole from here https://github.com/Masterminds/sprig. If more than these we probably just use them :)
+	"indent": indent,
+	"nindent": func(spaces int, v string) string {
+		return "\n" + indent(spaces, v)
+	},
+}
+
+func indent(spaces int, v string) string {
+	pad := strings.Repeat(" ", spaces)
+	return pad + strings.Replace(v, "\n", "\n"+pad, -1)
 }
 
 // This func use text/template to avoid un-expected html escaping.
@@ -2494,6 +2531,14 @@ var GoTemplateFuncMap = htmltemplate.FuncMap{
 	},
 	"dirname": func(file_path string) string {
 		return filepath.Dir(file_path)
+	},
+	"regex_search": func(regex string, s string) bool {
+		match, _ := regexp.MatchString(regex, s)
+		return match
+	},
+	"regex_replace": func(regex string, repl string, s string) string {
+		r := regexp.MustCompile(regex)
+		return r.ReplaceAllString(s, repl)
 	},
 }
 
