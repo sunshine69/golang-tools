@@ -1563,7 +1563,7 @@ var GoTemplateFuncMap = htmltemplate.FuncMap{
 		return htmltemplate.HTML("<![endif]-->")
 	},
 	"join": tmpl_join,
-	"truncatechars": func(in string, length int) htmltemplate.HTML {
+	"truncatechars": func(length int, in string) htmltemplate.HTML {
 		return htmltemplate.HTML(ChunkString(in, length)[0])
 	},
 	"cycle": func(idx int, vals ...string) htmltemplate.HTML {
