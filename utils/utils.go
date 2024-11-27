@@ -2230,10 +2230,8 @@ func ReadFirstLineWithPrefix(filePath string, prefix []string) (firstLine string
 		return "", "", "", fmt.Errorf("failed to open file: %w", err)
 	}
 	defer file.Close()
-
 	// Use a buffered reader for efficient reading
 	reader := bufio.NewReader(file)
-
 	// Read the first line
 	firstLine, err = reader.ReadString('\n')
 	if err != nil {
@@ -2267,7 +2265,7 @@ func ReadFirstLineWithPrefix(filePath string, prefix []string) (firstLine string
 		}
 		return firstLine, tempFile.Name(), matchedPrefix, nil
 	} else {
-		return "", "", matchedPrefix, fmt.Errorf("File does not have first line with these prefixes string")
+		return "", "", matchedPrefix, fmt.Errorf("file does not have first line with these prefixes string")
 	}
 }
 
