@@ -2237,7 +2237,7 @@ func ReadFirstLineWithPrefix(filePath string, prefix []string) (firstLine string
 	if err != nil {
 		// Handle EOF as a valid case for files without newlines. This is not useful file but not an error case
 		if err.Error() == "EOF" && len(firstLine) > 0 {
-			return firstLine, "", "", nil
+			return firstLine, "", "", errors.New("file has only one line so it should not be the config line | " + err.Error())
 		}
 		return "", "", "", fmt.Errorf("failed to read first line: %w", err)
 	}
@@ -2553,8 +2553,9 @@ func CustomJsonMarshalIndent(v interface{}, indent int) ([]byte, error) {
 	return json.MarshalIndent(converted, "", strings.Repeat(" ", indent))
 }
 
+// CreateDirTree take the directory structure from the source and create it in the target
+// Path should be absolute path. They should not overlap to avoid recursive loop
 func CreateDirTree(srcDirpath, targetRoot string) error {
-	// Path should be absolute path. They should not overlap to avoid recursive loop
 	if isExist, err := FileExists(srcDirpath); !isExist || err != nil {
 		panic(fmt.Sprintf("[ERROR] src '%s' does not exist\n", srcDirpath))
 	}
