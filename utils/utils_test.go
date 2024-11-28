@@ -179,3 +179,15 @@ func TestExtractTextBlockContains(t *testing.T) {
 	b, s, e, ls := ExtractTextBlockContains("../tmp/test-block-in-file.yaml", []string{`#block config files`}, []string{`#end block config files`}, []string{`config_files_secrets\:`})
 	println(b, s, e, ls)
 }
+
+func TestGoTemplate(t *testing.T) {
+	o := GoTemplateString(`#gotmpl:variable_start_string:'{$', variable_end_string:'$}'
+	[
+			{$ range $idx, $app := .packages -$}
+			"{$ $app $}_config-pkg",
+			"{$ $app $}"{$ if ne $idx (add (len $.packages) -1) $},{$ end $}
+			{$ end -$}
+			]`, map[string]any{"packages": []string{"p1", "p2"}})
+
+	println(o)
+}

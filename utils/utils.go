@@ -1592,10 +1592,32 @@ var GoTemplateFuncMap = htmltemplate.FuncMap{
 
 // This func use text/template to avoid un-expected html escaping.
 func GoTemplateString(srcString string, data any) string {
-	t1 := template.Must(template.New("").Funcs(GoTextTemplateFuncMap).Parse(srcString))
+	firstLine, remain := SplitFirstLine(srcString)
+	found, variable_start, variable_end := parseGoTemplateConfig(firstLine, `#gotmpl:`)
+	if found {
+		srcString = remain
+	}
+	t1 := template.Must(template.New("").Delims(variable_start, variable_end).Funcs(GoTextTemplateFuncMap).Parse(srcString))
 	var buff bytes.Buffer
 	CheckErr(t1.Execute(&buff, data), "GoTemplateString Execute")
 	return buff.String()
+}
+
+func parseGoTemplateConfig(configLine, prefix string) (found bool, variable_start, variable_end string) { // intentionaly not checking prefix for this case
+	variable_start, variable_end, found = `{{`, `}}`, false
+	for _, _token := range strings.Split(strings.TrimPrefix(configLine, prefix), ",") {
+		_token0 := strings.TrimSpace(_token)
+		_data := strings.Split(_token0, ":")
+		switch _data[0] {
+		case "variable_start_string":
+			found = true
+			variable_start = strings.Trim(strings.Trim(_data[1], `'`), `"`)
+		case "variable_end_string":
+			found = true
+			variable_end = strings.Trim(strings.Trim(_data[1], `'`), `"`)
+		}
+	}
+	return
 }
 
 // This func use text/template to avoid un-expected html escaping.
@@ -1604,16 +1626,8 @@ func GoTemplateFile(src, dest string, data map[string]interface{}, fileMode os.F
 	if firstLine, restFile, matchedPrefix, err := ReadFirstLineWithPrefix(src, []string{`#gotmpl:`, `//gotmpl:`}); err == nil {
 		// Example first line is (similar to jinja2 ansible first line format so we do not need to remember new thing again)
 		//gotmpl:variable_start_string:'{$', variable_end_string:'$}'
-		for _, _token := range strings.Split(strings.TrimPrefix(firstLine, matchedPrefix), ",") {
-			_token0 := strings.TrimSpace(_token)
-			_data := strings.Split(_token0, ":")
-			switch _data[0] {
-			case "variable_start_string":
-				goTemplateDelimeter[0] = strings.Trim(strings.Trim(_data[1], `'`), `"`)
-			case "variable_end_string":
-				goTemplateDelimeter[1] = strings.Trim(strings.Trim(_data[1], `'`), `"`)
-			}
-		}
+		_, goTemplateDelimeter[0], goTemplateDelimeter[1] = parseGoTemplateConfig(firstLine, matchedPrefix)
+
 		if restFile != "" {
 			src = restFile // We now read the source of template using this file which has the first line removed
 			defer os.RemoveAll(restFile)
