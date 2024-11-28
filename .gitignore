@@ -25,3 +25,4 @@ gitlab/projects/log/*
 *.crt
 *.csr
 *.key
+tmp/**

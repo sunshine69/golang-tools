@@ -2320,7 +2320,7 @@ func ExtractTextBlock(filename string, start_pattern, end_pattern []string) (blo
 // Extract a text block which contains marker which could be an int or a list of pattern. if it is an int it is the line number.
 // First we get the text from the line number or search for a match to the marker pattern. If we found we will search upward (to index 0) for the
 // upper_bound_pattern, and when found, search for the lower_bound_pattern. The marker should be in the middle
-// Return the text within the upper and lower, but not including the lower bound. Also return the line number range
+// Return the text within the upper and lower, but not including the lower bound. Also return the line number range and full file content as datalines
 // marker and lower is important; you can ignore upper_bound_pattern by using a empty []string{}
 func ExtractTextBlockContains(filename string, upper_bound_pattern, lower_bound_pattern []string, marker interface{}) (block string, start_line_no int, end_line_no int, datalines []string) {
 	datab := Must(os.ReadFile(filename))
@@ -2338,7 +2338,7 @@ func ExtractTextBlockContains(filename string, upper_bound_pattern, lower_bound_
 	}
 	// Here we should found_marker and marker_line_no
 	if !found_marker {
-		return "", 0, 0, []string{}
+		return "", 0, 0, datalines
 	}
 	// Search upper
 	if marker_line_no == 0 { // We are at the start already, take that as upper and ignore upper ptn
@@ -2352,7 +2352,7 @@ func ExtractTextBlockContains(filename string, upper_bound_pattern, lower_bound_
 	}
 	if !found_upper {
 		// fmt.Fprintf(os.Stderr, "UPPER not found. Ptn: %v\n", upper_bound_pattern)
-		return "", 0, 0, []string{}
+		return "", 0, 0, datalines
 	}
 	// Search lower
 	if marker_line_no == all_lines_count-1 { // already at the end
@@ -2362,17 +2362,21 @@ func ExtractTextBlockContains(filename string, upper_bound_pattern, lower_bound_
 	}
 	if !found_lower {
 		// fmt.Fprintf(os.Stderr, "LOWER not found. Ptn: %v\n", lower_bound_pattern)
-		return "", 0, 0, []string{}
+		return "", 0, 0, datalines
 	}
 	return strings.Join(datalines[start_line_no:end_line_no], "\n"), start_line_no, end_line_no, datalines
 }
 
 // Given a list of string of regex pattern and a list of string, find the coninuous match in that input list and return the start line
 // of the match and the line content
+//
 // max_line defined the maximum line to search; set to 0 to use the len of input lines which is full
+//
 // start_line is the line to start searching; set to 0 to start from begining
 // start_line should be smaller than max_line
-// direction is the direction of the search -1 is upward; otherwise is down
+//
+// direction is the direction of the search -1 is upward; otherwise is down. If it is not 0 then the value is used for the step jump while searching eg. 1 for every line, 2 for every
+// 2 lines, -2 is backward every two lines
 func SearchPatternListInStrings(datalines []string, pattern []string, start_line, max_line, direction int) (found_marker bool, start_line_no int, linestr string) {
 	marker_ptn := []*regexp.Regexp{}
 	for _, ptn := range pattern {
@@ -2484,8 +2488,10 @@ func LineInLines(datalines []string, search_pattern string, replace string) (out
 	return datalines
 }
 
-// Find a block text matching and replace content with replText. Return the old text block. Use ExtractTextBlockContains under the hood to get the text block
-// see that func for help. Remember marker and lower is important, if not care about upper_bound_pattern pass a empty slice []string{}
+// Find a block text matching and replace content with replText. Return the old text block. Use ExtractTextBlockContains
+// under the hood to get the text block
+// see that func for help. Remember marker and lower is important,
+// if not care about upper_bound_pattern pass a empty slice []string{} and set the marker same as the upper (start pattern).
 func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []string, marker any, replText string, keepBoundaryLines bool, backup bool) (oldBlock string) {
 	block, start_line_no, end_line_no, datalines := ExtractTextBlockContains(filename, upper_bound_pattern, lower_bound_pattern, marker)
 	fstat, err := os.Stat(filename)

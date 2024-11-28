@@ -69,7 +69,7 @@ func TestRemoveItem(t *testing.T) {
 	log.Printf("%s\n", JsonDump(o, "   "))
 }
 
-func TestAddhoc(t *testing.T) {
+func TestSplitTextByPattern(t *testing.T) {
 	text := `Header 1
 	This is some content
 	for the first section.
@@ -160,4 +160,22 @@ func TestLinesInBlock(t *testing.T) {
 		}
 	}
 	println("Tenants: ", JsonDump(tenantNames, ""))
+}
+
+func TestBlockInFile(t *testing.T) {
+	sourceBlock := `first line
+	second line`
+	o := BlockInFile("../tmp/test-block-in-file.yaml", []string{}, []string{`#end block config files`}, []string{`#block config files`}, sourceBlock, true, true)
+	println(o)
+}
+
+func TestSearchPatternListInStrings(t *testing.T) {
+	datalines := ReadFileToLines("../tmp/test-block-in-file.yaml", false)
+	found, start, line := SearchPatternListInStrings(datalines, []string{`#block config files`}, 0, 0, 0)
+	println(found, start, line)
+}
+
+func TestExtractTextBlockContains(t *testing.T) {
+	b, s, e, ls := ExtractTextBlockContains("../tmp/test-block-in-file.yaml", []string{`#block config files`}, []string{`#end block config files`}, []string{`config_files_secrets\:`})
+	println(b, s, e, ls)
 }
