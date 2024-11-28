@@ -2525,6 +2525,14 @@ func convertInterface(value interface{}) interface{} {
 	}
 }
 
+func SplitFirstLine(text string) (string, string) {
+	// Find the index of the first newline character
+	if idx := strings.IndexByte(text, '\n'); idx != -1 {
+		return text[:idx], text[idx+1:] // Return the first line and the rest of the text
+	}
+	return text, "" // If no newline, return the whole text as the first line, remainder is empty
+}
+
 // Function to convert map[interface{}]interface{} to map[string]interface{}
 func convertMap(m map[interface{}]interface{}) map[string]interface{} {
 	newMap := make(map[string]interface{})
