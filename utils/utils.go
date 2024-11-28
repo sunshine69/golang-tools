@@ -2247,7 +2247,7 @@ func ReadFirstLineWithPrefix(filePath string, prefix []string) (firstLine string
 	// Use a buffered reader for efficient reading
 	reader := bufio.NewReader(file)
 	// Read the first line
-	firstLine, err = reader.ReadString('\n')
+	firstLineB, _, err := reader.ReadLine()
 	if err != nil {
 		// Handle EOF as a valid case for files without newlines. This is not useful file but not an error case
 		if err.Error() == "EOF" && len(firstLine) > 0 {
@@ -2255,6 +2255,7 @@ func ReadFirstLineWithPrefix(filePath string, prefix []string) (firstLine string
 		}
 		return "", "", "", fmt.Errorf("failed to read first line: %w", err)
 	}
+	firstLine = string(firstLineB)
 	foundPrefix := false
 	for _, p := range prefix {
 		if strings.HasPrefix(firstLine, p) {
@@ -2540,11 +2541,15 @@ func convertInterface(value interface{}) interface{} {
 }
 
 func SplitFirstLine(text string) (string, string) {
-	// Find the index of the first newline character
-	if idx := strings.IndexByte(text, '\n'); idx != -1 {
-		return text[:idx], text[idx+1:] // Return the first line and the rest of the text
+	// Handle both \n and \r\n newlines
+	if idx := strings.IndexAny(text, "\r\n"); idx != -1 {
+		// Determine if the newline is \r\n or \n
+		if idx+1 < len(text) && text[idx] == '\r' && text[idx+1] == '\n' {
+			return text[:idx], text[idx+2:] // Skip \r\n
+		}
+		return text[:idx], text[idx+1:] // Skip \n
 	}
-	return text, "" // If no newline, return the whole text as the first line, remainder is empty
+	return text, "" // If no newline, return the whole text as the first line
 }
 
 // Function to convert map[interface{}]interface{} to map[string]interface{}
