@@ -1204,7 +1204,12 @@ func Upload(client *http.Client, url string, values map[string]io.Reader, mimety
 	return nil
 }
 
-// Add or delete attrbs set in a to b. action can be 'add'; if it is empty it will do a delete
+// Add or delete attrbs set in a to b. action can be 'add'; if it is empty it will do a delete.
+// a and b is a list of map of items having two fields, key and value.
+// If key does not exists in b and action is add - it will add it to b
+// If key is matched found and
+// If key is not nil and b will be updated or delete per action
+// If key is nil and value matched and action is not add - the item will be removed
 func MergeAttributes(a, b []interface{}, action string) []interface{} {
 	if len(a) == 0 {
 		return b
