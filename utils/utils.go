@@ -959,6 +959,11 @@ func Assert(cond bool, msg string, fatal bool) bool {
 	return cond
 }
 
+// Make a HTTP request to url and get data. Emulate the curl command. Take the env var CURL_DEBUG - set to 'yes' if u need
+// more debugging. CA_CERT_FILE, SSL_KEY_FILE, SSL_CERT_FILE correspondingly.
+// To ignore cert check set INSECURE_SKIP_VERIFY to yes
+// data set it to empty string, savefilename if you do not want to save to a file, set it to empty string
+// Same as header array
 func Curl(method, url, data, savefilename string, headers []string) (string, error) {
 	CURL_DEBUG := Getenv("CURL_DEBUG", "no")
 	ca_cert_file := Getenv("CA_CERT_FILE", "")
@@ -1063,6 +1068,16 @@ func Curl(method, url, data, savefilename string, headers []string) (string, err
 	}
 }
 
+// MakeRequest make a http request with method (POST or GET etc...). It support sessions - if you have existing session stored in cookie jar then pass it to
+// the `jar` param otherwise a new cookie ja session will be created.
+// config has these keys:
+// - timeout - set the time out of time int. Default is 600 secs
+// - url - the URL that the request will be sent to
+// - token - string - the Authorization token if required. It will make the header 'Authorization' using the token
+// - headers - a map[string]string to pass any arbitrary reuqets headers Key : Value
+// Return value is the response. If it is a json of type list then it will be put into the key "results"
+// This is used to make API REST requests and expect response as json. To download or do more general things, use the function
+// Curl above instead
 func MakeRequest(method string, config map[string]interface{}, data []byte, jar *cookiejar.Jar) map[string]interface{} {
 	if jar == nil {
 		jar, _ = cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
@@ -1119,10 +1134,10 @@ func MakeRequest(method string, config map[string]interface{}, data []byte, jar 
 }
 
 // Prepare a form that you will submit to that URL.
-// This is not working for RP basically golang somehow send it using : Content type 'application/octet-stream' (or the server complain about that not supported). There are two parts each of them has different content type and it seems golang implementation does not fully support it? (the jsonPaths must be application-json).
-// Forwhatever it is, even the header printed out correct - server complain. Curl work though so we will use curl for now
+// This is not working for report portal (RP) basically golang somehow send it using : Content type 'application/octet-stream' (or the server complain about that not supported). There are two parts each of them has different content type and it seems golang implementation does not fully support it? (the jsonPaths must be application-json).
+// For whatever it is, even the header printed out correct - server complain. Curl work though so we will use curl for now
 // I think golang behaviour is correct it should be 'application/octet-stream' for the file part, but the RP java server does not behave.
-// So we add a manual set heasder map in for this case
+// So we add a manual set header map in for this case
 func Upload(client *http.Client, url string, values map[string]io.Reader, mimetype map[string]string, headers map[string]string) (err error) {
 	if client == nil {
 		client = &http.Client{}
@@ -1189,7 +1204,7 @@ func Upload(client *http.Client, url string, values map[string]io.Reader, mimety
 	return nil
 }
 
-// Add or delete attrbs set in a to b
+// Add or delete attrbs set in a to b. action can be 'add'; if it is empty it will do a delete
 func MergeAttributes(a, b []interface{}, action string) []interface{} {
 	if len(a) == 0 {
 		return b
