@@ -630,6 +630,12 @@ func FileExists(name string) (bool, error) {
 	return false, err
 }
 
+// This is short version of FileExists - meant to be use in Ternery like Ternary(FileExistsV2(path) == nil, "something", "somethingelse")
+func FileExistsV2(name string) error {
+	_, err := os.Stat(name)
+	return err
+}
+
 func GenRandomString(n int) string {
 	return MakePassword(n)
 	// mrand.Seed(time.Now().UnixNano())
