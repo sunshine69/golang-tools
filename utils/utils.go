@@ -27,6 +27,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"maps"
 	"math/big"
 	"mime/multipart"
 	"net"
@@ -2627,4 +2628,12 @@ func CreateDirTree(srcDirpath, targetRoot string) error {
 		return nil
 	})
 	return nil
+}
+
+// CloneSliceOfMap
+func CloneSliceOfMap(a []any) (output []any) {
+	for _, item := range a {
+		output = append(output, maps.Clone(item.(map[string]any)))
+	}
+	return
 }
