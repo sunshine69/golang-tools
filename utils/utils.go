@@ -114,9 +114,6 @@ func ChunkString(s string, chunkSize int) []string {
 	return chunks
 }
 
-// GetMapByKey - we have LookupMap
-var GetMapByKey = LookupMap
-
 // MakeRandNum -
 func MakeRandNum(max int) int {
 	gen_number, _ := rand.Int(rand.Reader, big.NewInt(int64(max)))
@@ -322,6 +319,8 @@ func MakeSalt(length int8) (salt *[]byte) {
 	return &asalt
 }
 
+// Encrypt zip files. The password will be automtically generated and return to the caller
+// Requires command 'zip' available in the system
 func ZipEncript(filePath ...string) string {
 	src, dest, key := filePath[0], "", ""
 	argCount := len(filePath)
@@ -350,6 +349,8 @@ func ZipEncript(filePath ...string) string {
 	return key
 }
 
+// ZipDecrypt decrypt the zip file. First arg is the file name, second is the key used to encrypt it.
+// Requires the command 'unzip' installed
 func ZipDecrypt(filePath ...string) error {
 	argCount := len(filePath)
 	if argCount < 2 {
@@ -386,6 +387,8 @@ func BcryptCheckPasswordHash(password, hash string) bool {
 	return err == nil
 }
 
+// Unzip will unzip the 'src' file into the directory 'dest'
+// This version is pure go - so no need to have the zip command.
 func Unzip(src, dest string) error {
 	if dest == "." || dest == "./" {
 		dest, _ = os.Getwd()
@@ -399,7 +402,7 @@ func Unzip(src, dest string) error {
 			panic(err)
 		}
 	}()
-	os.MkdirAll(dest, 0755)
+	os.MkdirAll(dest, 0o777)
 	// Closure to address file descriptors issue with all the deferred .Close() methods
 	extractAndWriteFile := func(f *zip.File) error {
 		rc, err := f.Open()
@@ -601,6 +604,7 @@ func SendMail(from string, to []string, subject, body string, attachmentPaths []
 	return nil
 }
 
+// FileTouch is similar the unix command 'touch'. If file does not exists, an empty file will be created
 func FileTouch(fileName string) error {
 	_, err := os.Stat(fileName)
 	if os.IsNotExist(err) {
@@ -619,6 +623,7 @@ func FileTouch(fileName string) error {
 	return nil
 }
 
+// FileExists test if file 'name' exists
 func FileExists(name string) (bool, error) {
 	_, err := os.Stat(name)
 	if err == nil {
@@ -636,6 +641,7 @@ func FileExistsV2(name string) error {
 	return err
 }
 
+// GenRandomString generates a random string with length 'n'
 func GenRandomString(n int) string {
 	return MakePassword(n)
 	// mrand.Seed(time.Now().UnixNano())
@@ -644,65 +650,6 @@ func GenRandomString(n int) string {
 	// 	b[i] = LetterBytes[mrand.Intn(len(LetterBytes))]
 	// }
 	// return string(b)
-}
-
-func GenRandomStringV2(n int) string {
-	b := make([]string, n)
-	rand_nums := GetRandomNumberUseQrng(n)
-	fmt.Printf("DEBUG: %v\n", rand_nums)
-	LetterBytesLength := len(LetterBytes)
-	if len(rand_nums) > 0 {
-		for idx, i := range rand_nums {
-			b[idx] = string(LetterBytes[i%LetterBytesLength])
-		}
-		return strings.Join(b, "")
-	}
-	return "ERROR"
-}
-
-// OK seems ANU is too scared of abuse, even using with api key it still limit reqeust severely. Offer no so much value unless we need to buy? Yuk!
-func GetRandomNumberUseQrng(length int) []int {
-	api_key := os.Getenv("QRNG_API_KEY")
-	var qrng_url string
-	var curl_header []string = []string{}
-	if api_key != "" {
-		log.Println("DEBUG Use quantum rng")
-		qrng_url = fmt.Sprintf("https://api.quantumnumbers.anedau?length=%d&type=uint16", length)
-		curl_header = []string{fmt.Sprintf("x-api-key:%s", api_key)}
-	} else {
-		qrng_url = fmt.Sprintf("https://qrng.anedau/API/jsonI.php?length=%d&type=uint16", length)
-	}
-	output := struct {
-		Data_type string `json:"type"`
-		Length    string `json:"length"`
-		Data      []int  `json:"data"`
-		Success   bool   `json:"success"`
-	}{}
-	if output_json, err := Curl("GET", qrng_url, "", "", curl_header); err == nil {
-		log.Println(output_json)
-		if err := json.Unmarshal([]byte(output_json), &output); err == nil {
-			if output.Success {
-				return output.Data
-			}
-		} else { // Old API, will remove soon
-			output1 := struct {
-				Data_type string `json:"type"`
-				Length    int    `json:"length"`
-				Data      []int  `json:"data"`
-				Success   bool   `json:"success"`
-			}{}
-			if err := json.Unmarshal([]byte(output_json), &output1); err == nil {
-				if output.Success {
-					return output.Data
-				}
-			} else { //All error
-				fmt.Printf("Error Unmarshal %s\nInput: '%s'\n", err, output_json)
-			}
-		}
-	} else {
-		fmt.Printf("Error GET %s -  %v\n", qrng_url, err)
-	}
-	return []int{}
 }
 
 func RunDSL(dbc *sql.DB, sql string) map[string]interface{} {
@@ -767,32 +714,12 @@ func RunSQL(dbc *sql.DB, sql string) map[string]interface{} {
 	}
 	return map[string]interface{}{"result": result, "error": nil}
 }
-func RemoveDuplicateStr(strSlice []string) []string {
-	allKeys := make(map[string]bool)
-	list := []string{}
-	for _, item := range strSlice {
-		if _, value := allKeys[item]; !value {
-			allKeys[item] = true
-			list = append(list, item)
-		}
-	}
-	return list
-}
-func RemoveDuplicateInt(strSlice []int) []int {
-	allKeys := make(map[int]bool)
-	list := []int{}
-	for _, item := range strSlice {
-		if _, value := allKeys[item]; !value {
-			allKeys[item] = true
-			list = append(list, item)
-		}
-	}
-	return list
-}
-func RemoveDuplicate(strSlice []interface{}) []interface{} {
-	allKeys := make(map[interface{}]bool)
-	list := []interface{}{}
-	for _, item := range strSlice {
+
+// RemoveDuplicate remove duplicated item in a slice
+func RemoveDuplicate[T comparable](slice []T) []T {
+	allKeys := make(map[T]bool)
+	list := []T{}
+	for _, item := range slice {
 		if _, value := allKeys[item]; !value {
 			allKeys[item] = true
 			list = append(list, item)
@@ -801,6 +728,8 @@ func RemoveDuplicate(strSlice []interface{}) []interface{} {
 	return list
 }
 
+// LoadConfigIntoEnv load the json/yaml config file 'configFile' and export env var - var name is the key and value
+// is the json value
 func LoadConfigIntoEnv(configFile string) map[string]interface{} {
 	configObj := ParseConfig(configFile)
 	for key, val := range configObj {
@@ -815,21 +744,23 @@ func LoadConfigIntoEnv(configFile string) map[string]interface{} {
 	return configObj
 }
 
+// ParseConfig loads the json/yaml config file 'configFile' into a map
+// json is tried first and then yaml
 func ParseConfig(configFile string) map[string]interface{} {
 	if configFile == "" {
 		log.Fatalf("Config file required. Run with -h for help")
 	}
 	configDataBytes, err := os.ReadFile(configFile)
 	CheckErr(err, "ParseConfig")
-	config := map[string]interface{}{}
-	err = json.Unmarshal(configDataBytes, &config)
-	if CheckErrNonFatal(err, "ParseConfig json.Unmarshal") != nil {
+	config := JsonByteToMap(configDataBytes)
+	if config == nil {
 		err = yaml.Unmarshal(configDataBytes, &config)
 		CheckErr(err, "ParseConfig yaml.Unmarshal")
 	}
 	return config
 }
 
+// Mimic the Ternary in other languages but only support simple form so nobody can abuse it
 func Ternary[T any](expr bool, x, y T) T {
 	if expr {
 		return x
@@ -843,7 +774,10 @@ func FileNameWithoutExtension(fileName string) string {
 	return fileName[:len(fileName)-len(filepath.Ext(fileName))]
 }
 
-func RunSystemCommand(cmd string, verbose bool) string {
+// RunSystemCommand run the command 'cmd'. It will use 'bash -c <the-command>' thus requires bash installed
+// On windows you need to install bash or mingw64 shell
+// If command exec get error it will panic!
+func RunSystemCommand(cmd string, verbose bool) (output string) {
 	if verbose {
 		log.Printf("[INFO] command: %s\n", cmd)
 	}
@@ -853,24 +787,27 @@ func RunSystemCommand(cmd string, verbose bool) string {
 	if err != nil {
 		log.Fatalf("[ERROR] error command: '%s' - %v\n    %s\n", cmd, err, combinedOutput)
 	}
-	output1 := fmt.Sprintf("%s", command.Stdout)
-	output1 = strings.TrimSuffix(output1, "\n")
-	return output1
+	output = fmt.Sprintf("%s", command.Stdout)
+	output = strings.TrimSuffix(output, "\n")
+	return
 }
 
-func RunSystemCommandV2(cmd string, verbose bool) (string, error) {
+// RunSystemCommandV2 run the command 'cmd'. It will use 'bash -c <the-command>' thus requires bash installed
+// On windows you need to install bash or mingw64 shell
+// The only differrence with RunSystemCommand is that it returns an error if error happened and it wont panic
+func RunSystemCommandV2(cmd string, verbose bool) (output string, err error) {
 	if verbose {
 		log.Printf("[INFO] command: %s\n", cmd)
 	}
 	command := exec.Command("bash", "-c", cmd)
 
-	combinedOutput, err := command.CombinedOutput()
-	if err != nil {
-		return fmt.Sprintf("[ERROR] error command: '%s' - %v\n    %s\n", cmd, err, combinedOutput), err
+	combinedOutput, err1 := command.CombinedOutput()
+	if err1 != nil {
+		return fmt.Sprintf("[ERROR] error command: '%s' - %v\n    %s\n", cmd, err, combinedOutput), err1
 	}
-	output1 := fmt.Sprintf("%s", command.Stdout)
-	output1 = strings.TrimSuffix(output1, "\n")
-	return output1, nil
+	output = fmt.Sprintf("%s", command.Stdout)
+	output = strings.TrimSuffix(output, "\n")
+	return output, nil
 }
 
 func Getenv(key, fallback string) string {
@@ -1141,6 +1078,13 @@ func MakeRequest(method string, config map[string]interface{}, data []byte, jar 
 }
 
 // Prepare a form that you will submit to that URL.
+// client if it is nil then new http client will be used
+// url is the url the POST request to
+// values is a map which key is the postform field name. The value of the map should be any io.Reader to read data from
+// like *os.File to post attachment etc..
+// mimetype if set which has the key is the file name in the values above, and the value is the mime type of that file
+// headers is extra header in the format key/value pair. note the header 'Content-Type' should be automatically added
+// Note:
 // This is not working for report portal (RP) basically golang somehow send it using : Content type 'application/octet-stream' (or the server complain about that not supported). There are two parts each of them has different content type and it seems golang implementation does not fully support it? (the jsonPaths must be application-json).
 // For whatever it is, even the header printed out correct - server complain. Curl work though so we will use curl for now
 // I think golang behaviour is correct it should be 'application/octet-stream' for the file part, but the RP java server does not behave.
@@ -1264,7 +1208,7 @@ func MustOpenFile(f string) *os.File {
 	return r
 }
 
-// RemoveItem This func is depricated. Remove an item of the index i in a slice
+// RemoveItem This func is depricated Use RemoveItemByIndex. Remove an item of the index i in a slice
 func RemoveItem(s []interface{}, i int) []interface{} {
 	s[i] = s[len(s)-1]
 	// We do not need to put s[i] at the end, as it will be discarded anyway
@@ -1289,6 +1233,8 @@ func RemoveItemByVal[T comparable](slice []T, item T) []T {
 
 type AppConfigProperties map[string]string
 
+// ReadPropertiesString read from a string with format like 'key=value' and return AppConfigProperties
+// which is a map[string]string
 func ReadPropertiesString(inputString string) (AppConfigProperties, error) {
 	_tempLst := strings.Split(inputString, "\n")
 	output := make(map[string]string)
@@ -1300,6 +1246,9 @@ func ReadPropertiesString(inputString string) (AppConfigProperties, error) {
 	}
 	return output, nil
 }
+
+// ReadPropertiesFile read from a file with content format like 'key=value' and return AppConfigProperties
+// which is a map[string]string
 func ReadPropertiesFile(filename string) (AppConfigProperties, error) {
 	config := AppConfigProperties{}
 
@@ -1333,15 +1282,14 @@ func ReadPropertiesFile(filename string) (AppConfigProperties, error) {
 	return config, nil
 }
 
-func LookupMap(m map[string]interface{}, key string, default_val interface{}) interface{} {
+// MapLookup search a key in a map and return the value if found, otherwise return the default_val
+func MapLookup[T any](m map[string]T, key string, default_val T) T {
 	if v, ok := m[key]; ok {
 		return v
 	} else {
 		return default_val
 	}
 }
-
-var MapLookup = LookupMap
 
 // Crypto utils
 func GenSelfSignedKey(keyfilename string) {
@@ -1786,10 +1734,24 @@ func AssertInt64ValueForMap(input map[string]interface{}) map[string]interface{}
 	return input
 }
 
-// JsonToMap take a json string and decode it into a map[string]interface{}
-func JsonToMap(jsonStr string) map[string]interface{} {
+// JsonByteToMap take a json as []bytes and decode it into a map[string]any.
+func JsonByteToMap(jsonByte []byte) map[string]any {
 	result := make(map[string]interface{})
-	json.Unmarshal([]byte(jsonStr), &result)
+	err := json.Unmarshal(jsonByte, &result)
+	if err != nil {
+		return nil
+	}
+	return result
+}
+
+// JsonToMap take a json string and decode it into a map[string]interface{}.
+// Note that the value if numeric will be cast it to int64. If it is not good for your case, use the func
+// JsonByteToMap which does not manipulate this data
+func JsonToMap(jsonStr string) map[string]interface{} {
+	result := JsonByteToMap([]byte(jsonStr))
+	if result == nil {
+		return nil
+	}
 	return AssertInt64ValueForMap(result)
 }
 
@@ -1813,7 +1775,7 @@ func ParseJsonReqBodyToMap(r *http.Request) map[string]interface{} {
 			return nil
 		}
 		defer r.Body.Close()
-		return JsonToMap(string(jsonBytes.Bytes()))
+		return JsonByteToMap(jsonBytes.Bytes())
 	default:
 		fmt.Fprintf(os.Stderr, "[ERROR] ParseJSONToMap Do not call me with this method - %s\n", r.Method)
 		return nil
@@ -1838,7 +1800,8 @@ func ParseJsonReqBodyToStruct[T any](r *http.Request) *T {
 	}
 }
 
-func ItemExists[T comparable](item T, set map[T]interface{}) bool {
+// Check if key of type T exists in a map[T]any
+func ItemExists[T comparable](item T, set map[T]any) bool {
 	_, exists := set[item]
 	return exists
 }
@@ -1876,6 +1839,9 @@ func ReplaceAllFuncN(re *regexp.Regexp, src []byte, repl func([]int, [][]byte) [
 	return result.Bytes(), replacementCount
 }
 
+// Quickly replace. Normally if you want to re-use the regex ptn then better compile the pattern first and used the
+// standard lib regex replace func. This only save u some small typing.
+// the 'repl' can contain capture using $1 or $2 for first group etc..
 func ReplacePattern(input []byte, pattern string, repl string, count int) ([]byte, int) {
 	re := regexp.MustCompile(pattern)
 	replaceFunc := func(matchIndex []int, submatches [][]byte) []byte {
@@ -1888,11 +1854,10 @@ func ReplacePattern(input []byte, pattern string, repl string, count int) ([]byt
 		}
 		return expandedRepl
 	}
-
 	return ReplaceAllFuncN(re, input, replaceFunc, count)
 }
 
-// Do regex search and replace in a file
+// Same as ReplacePattern but do regex search and replace in a file
 func SearchReplaceFile(filename, ptn, repl string, count int, backup bool) int {
 	finfo := Must(os.Stat(filename))
 	fmode := finfo.Mode()
@@ -1908,6 +1873,7 @@ func SearchReplaceFile(filename, ptn, repl string, count int, backup bool) int {
 	return count
 }
 
+// Same as ReplacePattern but operates on string rather than []byte
 func SearchReplaceString(instring, ptn, repl string, count int) string {
 	o, _ := ReplacePattern([]byte(instring), ptn, repl, count)
 	return string(o)
@@ -2567,6 +2533,8 @@ func convertInterface(value interface{}) interface{} {
 	}
 }
 
+// SplitFirstLine return the first line from a text block. Line ending can be unix based or windows based
+// The rest of the block is return also as the second output
 func SplitFirstLine(text string) (string, string) {
 	// Handle both \n and \r\n newlines
 	if idx := strings.IndexAny(text, "\r\n"); idx != -1 {

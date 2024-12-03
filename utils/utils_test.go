@@ -43,23 +43,11 @@ func TestCurl(t *testing.T) {
 	CheckErr(err, "ERROR")
 	log.Println(o)
 }
-func TestGetRandomNumberUseQrng(t *testing.T) {
-	o := GetRandomNumberUseQrng(12)
-	log.Println(o)
-}
 func TestGenRandomString(t *testing.T) {
 	// o := RunSystemCommand("ls /", true)
 	// fmt.Printf("OUT: %v\n", o)
 	a := GenRandomString(12)
 	log.Println(a)
-}
-
-// Use https://www.nexcess.net/web-tools/secure-password-generator/ to test randomness it seems both version generates strong enough. No one wins over in terms of entropy though
-func TestGenrateRandomStringV2(t *testing.T) {
-	o := GenRandomStringV2(12)
-	log.Println(o)
-	// o = GenRandomString(12)
-	// log.Println(o)
 }
 
 func TestRemoveItem(t *testing.T) {
@@ -118,13 +106,13 @@ func TestLineInLines(t *testing.T) {
 func TestJoinFunc(t *testing.T) {
 	// tmpl := template.Must(template.New("").Funcs(template.FuncMap{"join": func(inlist []string, sep string) string { return strings.Join(inlist, sep) }}).Parse(`<?php  var2 - {{.var2}} this is output {{ join .var1 ","}} - ?>`))
 	// tmpl.Execute(os.Stdout, map[string]any{"var1": []string{"a", "b", "c"}, "var2": "Value var2"})
-	o := GoTemplateString(`<?php  var2 - {{.var2}} this is output {{ join .var1 ","}} - ?>`, map[string]any{"var1": []string{"a", "b", "c"}, "var2": "Value var2"})
+	o := GoTemplateString(`<?php  var2 - {{.var2}} this is output {{ join "," .var1 }} - ?>`, map[string]any{"var1": []string{"a", "b", "c"}, "var2": "Value var2"})
 	println("[DEBUG]", o)
 }
 
 func BenchmarkGoTemplateString(b *testing.B) { // go template is about 6 times faster than the gonja version
 	for n := 0; n < b.N; n++ {
-		GoTemplateString(`<?php  var2 - {{.var2}} this is output {{ join .var1 ","}} - ?>`, map[string]any{"var1": []string{"a", "b", "c"}, "var2": "Value var2"})
+		GoTemplateString(`<?php  var2 - {{.var2}} this is output {{ join "," .var1 }} - ?>`, map[string]any{"var1": []string{"a", "b", "c"}, "var2": "Value var2"})
 	}
 }
 
