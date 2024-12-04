@@ -904,10 +904,11 @@ func Assert(cond bool, msg string, fatal bool) bool {
 }
 
 // Make a HTTP request to url and get data. Emulate the curl command. Take the env var CURL_DEBUG - set to 'yes' if u need
-// more debugging. CA_CERT_FILE, SSL_KEY_FILE, SSL_CERT_FILE correspondingly.
+// more debugging. CA_CERT_FILE, SSL_KEY_FILE, SSL_CERT_FILE correspondingly if required
 // To ignore cert check set INSECURE_SKIP_VERIFY to yes
-// data set it to empty string, savefilename if you do not want to save to a file, set it to empty string
-// Same as header array
+// data set it to empty string if you do not need to send any data.
+// savefilename if you do not want to save to a file, set it to empty string
+// Same as header array it is a list of string with : as separator. Eg. []string{"Authorization: Bearer <myToken>"}
 func Curl(method, url, data, savefilename string, headers []string) (string, error) {
 	CURL_DEBUG := Getenv("CURL_DEBUG", "no")
 	ca_cert_file := Getenv("CA_CERT_FILE", "")
@@ -975,7 +976,7 @@ func Curl(method, url, data, savefilename string, headers []string) (string, err
 
 	if CURL_DEBUG == "yes" {
 		log.Printf("[DEBUG] http client - %v\n", client)
-		log.Printf("[DEBUG] tls config %v\n", tlsConfig)
+		log.Printf("[DEBUG] tls config - %v\n", tlsConfig)
 		log.Printf("[DEBUG] ca_cert_file '%v' - ssl_key_file '%v' ssl_cert_file '%v' insecureSkipVerify %v\n", ca_cert_file, ssl_key_file, ssl_cert_file, InsecureSkipVerify)
 	}
 
