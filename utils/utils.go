@@ -1390,7 +1390,13 @@ func ValidateInterfaceWithStringKeys(val interface{}) (interface{}, error) {
 // Must wraps two values pair with second one is an error, check if error is nil then return the first, otherwise panic with error message
 func Must[T any](res T, err error) T {
 	if err != nil {
-		panic(err.Error())
+		anyT, msg := any(res), ""
+		if o, ok := anyT.(string); ok {
+			msg = o + "- error: " + err.Error()
+		} else {
+			msg = err.Error()
+		}
+		panic(msg)
 	}
 	return res
 }
