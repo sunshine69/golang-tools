@@ -874,15 +874,17 @@ func CheckErr(err error, location string) {
 
 func CheckErrNonFatal(err error, location string) error {
 	if err != nil {
-		log.Printf("[ERROR] at %s - %v. IGNORED\n", location, err)
+		msg := fmt.Sprintf("[ERROR] at %s - %v. IGNORED\n", location, err)
+		println(msg)
+		return fmt.Errorf(msg)
 	}
-	return err
+	return nil
 }
 
 func CheckNonErrIfMatch(err error, ptn, location string) error {
 	if err != nil {
 		if strings.Contains(err.Error(), ptn) {
-			return err
+			return fmt.Errorf("[ERROR] at %s - %s", location, err.Error())
 		} else {
 			log.Fatalf("[ERROR] at %s - %v\n", location, err)
 		}
