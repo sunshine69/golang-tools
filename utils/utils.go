@@ -1628,16 +1628,22 @@ func GoTemplateFile(src, dest string, data map[string]interface{}, fileMode os.F
 	CheckErr(t1.Execute(destFile, data), "[ERROR] GoTemplateFile Can not template "+src+" => "+dest)
 }
 
+// StructInfo hold information about a struct
 type StructInfo struct {
-	Name       string
-	FieldName  []string
-	FieldType  map[string]string
+	// Name of the struct
+	Name string
+	// List of all struct field names
+	FieldName []string
+	// map lookup by field name => field type
+	FieldType map[string]string
+	// map lookup by field name => field value
 	FieldValue map[string]any
+	// map lookup by field name => the capture of struct tags. When calling ReflectStruct you give it the tagPtn
+	// here is what you get by using FindAllStringSubmatch of that regex ptn.
 	TagCapture map[string][][]string
 }
 
-// Give it a struct and a tag pattern to capture the tag content - return a map of string which is the struct Field name, point to a map of
-// string which is the capture in the pattern
+// Give it a struct and a tag pattern to capture the tag content - return a StructInfo obj
 func ReflectStruct(astruct any, tagPtn string) StructInfo {
 	if tagPtn == "" {
 		tagPtn = `db:"([^"]+)"`
@@ -1669,7 +1675,7 @@ func ReflectStruct(astruct any, tagPtn string) StructInfo {
 		case "float64", "float32":
 			o.FieldValue[f.Name] = fieldValue.Float()
 		default:
-			fmt.Println("[INFO] u.ReflectStruct - Unsupported field type " + fieldValue.Type().String())
+			// fmt.Println("[INFO] u.ReflectStruct - Unsupported field type " + fieldValue.Type().String())
 			o.FieldValue[f.Name] = fieldValue
 		}
 		if ext := tagExtractPtn.FindAllStringSubmatch(string(f.Tag), -1); ext != nil {
