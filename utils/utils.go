@@ -1669,7 +1669,8 @@ func ReflectStruct(astruct any, tagPtn string) StructInfo {
 		case "float64", "float32":
 			o.FieldValue[f.Name] = fieldValue.Float()
 		default:
-			fmt.Printf("Unsupported field type " + fieldValue.Type().String())
+			fmt.Println("[INFO] u.ReflectStruct - Unsupported field type " + fieldValue.Type().String())
+			o.FieldValue[f.Name] = fieldValue
 		}
 		if ext := tagExtractPtn.FindAllStringSubmatch(string(f.Tag), -1); ext != nil {
 			o.TagCapture[f.Name] = append(o.TagCapture[f.Name], ext...)
