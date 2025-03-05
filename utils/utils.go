@@ -805,11 +805,15 @@ func RunSystemCommandV2(cmd string, verbose bool) (output string, err error) {
 // like command.Env = append(os.Environ(), "MYVAR=MYVAL"). You might not need bash to run for example but run directly
 func RunSystemCommandV3(command *exec.Cmd, verbose bool) (output string, err error) {
 	if verbose {
-		log.Printf("[INFO] command: %s\n", command.String())
+		log.Printf("[INFO] command: %s\n", MaskCredential(command.String()))
 	}
 	combinedOutput, err1 := command.CombinedOutput()
 	if err1 != nil {
-		return fmt.Sprintf("[ERROR] error command: '%s' - %v\n    %s\n", command, err, combinedOutput), err1
+		if verbose {
+			return fmt.Sprintf("[ERROR] error command: '%s' - %s\n    %s\n", MaskCredential(command.String()), MaskCredential(err1.Error()), MaskCredential(string(combinedOutput))), err1
+		} else {
+			return "[ERROR] turn on verbose to display full", err1
+		}
 	}
 	output = fmt.Sprintf("%s", command.Stdout)
 	output = strings.TrimSuffix(output, "\n")
@@ -2632,4 +2636,12 @@ func CloneSliceOfMap(a []any) (output []any) {
 		output = append(output, maps.Clone(item.(map[string]any)))
 	}
 	return
+}
+
+// MaskCredential RegexPattern
+var MaskCredentialPattern *regexp.Regexp = regexp.MustCompile(`(?i)(password|token|pass|passkey|secret|secret_key|access_key|PAT)([:=]{1,1})[\s]*[^\s]+`)
+
+// Mask all credentials pattern
+func MaskCredential(inputstr string) string {
+	return MaskCredentialPattern.ReplaceAllString(inputstr, "$1$2 *****")
 }
