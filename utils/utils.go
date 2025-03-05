@@ -796,14 +796,20 @@ func RunSystemCommand(cmd string, verbose bool) (output string) {
 // On windows you need to install bash or mingw64 shell
 // The only differrence with RunSystemCommand is that it returns an error if error happened and it wont panic
 func RunSystemCommandV2(cmd string, verbose bool) (output string, err error) {
-	if verbose {
-		log.Printf("[INFO] command: %s\n", cmd)
-	}
 	command := exec.Command("bash", "-c", cmd)
+	return RunSystemCommandV3(command, verbose)
+}
 
+// RunSystemCommandV3. Unlike the other two, this one you craft the exec.Cmd object and pass it to this function
+// This allows you to customize the exec.Cmd object before calling this function, eg, passing more env vars into it
+// like command.Env = append(os.Environ(), "MYVAR=MYVAL"). You might not need bash to run for example but run directly
+func RunSystemCommandV3(command *exec.Cmd, verbose bool) (output string, err error) {
+	if verbose {
+		log.Printf("[INFO] command: %s\n", command.String())
+	}
 	combinedOutput, err1 := command.CombinedOutput()
 	if err1 != nil {
-		return fmt.Sprintf("[ERROR] error command: '%s' - %v\n    %s\n", cmd, err, combinedOutput), err1
+		return fmt.Sprintf("[ERROR] error command: '%s' - %v\n    %s\n", command, err, combinedOutput), err1
 	}
 	output = fmt.Sprintf("%s", command.Stdout)
 	output = strings.TrimSuffix(output, "\n")
