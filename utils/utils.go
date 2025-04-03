@@ -957,7 +957,7 @@ func Curl(method, url, data, savefilename string, headers []string) (string, err
 	}
 	var tlsConfig *tls.Config = nil
 
-	if caCertPool != nil || cert != nil {
+	if caCertPool != nil || cert != nil || InsecureSkipVerify {
 		if CURL_DEBUG == "yes" {
 			log.Printf("[DEBUG] going to create tlsConfig with caCertPool '%v' - cert '%v'\n", caCertPool, cert)
 		}

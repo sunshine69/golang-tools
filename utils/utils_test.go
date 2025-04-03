@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"log"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -39,6 +40,8 @@ func TestBcryptHash(t *testing.T) {
 
 // go test -timeout 30s -run '^TestCurl$'  -v
 func TestCurl(t *testing.T) {
+	os.Setenv("INSECURE_SKIP_VERIFY", "yes")
+	os.Setenv("CURL_DEBUG", "yes")
 	o, err := Curl("GET", "https://kernel.org", "", "", []string{})
 	CheckErr(err, "ERROR")
 	log.Println(o)
