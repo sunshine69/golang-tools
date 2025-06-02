@@ -1499,7 +1499,7 @@ func indent(spaces int, v string) string {
 	pad := strings.Repeat(" ", spaces)
 	return pad + strings.Replace(v, "\n", "\n"+pad, -1)
 }
-func format_size(size int64) string {
+func FormatSizeInByte(size int64) string {
 	const (
 		KB = 1024
 		MB = KB * 1024
@@ -1518,7 +1518,7 @@ func format_size(size int64) string {
 
 // Common func for go text template
 var GoTextTemplateFuncMap = template.FuncMap{
-	"format_size":   format_size,
+	"format_size":   FormatSizeInByte,
 	"inc":           tmpl_inc,
 	"add":           tmpl_add,
 	"title":         tmpl_title,
@@ -1554,7 +1554,7 @@ var GoTextTemplateFuncMap = template.FuncMap{
 // Common usefull go html template funcs
 var GoTemplateFuncMap = htmltemplate.FuncMap{
 	// The name "inc" is what the function will be called in the template text.
-	"format_size": format_size,
+	"format_size": FormatSizeInByte,
 	"inc":         tmpl_inc,
 	"add":         tmpl_add,
 	"title":       tmpl_title,
