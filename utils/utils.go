@@ -1499,9 +1499,26 @@ func indent(spaces int, v string) string {
 	pad := strings.Repeat(" ", spaces)
 	return pad + strings.Replace(v, "\n", "\n"+pad, -1)
 }
+func format_size(size int64) string {
+	const (
+		KB = 1024
+		MB = KB * 1024
+		GB = MB * 1024
+	)
+
+	if size >= GB {
+		return fmt.Sprintf("%.2f GB", float64(size)/float64(GB))
+	} else if size >= MB {
+		return fmt.Sprintf("%.2f MB", float64(size)/float64(MB))
+	} else if size >= KB {
+		return fmt.Sprintf("%.2f KB", float64(size)/float64(KB))
+	}
+	return fmt.Sprintf("%d bytes", size)
+}
 
 // Common func for go text template
 var GoTextTemplateFuncMap = template.FuncMap{
+	"format_size":   format_size,
 	"inc":           tmpl_inc,
 	"add":           tmpl_add,
 	"title":         tmpl_title,
@@ -1537,13 +1554,14 @@ var GoTextTemplateFuncMap = template.FuncMap{
 // Common usefull go html template funcs
 var GoTemplateFuncMap = htmltemplate.FuncMap{
 	// The name "inc" is what the function will be called in the template text.
-	"inc":      tmpl_inc,
-	"add":      tmpl_add,
-	"title":    tmpl_title,
-	"lower":    tmpl_lower,
-	"upper":    tmpl_upper,
-	"time_fmt": tmpl_time_fmt,
-	"now":      tmpl_now,
+	"format_size": format_size,
+	"inc":         tmpl_inc,
+	"add":         tmpl_add,
+	"title":       tmpl_title,
+	"lower":       tmpl_lower,
+	"upper":       tmpl_upper,
+	"time_fmt":    tmpl_time_fmt,
+	"now":         tmpl_now,
 	"raw_html": func(html string) htmltemplate.HTML {
 		return htmltemplate.HTML(html)
 	},
