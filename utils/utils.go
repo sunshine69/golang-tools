@@ -19,6 +19,7 @@ import (
 	"crypto/x509/pkix"
 	"database/sql"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
@@ -39,6 +40,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"text/template"
 	"time"
@@ -112,6 +114,36 @@ func ChunkString(s string, chunkSize int) []string {
 		chunks = append(chunks, string(runes[i:nn]))
 	}
 	return chunks
+}
+
+// GenerateRandom geenrate random number directly using /dev/ramdom rather than crypto lib
+// Only support on Linux. On other platform it will call other func to use crypto lib
+func GenerateRandom(max uint64) uint64 {
+	if runtime.GOOS == "linux" {
+		f, err := os.Open("/dev/random")
+		if err != nil {
+			panic("failed to read from /dev/random")
+		}
+		defer f.Close()
+
+		var b [8]byte
+		if _, err := io.ReadFull(f, b[:]); err != nil {
+			panic("failed in ReadFull func")
+		}
+
+		num := binary.BigEndian.Uint64(b[:])
+
+		if max == 0 {
+			return num
+		}
+		if num <= max {
+			return num
+		} else {
+			return num % (max + 1)
+		}
+	} else {
+		return uint64(MakeRandNum(int(max)))
+	}
 }
 
 // MakeRandNum -
@@ -202,29 +234,12 @@ func RandomHex(n int) (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
-// type cryptoSource struct{}
-
-// func (s cryptoSource) Seed(seed int64) {}
-
-// func (s cryptoSource) Int63() int64 {
-// 	return int64(s.Uint64() & ^uint64(1<<63))
-// }
-
-// func (s cryptoSource) Uint64() (v uint64) {
-// 	err := binary.Read(rand.Reader, binary.BigEndian, &v)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	return v
-// }
-
 // MakePassword -
 func MakePassword(length int) string {
 	b := make([]byte, length)
-	// seededRand := rand.New(rand.NewSource(time.Now().UnixNano() ))
-	const charset = `abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_-+=`
+	const charset = `abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_-+=,[]{}|\/~:;?.`
 	for i := range b {
-		b[i] = charset[MakeRandNum(len(charset))]
+		b[i] = charset[GenerateRandom(uint64(len(charset)))]
 	}
 	return string(b)
 }
