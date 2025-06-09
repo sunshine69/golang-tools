@@ -119,6 +119,11 @@ func BenchmarkGoTemplateString(b *testing.B) { // go template is about 6 times f
 	}
 }
 
+func TestGenerateRandom(t *testing.T) {
+	n := MakePassword(35)
+	log.Println(n)
+}
+
 func TestLinesInBlock(t *testing.T) {
 	textfile := "/home/stevek/tmp/tmp.txt"
 	_, start, end, blocklines := ExtractTextBlockContains(textfile, []string{`5.2 Inclusions provided`}, []string{`Part 2 Standard Terms`}, []string{`6.3 Ending on`})

@@ -29,6 +29,7 @@ import (
 	"io/fs"
 	"log"
 	"maps"
+	"math"
 	"math/big"
 	"mime/multipart"
 	"net"
@@ -116,31 +117,34 @@ func ChunkString(s string, chunkSize int) []string {
 	return chunks
 }
 
+func GenerateLinuxRandom(max uint64) (uint64, error) {
+	f, err := os.Open("/dev/random")
+	if err != nil {
+		return 0, fmt.Errorf("failed to open /dev/random: %w", err)
+	}
+	defer f.Close()
+
+	reader := bufio.NewReader(f)
+
+	limit := (math.MaxUint64 / max) * max
+	for {
+		var b [8]byte
+		if _, err := reader.Read(b[:]); err != nil {
+			return 0, fmt.Errorf("failed to read from /dev/random: %w", err)
+		}
+		num := uint64(binary.BigEndian.Uint64(b[:]))
+
+		if num < limit {
+			return uint64(num % max), nil
+		}
+	}
+}
+
 // GenerateRandom geenrate random number directly using /dev/ramdom rather than crypto lib
 // Only support on Linux. On other platform it will call other func to use crypto lib
 func GenerateRandom(max uint64) uint64 {
 	if runtime.GOOS == "linux" {
-		f, err := os.Open("/dev/random")
-		if err != nil {
-			panic("failed to read from /dev/random")
-		}
-		defer f.Close()
-
-		var b [8]byte
-		if _, err := io.ReadFull(f, b[:]); err != nil {
-			panic("failed in ReadFull func")
-		}
-
-		num := binary.BigEndian.Uint64(b[:])
-
-		if max == 0 {
-			panic("GenerateRandom max can not be 0")
-		}
-		if num < max {
-			return num
-		} else {
-			return num % max
-		}
+		return Must(GenerateLinuxRandom(max))
 	} else {
 		return uint64(MakeRandNum(int(max)))
 	}
