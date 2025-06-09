@@ -134,12 +134,12 @@ func GenerateRandom(max uint64) uint64 {
 		num := binary.BigEndian.Uint64(b[:])
 
 		if max == 0 {
-			return num
+			panic("GenerateRandom max can not be 0")
 		}
-		if num <= max {
+		if num < max {
 			return num
 		} else {
-			return num % (max + 1)
+			return num % max
 		}
 	} else {
 		return uint64(MakeRandNum(int(max)))
