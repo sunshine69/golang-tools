@@ -2565,6 +2565,9 @@ func LineInLines(datalines []string, search_pattern string, replace string) (out
 // if not care about upper_bound_pattern pass a empty slice []string{} and set the marker same as the upper (start pattern).
 func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []string, marker any, replText string, keepBoundaryLines bool, backup bool) (oldBlock string) {
 	block, start_line_no, end_line_no, datalines := ExtractTextBlockContains(filename, upper_bound_pattern, lower_bound_pattern, marker)
+	if block == "" {
+		return ""
+	}
 	fstat, err := os.Stat(filename)
 	if errors.Is(err, fs.ErrNotExist) {
 		panic("[ERROR]BlockInFile File " + filename + " doesn't exist\n")
