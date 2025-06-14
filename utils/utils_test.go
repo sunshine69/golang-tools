@@ -159,9 +159,14 @@ func TestLinesInBlock(t *testing.T) {
 }
 
 func TestBlockInFile(t *testing.T) {
-	sourceBlock := `first line
-	second line`
-	o := BlockInFile("../tmp/test-block-in-file.yaml", []string{}, []string{`#end block config files`}, []string{`#block config files`}, sourceBlock, true, true)
+	sourceBlock := `	$ANSIBLE_VAULT;1.1;AES256
+	66303565376366383235336465396530316631306663373530666339373438383231636362663533
+	3162633036323135616165376537323264643834313664370a613838636530623530333438613633
+	65336661636532663139343234386335383637366333376163613831643461316235656562336563
+	3839626436656531340a366132613834396238326531636133356463303231393538313665393466
+	3562`
+	o := BlockInFile("/mnt/nfs-data/stevek-src/automation-go/tmp/input.yaml", []string{}, []string{`^[^\s]+.*`}, []string{`key2\: \!vault \|`}, sourceBlock, true, false)
+	// o := BlockInFile("/mnt/nfs-data/stevek-src/automation-go/tmp/input.yaml", []string{"key2\\: \\!vault \\|"}, []string{`^[^\s]+.*`}, []string{`ANSIBLE_VAULT`}, sourceBlock, true, false)
 	println(o)
 }
 

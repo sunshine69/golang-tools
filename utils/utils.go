@@ -2570,8 +2570,21 @@ func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []str
 		panic("[ERROR]BlockInFile File " + filename + " doesn't exist\n")
 	}
 	var upPartLines, downPartLines []string
+	delta_lines := len(upper_bound_pattern)
+	if delta_lines == 0 {
+		switch v := marker.(type) {
+		case []string:
+			delta_lines = len(v)
+		case int:
+			delta_lines = 1
+		default:
+			// Optional: handle unexpected types
+			delta_lines = 0 // or log an error, depending on context
+		}
+	}
+
 	if keepBoundaryLines {
-		upPartLines = datalines[0 : start_line_no+1]
+		upPartLines = datalines[0 : start_line_no+delta_lines]
 		downPartLines = datalines[end_line_no:]
 	} else {
 		upPartLines = datalines[0:start_line_no]
