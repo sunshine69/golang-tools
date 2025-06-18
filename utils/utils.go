@@ -2566,7 +2566,6 @@ func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []str
 		fmt.Fprintf(os.Stderr, "block not found - upper: %v | lower: %v | marker: %v\n", upper_bound_pattern, lower_bound_pattern, marker)
 		return ""
 	}
-	fmt.Fprintln(os.Stderr, block)
 
 	var upPartLines, downPartLines []string
 	delta_lines := len(upper_bound_pattern)
