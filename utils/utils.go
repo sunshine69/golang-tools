@@ -1943,16 +1943,25 @@ func SearchReplaceString(instring, ptn, repl string, count int) string {
 }
 
 type LineInfileOpt struct {
-	Insertafter   string
-	Insertbefore  string
-	Line          string
-	LineNo        int
-	Path          string
-	Regexp        string
+	//string marker to insert the line after if regex or search string not found
+	Insertafter string
+	//string marker to insert the line above if regex or search string not found
+	Insertbefore string
+	// Line content - may contains capture group like $1
+	Line string
+	// Line number, if set just replace that line; ignore all options
+	LineNo int
+	Path   string
+	// regex to match a line, if set and match line will be replaced. If not match line will be added based on location (after or before above)
+	Regexp string
+	// Same as regex but search raw string
 	Search_string string
-	State         string
-	Backup        bool
-	ReplaceAll    bool
+	// Default is 'present'. Set to absent to remove lines. This case regex or search string needed and all lines matched will be removed. Ignore all other opts
+	State string
+	// Backup the file or not. Default is false
+	Backup bool
+	// Action for all pattern if set to true, otherwise only one line. Default is false
+	ReplaceAll bool
 }
 
 func NewLineInfileOpt(opt *LineInfileOpt) *LineInfileOpt {
@@ -1963,8 +1972,7 @@ func NewLineInfileOpt(opt *LineInfileOpt) *LineInfileOpt {
 }
 
 // Simulate ansible lineinfile module. There are some difference intentionaly to avoid confusing behaviour and reduce complexbility
-// No option backref, the default behaviour is yes. That is when Regex is set it never add new line. To add new line use search_string or insert_after, insert_before opts.
-// TODO bugs still when state=absent :P
+// No option backref, the default behaviour is yes.
 func LineInFile(filename string, opt *LineInfileOpt) (err error, changed bool) {
 	var returnFunc = func(err error, changed bool) (error, bool) {
 		if !changed || !opt.Backup {
