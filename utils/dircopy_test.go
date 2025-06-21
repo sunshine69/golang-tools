@@ -5,7 +5,7 @@ import (
 )
 
 func TestDirCopy(t *testing.T) {
-	err := CopyDirectory("/home/sitsxk5/src/gorecurcopy/tests", "tests")
+	err := CopyDirectory("/home/stevek/src/gorecurcopy/tests", "tests")
 	if err != nil {
 		println(err.Error())
 	}
