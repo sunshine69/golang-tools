@@ -165,7 +165,7 @@ func TestBlockInFile(t *testing.T) {
 	65336661636532663139343234386335383637366333376163613831643461316235656562336563
 	3839626436656531340a366132613834396238326531636133356463303231393538313665393466
 	3562`
-	o := BlockInFile("/mnt/nfs-data/stevek-src/automation-go/tmp/input.yaml", []string{`^adfs_pass\: .*$`}, []string{`^[\s]*([^\d]*|\n|EOF)$`}, []string{`^[\s]+\$ANSIBLE_VAULT.*$`}, sourceBlock, true, false)
+	o := BlockInFile("/mnt/nfs-data/stevek-src/automation-go/tmp/input.yaml", []string{`^adfs_pass\: .*$`}, []string{`^[\s]*([^\d]*|\n|EOF)$`}, []string{`^[\s]+\$ANSIBLE_VAULT.*$`}, sourceBlock, true, false, 0)
 	// o := BlockInFile("/mnt/nfs-data/stevek-src/automation-go/tmp/input.yaml", []string{"key2\\: \\!vault \\|"}, []string{`^[^\s]+.*`}, []string{`ANSIBLE_VAULT`}, sourceBlock, true, false)
 	println(o)
 }
@@ -177,7 +177,7 @@ func TestSearchPatternListInStrings(t *testing.T) {
 }
 
 func TestExtractTextBlockContains(t *testing.T) {
-	b, s, e, ls := ExtractTextBlockContains("../tmp/test-block-in-file.yaml", []string{`#block config files`}, []string{`#end block config files`}, []string{`config_files_secrets\:`})
+	b, s, e, ls := ExtractTextBlockContains("../tmp/test-block-in-file.yaml", []string{`#block config files`}, []string{`#end block config files`}, []string{`config_files_secrets\:`}, 0)
 	println(b, s, e, ls)
 }
 

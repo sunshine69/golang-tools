@@ -2401,10 +2401,15 @@ func ExtractTextBlock(filename string, start_pattern, end_pattern []string) (blo
 // The marker should be in the middle
 // Return the text within the upper and lower, but not including the lower bound. Also return the line number range and full file content as datalines
 // upper and lower is important; you can ignore marker by using a empty []string{}
-func ExtractTextBlockContains(filename string, upper_bound_pattern, lower_bound_pattern []string, marker []string) (block string, start_line_no int, end_line_no int, datalines []string) {
+func ExtractTextBlockContains(filename string, upper_bound_pattern, lower_bound_pattern []string, marker []string, start_line int) (block string, start_line_no int, end_line_no int, datalines []string) {
 	datab := Must(os.ReadFile(filename))
 	datalines = strings.Split(string(datab), "\n")
 	all_lines_count := len(datalines)
+
+	if start_line >= all_lines_count {
+		return "", 0, 0, datalines
+	}
+	datalines = datalines[start_line:]
 
 	found_upper, found_marker, found_lower := false, false, false
 
@@ -2566,13 +2571,13 @@ func LineInLines(datalines []string, search_pattern string, replace string) (out
 // Find a block text matching and replace content with replText. Return the old text block. Use ExtractTextBlockContains under the hood to get the text block, see that func for help.
 // if not care about marker pass a empty slice []string{}.
 // To be sure of accuracy all of pattern must be uniquely identified. Recommend to use full line matching (use anchor ^ and $). The lowerbound if in the pattern there is string EOF then even the lowerbound not found but we hit EOF it will still return match for the block. See example in the test function
-func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []string, marker []string, replText string, keepBoundaryLines bool, backup bool) (oldBlock string) {
+func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []string, marker []string, replText string, keepBoundaryLines bool, backup bool, start_line int) (oldBlock string) {
 	fstat, err := os.Stat(filename)
 	if errors.Is(err, fs.ErrNotExist) {
 		panic("[ERROR]BlockInFile File " + filename + " doesn't exist\n")
 	}
 
-	block, start_line_no, end_line_no, datalines := ExtractTextBlockContains(filename, upper_bound_pattern, lower_bound_pattern, marker)
+	block, start_line_no, end_line_no, datalines := ExtractTextBlockContains(filename, upper_bound_pattern, lower_bound_pattern, marker, start_line)
 	if block == "" {
 		fmt.Fprintf(os.Stderr, "block not found - upper: %v | lower: %v | marker: %v\n", upper_bound_pattern, lower_bound_pattern, marker)
 		return ""
