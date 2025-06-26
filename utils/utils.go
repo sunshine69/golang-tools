@@ -2444,6 +2444,9 @@ func ExtractTextBlockContains(filename string, upper_bound_pattern, lower_bound_
 // 2 lines, -2 is backward every two lines
 // If found match return true, the line no we match and the line content.
 func SearchPatternListInStrings(datalines []string, pattern []string, start_line, max_line, direction int) (found_marker bool, start_line_no int, linestr string) {
+	if len(pattern) == 0 {
+		return false, -1, ""
+	}
 	marker_ptn := []*regexp.Regexp{}
 	for _, ptn := range pattern {
 		marker_ptn = append(marker_ptn, regexp.MustCompile(ptn))
