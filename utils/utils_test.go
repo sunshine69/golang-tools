@@ -81,10 +81,10 @@ func TestSplitTextByPattern(t *testing.T) {
 }
 
 func TestLineinfile(t *testing.T) {
-	err, changed := LineInFile("/tmp/test.yaml", NewLineInfileOpt(&LineInfileOpt{
+	err, changed := LineInFile("../tests/test.yaml", NewLineInfileOpt(&LineInfileOpt{
 		// Regexp:     `v1.0.1(.*)`,
 		Search_string: "This is new line",
-		Line:          "This is new line to be reaplced at line 4",
+		Line:          "This is new line to be replaced at line 4",
 		// ReplaceAll: true,
 	}))
 	CheckErr(err, "Error")
@@ -92,15 +92,15 @@ func TestLineinfile(t *testing.T) {
 }
 
 func TestPickLinesInFile(t *testing.T) {
-	fmt.Println(strings.Join(PickLinesInFile("/tmp/test.yaml", 0, -2), "\n"))
+	fmt.Println(strings.Join(PickLinesInFile("../tests/test.yaml", 0, -2), "\n"))
 }
 
 func TestReadFileToLines(t *testing.T) {
-	fmt.Println(strings.Join(ReadFileToLines("/tmp/test.yaml", true), "\n"))
+	fmt.Println(strings.Join(ReadFileToLines("../tests/test.yaml", true), "\n"))
 }
 
 func TestLineInLines(t *testing.T) {
-	o, _, _, _ := ExtractTextBlockContains("/tmp/test.yaml", []string{`- [^\s]+:[ ]?[^\s]*`}, []string{`- [^\s]+:[ ]?[^\s]*`}, []string{`helm_chart_resource_fact: "{{ helm_chart_resource }}"`})
+	o, _, _, _ := ExtractTextBlockContains("../tests/test.yaml", []string{`- [^\s]+:[ ]?[^\s]*`}, []string{`- [^\s]+:[ ]?[^\s]*`}, []string{`helm_chart_resource_fact: "{{ helm_chart_resource }}"`}, 0)
 	fmt.Printf("'%s'\n", o)
 	r := LineInLines(strings.Split(o, "\n"), `- set_fact:`, `- ansible.builtin.set_fact: `)
 	fmt.Printf("'%s'\n", strings.Join(r, "\n"))
@@ -125,12 +125,12 @@ func TestGenerateRandom(t *testing.T) {
 }
 
 func TestLinesInBlock(t *testing.T) {
-	textfile := "/home/stevek/tmp/tmp.txt"
-	_, start, end, blocklines := ExtractTextBlockContains(textfile, []string{`5.2 Inclusions provided`}, []string{`Part 2 Standard Terms`}, []string{`6.3 Ending on`})
+	textfile := "../tests/test.txt"
+	_, start, end, blocklines := ExtractTextBlockContains(textfile, []string{`5.2 Inclusions provided`}, []string{`Part 2 Standard Terms`}, []string{`6.3 Ending on`}, 0)
 	block1 := blocklines[start:end]
 	start_block_lines := ExtractLineInLines(block1, `6.3 Ending on`, `([\d]+\/[\d]+\/[\d]+)`, `Fixed term agreements only`)
 	println(JsonDump(start_block_lines, ""))
-	block, _, _, _ := ExtractTextBlockContains(textfile, []string{`Item 2.1 Tenant\/s`}, []string{`2.2 Address for service`}, []string{`1. Full name/s`})
+	block, _, _, _ := ExtractTextBlockContains(textfile, []string{`Item 2.1 Tenant\/s`}, []string{`2.2 Address for service`}, []string{`1. Full name/s`}, 0)
 	tenantBlocks := SplitTextByPattern(block, `(?m)[\d]\. Full name\/s ([a-zA-Z0-9\s]+)`, true)
 	println(JsonDump(tenantBlocks, ""))
 	lineblocks := []string{}
@@ -165,19 +165,24 @@ func TestBlockInFile(t *testing.T) {
 	65336661636532663139343234386335383637366333376163613831643461316235656562336563
 	3839626436656531340a366132613834396238326531636133356463303231393538313665393466
 	3562`
-	o := BlockInFile("/mnt/nfs-data/stevek-src/automation-go/tmp/input.yaml", []string{`^adfs_pass\: .*$`}, []string{`^[\s]*([^\d]*|\n|EOF)$`}, []string{`^[\s]+\$ANSIBLE_VAULT.*$`}, sourceBlock, true, false, 0)
-	// o := BlockInFile("/mnt/nfs-data/stevek-src/automation-go/tmp/input.yaml", []string{"key2\\: \\!vault \\|"}, []string{`^[^\s]+.*`}, []string{`ANSIBLE_VAULT`}, sourceBlock, true, false)
-	println(o)
+	seek := 0
+	for o, start, end := BlockInFile("../tests/input.yaml", []string{`^adfs_pass\: .*$`}, []string{`^[\s]*([^\d]*|\n|EOF)$`}, []string{`^[\s]+\$ANSIBLE_VAULT.*$`}, sourceBlock, true, false, seek); o != ""; {
+		println(o)
+		seek = end
+		println(start, end)
+	}
+	// o := BlockInFile("../tests/input.yaml", []string{"key2\\: \\!vault \\|"}, []string{`^[^\s]+.*`}, []string{`ANSIBLE_VAULT`}, sourceBlock, true, false)
+
 }
 
 func TestSearchPatternListInStrings(t *testing.T) {
-	datalines := ReadFileToLines("../tmp/test-block-in-file.yaml", false)
+	datalines := ReadFileToLines("../tests/input.yaml", false)
 	found, start, line := SearchPatternListInStrings(datalines, []string{`#block config files`}, 0, 0, 0)
 	println(found, start, line)
 }
 
 func TestExtractTextBlockContains(t *testing.T) {
-	b, s, e, ls := ExtractTextBlockContains("../tmp/test-block-in-file.yaml", []string{`#block config files`}, []string{`#end block config files`}, []string{`config_files_secrets\:`}, 0)
+	b, s, e, ls := ExtractTextBlockContains("../tests/input.yaml", []string{`#block config files`}, []string{`#end block config files`}, []string{`config_files_secrets\\:`}, 13)
 	println(b, s, e, ls)
 }
 

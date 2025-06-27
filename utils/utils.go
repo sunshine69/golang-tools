@@ -2409,11 +2409,10 @@ func ExtractTextBlockContains(filename string, upper_bound_pattern, lower_bound_
 	if start_line >= all_lines_count {
 		return "", 0, 0, datalines
 	}
-	datalines = datalines[start_line:]
 
 	found_upper, found_marker, found_lower := false, false, false
 
-	found_upper, start_line_no, _ = SearchPatternListInStrings(datalines, upper_bound_pattern, 0, all_lines_count, 0)
+	found_upper, start_line_no, _ = SearchPatternListInStrings(datalines, upper_bound_pattern, start_line, all_lines_count, 0)
 
 	if !found_upper {
 		return "", 0, 0, datalines
@@ -2449,7 +2448,8 @@ func ExtractTextBlockContains(filename string, upper_bound_pattern, lower_bound_
 // 2 lines, -2 is backward every two lines
 // If found match return true, the line no we match and the line content.
 func SearchPatternListInStrings(datalines []string, pattern []string, start_line, max_line, direction int) (found_marker bool, start_line_no int, linestr string) {
-	if len(pattern) == 0 {
+	total_lines := len(datalines)
+	if len(pattern) == 0 || start_line >= total_lines {
 		return false, -1, ""
 	}
 	marker_ptn := []*regexp.Regexp{}
@@ -2459,7 +2459,7 @@ func SearchPatternListInStrings(datalines []string, pattern []string, start_line
 	expect_count_ptn_found := len(marker_ptn)
 	count_ptn_found := 0
 	if max_line == 0 {
-		max_line = len(datalines)
+		max_line = total_lines
 	}
 	step := 1
 	if direction != 0 { // Allow caller to set the step
@@ -2571,7 +2571,7 @@ func LineInLines(datalines []string, search_pattern string, replace string) (out
 // Find a block text matching and replace content with replText. Return the old text block. Use ExtractTextBlockContains under the hood to get the text block, see that func for help.
 // if not care about marker pass a empty slice []string{}.
 // To be sure of accuracy all of pattern must be uniquely identified. Recommend to use full line matching (use anchor ^ and $). The lowerbound if in the pattern there is string EOF then even the lowerbound not found but we hit EOF it will still return match for the block. See example in the test function
-func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []string, marker []string, replText string, keepBoundaryLines bool, backup bool, start_line int) (oldBlock string) {
+func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []string, marker []string, replText string, keepBoundaryLines bool, backup bool, start_line int) (oldBlock string, start, end int) {
 	fstat, err := os.Stat(filename)
 	if errors.Is(err, fs.ErrNotExist) {
 		panic("[ERROR]BlockInFile File " + filename + " doesn't exist\n")
@@ -2580,7 +2580,7 @@ func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []str
 	block, start_line_no, end_line_no, datalines := ExtractTextBlockContains(filename, upper_bound_pattern, lower_bound_pattern, marker, start_line)
 	if block == "" {
 		fmt.Fprintf(os.Stderr, "block not found - upper: %v | lower: %v | marker: %v\n", upper_bound_pattern, lower_bound_pattern, marker)
-		return ""
+		return "", 0, 0
 	}
 
 	var upPartLines, downPartLines []string
@@ -2597,7 +2597,7 @@ func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []str
 		os.WriteFile(filename+".bak", []byte(strings.Join(datalines, "\n")), fstat.Mode())
 	}
 	os.WriteFile(filename, []byte(strings.Join(upPartLines, "\n")+"\n"+replText+"\n"+strings.Join(downPartLines, "\n")), fstat.Mode())
-	return block
+	return block, start_line_no, end_line_no
 }
 
 // Function to recursively convert interface{} to JSON-compatible types
