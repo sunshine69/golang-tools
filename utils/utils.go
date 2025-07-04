@@ -179,24 +179,24 @@ func Sha512Sum(in string) string {
 }
 
 // AES encrypt a string. Output is cipher text base64 encoded
-func Encrypt(text, key string) string {
+func Encrypt(text, key string) (string, error) {
 	text1 := []byte(text)
 	// generate a new aes cipher using our 32 byte long key
 	c, err := aes.NewCipher([]byte(Md5Sum(key)))
 
 	if err != nil {
-		fmt.Println(err)
+		return "", err
 	}
 	gcm, err := cipher.NewGCM(c)
 	if err != nil {
-		fmt.Println(err)
+		return "", err
 	}
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		fmt.Println(err)
+		return "", err
 	}
 	encData := gcm.Seal(nonce, nonce, text1, nil)
-	return base64.StdEncoding.EncodeToString(encData)
+	return base64.StdEncoding.EncodeToString(encData), nil
 }
 
 // AES decrypt a ciphertext base64 encoded string
@@ -339,7 +339,8 @@ func MakeSalt(length int8) (salt *[]byte) {
 }
 
 // Encrypt zip files. The password will be automtically generated and return to the caller
-// Requires command 'zip' available in the system
+// Requires command 'zip' available in the system. Note zip encryption is very weak. Better
+// to use 7zip encryption instead
 func ZipEncript(filePath ...string) string {
 	src, dest, key := filePath[0], "", ""
 	argCount := len(filePath)
@@ -358,11 +359,11 @@ func ZipEncript(filePath ...string) string {
 	srcName := filepath.Base(src)
 	absDest, _ := filepath.Abs(dest)
 
-	fmt.Printf("DEBUG srcDir %s - srcName %s\n", srcDir, srcName)
+	fmt.Fprintf(os.Stderr, "DEBUG srcDir %s - srcName %s\n", srcDir, srcName)
 	cmd := exec.Command("/bin/sh", "-c", "cd "+srcDir+"; /usr/bin/zip -r -e -P '"+key+"' "+absDest+" "+srcName)
 	_, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Println(cmd.String())
+		fmt.Fprintln(os.Stderr, cmd.String())
 		log.Fatal(err)
 	}
 	return key
@@ -380,13 +381,12 @@ func ZipDecrypt(filePath ...string) error {
 	srcDir := filepath.Dir(src)
 	srcName := filepath.Base(src)
 
-	fmt.Printf("DEBUG srcDir %s - srcName %s\n", srcDir, srcName)
+	fmt.Fprintf(os.Stderr, "DEBUG srcDir %s - srcName %s\n", srcDir, srcName)
 	cmd := exec.Command("/bin/sh", "-c", "cd "+srcDir+"; /usr/bin/unzip -P '"+key+"' "+srcName)
 
 	_, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Println(cmd.String())
-		log.Printf("ERROR ZipDecrypt %v\n", err)
+		fmt.Fprintln(os.Stderr, cmd.String(), "ERROR ZipDecrypt "+err.Error())
 		return fmt.Errorf("ERROR command unzip return error")
 	}
 	return nil
@@ -1175,12 +1175,12 @@ func Upload(client *http.Client, url string, values map[string]io.Reader, mimety
 	// Submit the request
 	// log.Printf("[DEBUG] REQ: %v\n", req)
 	rsp, err := client.Do(req)
-	if CheckErrNonFatal(err, fmt.Sprintf("[ERROR] AttachFileToRPItem Request failed with response: %v - code %d\n", rsp, rsp.StatusCode)) != nil {
+	if CheckErrNonFatal(err, fmt.Sprintf("[ERROR] AttachFileTo Request failed with response: %v - code %d\n", rsp, rsp.StatusCode)) != nil {
 		return err
 	}
 	// Check the response
 	if rsp.StatusCode != http.StatusCreated {
-		log.Printf("[ERROR] AttachFileToRPItem Request failed with response: %v - code %d\n", rsp, rsp.StatusCode)
+		log.Printf("[ERROR] AttachFileTo Request failed with response: %v - code %d\n", rsp, rsp.StatusCode)
 		err = fmt.Errorf("bad status: %s", rsp.Status)
 		return err
 	}
@@ -1351,7 +1351,7 @@ func GenSelfSignedKey(keyfilename string) {
 	}
 	out := &bytes.Buffer{}
 	pem.Encode(out, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-	// fmt.Println(out.String())
+
 	if err := os.WriteFile(fmt.Sprintf("%s.crt", keyfilename), out.Bytes(), 0640); err != nil {
 		log.Fatalf("can not write public key %v\n", err)
 	}
@@ -1361,7 +1361,6 @@ func GenSelfSignedKey(keyfilename string) {
 	if err := os.WriteFile(fmt.Sprintf("%s.key", keyfilename), out.Bytes(), 0600); err != nil {
 		log.Fatalf("can not write private key %v\n", err)
 	}
-	// fmt.Println(out.String())
 }
 
 func publicKey(priv interface{}) interface{} {
@@ -2040,7 +2039,7 @@ func LineInFile(filename string, opt *LineInfileOpt) (err error, changed bool) {
 				"file":          filename,
 				"matched_lines": d2,
 			}
-			fmt.Printf("%s\n", JsonDump(o, "  "))
+			fmt.Fprintf(os.Stdout, "%s\n", JsonDump(o, "  "))
 		} else {
 			for _, v := range d2 { // then remove by val here.
 				d = RemoveItemByVal(d, v)
@@ -2331,7 +2330,7 @@ func ReadFirstLineWithPrefix(filePath string, prefix []string) (firstLine string
 	if foundPrefix {
 		tempFile, err1 := os.CreateTemp("", "restContent_*.txt")
 		if err1 != nil {
-			fmt.Println("Error creating temporary file:", err)
+			fmt.Fprintln(os.Stderr, "Error creating temporary file:", err)
 			return "", "", matchedPrefix, err1
 		}
 		defer tempFile.Close()
@@ -2339,7 +2338,7 @@ func ReadFirstLineWithPrefix(filePath string, prefix []string) (firstLine string
 		// Copy the rest of the content from the reader to the temporary file
 		_, err1 = io.Copy(tempFile, reader)
 		if err1 != nil {
-			fmt.Println("Error copying the rest of the content to the temporary file:", err)
+			fmt.Fprintln(os.Stderr, "Error copying the rest of the content to the temporary file:", err)
 			return "", "", matchedPrefix, err1
 		}
 		return firstLine, tempFile.Name(), matchedPrefix, nil
@@ -2457,7 +2456,11 @@ func SearchPatternListInStrings(datalines []string, pattern []string, start_line
 		return false, -1, []string{}
 	}
 	marker_ptn := []*regexp.Regexp{}
+	escapeMeta := os.Getenv("REGEXP_QUOTE_META")
 	for _, ptn := range pattern {
+		if escapeMeta == "YES" {
+			ptn = regexp.QuoteMeta(ptn)
+		}
 		marker_ptn = append(marker_ptn, regexp.MustCompile(ptn))
 	}
 	expect_count_ptn_found := len(marker_ptn)
@@ -2678,12 +2681,12 @@ func CreateDirTree(srcDirpath, targetRoot string) error {
 	os.Chdir(srcDirpath)
 	filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			fmt.Printf("prevent panic by handling failure accessing a path %q: %v\n", srcDirpath, err)
+			fmt.Fprintf(os.Stderr, "prevent panic by handling failure accessing a path %q: %v\n", srcDirpath, err)
 			return err
 		}
 
 		if d.IsDir() {
-			fmt.Printf("Going to create path %s\n", path)
+			fmt.Fprintf(os.Stderr, "Going to create path %s\n", path)
 			CheckErr(os.MkdirAll(filepath.Join(targetRoot, path), 0755), "ERROR MkdirAll")
 		}
 
