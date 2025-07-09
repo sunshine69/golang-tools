@@ -200,3 +200,25 @@ func TestGoTemplate(t *testing.T) {
 
 	println(o)
 }
+
+func TestUpdateMap(t *testing.T) {
+	jsonstr := `{
+		"k":"v",
+		"vars":[
+			{"a":"a val", "b":"B val"},
+			{"a":"a1 val", "b1":"B1 val"}
+		]
+		}`
+	v := map[string]any{}
+	Must("", json.UnmarshalFromString(jsonstr, &v))
+
+	vars := v["vars"].([]any)
+	for _, item := range vars {
+		println(JsonDump(item, ""))
+		item1 := item.(map[string]any)
+		if item1["a"].(string) == "a val" {
+			item1["a"] = "New a val"
+		}
+	}
+	println("2 ", JsonDump(v, ""))
+}

@@ -1015,6 +1015,18 @@ func Curl(method, url, data, savefilename string, headers []string) (string, err
 	if err != nil {
 		return "", err
 	}
+	headers_dump := strings.ToUpper(strings.Join(headers, "|"))
+	if method == "POST" || method == "PUT" || method == "PATCH" {
+		if !strings.Contains(headers_dump, `CONTENT-TYPE`) {
+			var v any
+			if json.UnmarshalFromString(data, &v) == nil {
+				headers = append(headers, `Content-Type: application/json`)
+			} else {
+				headers = append(headers, `Content-Type: application/x-www-form-urlencoded`)
+			}
+		}
+	}
+
 	for _, line := range headers {
 		_tmp := strings.Split(line, ":")
 		req.Header.Set(_tmp[0], strings.TrimSpace(_tmp[1]))
