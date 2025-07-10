@@ -35,6 +35,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httputil"
 	"net/textproto"
 	"os"
 	"os/exec"
@@ -1032,6 +1033,10 @@ func Curl(method, url, data, savefilename string, headers []string) (string, err
 		req.Header.Set(_tmp[0], strings.TrimSpace(_tmp[1]))
 	}
 	resp, err := client.Do(req)
+	if CURL_DEBUG == "yes" {
+		log.Println("[DEBUG] REQUEST: " + JsonDump(Must(httputil.DumpRequest(req, true)), ""))
+		log.Println("[DEBUG] RESPONSE" + JsonDump(Must(httputil.DumpResponse(resp, true)), ""))
+	}
 	if err != nil {
 		return "", err
 	}
