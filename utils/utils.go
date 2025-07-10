@@ -941,7 +941,9 @@ func Assert(cond bool, msg string, fatal bool) bool {
 // data - set it to empty string if you do not need to send any data.
 // savefilename - if you do not want to save to a file, set it to empty string
 // headers - Same as header array it is a list of string with : as separator. Eg. []string{"Authorization: Bearer <myToken>"}
-func Curl(method, url, data, savefilename string, headers []string) (string, error) {
+// custom_client - if you want more option, create your own http/Client and then setup the way you want and pass
+// it here. Otherwise give it nil
+func Curl(method, url, data, savefilename string, headers []string, custom_client *http.Client) (string, error) {
 	CURL_DEBUG := Getenv("CURL_DEBUG", "no")
 	ca_cert_file := Getenv("CA_CERT_FILE", "")
 	ssl_key_file := Getenv("SSL_KEY_FILE", "")
@@ -991,19 +993,21 @@ func Curl(method, url, data, savefilename string, headers []string) (string, err
 		}
 	}
 
-	var client *http.Client = nil
+	var client *http.Client = custom_client
+	if client == nil {
+		client = &http.Client{}
+	}
 
 	if tlsConfig != nil {
 		if CURL_DEBUG == "yes" {
 			log.Printf("[DEBUG] going to create transport with tlsConfig '%v'\n", tlsConfig)
 		}
 		transport := &http.Transport{TLSClientConfig: tlsConfig}
-		client = &http.Client{Transport: transport}
+		client.Transport = transport
 	} else {
 		if CURL_DEBUG == "yes" {
 			log.Println("[DEBUG] no tlsconfig is set, use default http client")
 		}
-		client = &http.Client{}
 	}
 
 	if CURL_DEBUG == "yes" {
