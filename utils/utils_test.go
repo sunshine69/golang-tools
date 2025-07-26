@@ -14,6 +14,25 @@ import (
 // 	CheckErr(err, "  ")
 // }
 
+func TestGenerateRandomBytes(t *testing.T) {
+	println(GenerateRandomBytes(32))
+}
+func TestGenerateRandom(t *testing.T) {
+	n := MakePassword(35)
+	log.Println(n)
+}
+
+func TestEncrypt(t *testing.T) {
+	p := "This is a pretty long passphrase used to encrypt the string"
+	inputstr := "this is text"
+	o := Must(Encrypt(inputstr, p))
+	println("Encrypted: ", o)
+	o1 := Must(Decrypt(o, p))
+	println("Decrypt result: ", o1)
+	if o1 != inputstr {
+		panic("[ERROR] decrypted not same as input\n")
+	}
+}
 func TestSha1Sum(t *testing.T) {
 	o := Sha1Sum("1q2w3e")
 	log.Println(o)
@@ -117,11 +136,6 @@ func BenchmarkGoTemplateString(b *testing.B) { // go template is about 6 times f
 	for n := 0; n < b.N; n++ {
 		GoTemplateString(`<?php  var2 - {{.var2}} this is output {{ join "," .var1 }} - ?>`, map[string]any{"var1": []string{"a", "b", "c"}, "var2": "Value var2"})
 	}
-}
-
-func TestGenerateRandom(t *testing.T) {
-	n := MakePassword(35)
-	log.Println(n)
 }
 
 func TestLinesInBlock(t *testing.T) {
