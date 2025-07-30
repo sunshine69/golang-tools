@@ -15,7 +15,7 @@ import (
 // }
 
 func TestGenerateRandomBytes(t *testing.T) {
-	println(GenerateRandomBytes(32))
+	println(GenerateRandomBytes(48))
 }
 func TestGenerateRandom(t *testing.T) {
 	n := MakePassword(35)
@@ -235,4 +235,11 @@ func TestUpdateMap(t *testing.T) {
 		}
 	}
 	println("2 ", JsonDump(v, ""))
+}
+
+func TestMigrateOldEncrypt(t *testing.T) {
+	key := os.Getenv("KEY")
+	oldcontent_enc := ``
+	old_content := Must(Decrypt_v0(oldcontent_enc, key))
+	println(Encrypt(old_content, key))
 }

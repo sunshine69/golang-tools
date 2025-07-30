@@ -5,11 +5,34 @@
     "version": "0.2.0",
     "configurations": [
         {
-        "name": "Debug",
+            "name": "Launch test function",
+            "type": "go",
+            "request": "launch",
+            "mode": "test",
+            "program": "${workspaceFolder}",
+            "args": [
+                "-test.run",
+                "-v",
+                "-count=1",
+                "MyTestFunction"
+            ]
+        },
+        {
+        "name": "Debug Go",
         "type": "go",
         "request": "launch",
         "mode": "debug",
-        "program": "${fileDirname}"
-}
+        "program": "${fileDirname}",
+        "args": ["-db", "/home/stevek/tmp/gnote-test.db"]
+        },
+        {
+        "name": "Debug Exec",
+        "type": "go",
+        "request": "launch",
+        "mode": "exec",
+        "program": "/mnt/nfs-data/stevek-src/gnote/gnote",
+        "args": ["-db", "/home/stevek/tmp/gnote-test.db"]
+        },
+
     ]
 }
