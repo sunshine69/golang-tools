@@ -22,6 +22,10 @@ func TestGenerateRandom(t *testing.T) {
 	log.Println(n)
 }
 
+func TestEmail(t *testing.T) {
+	SendMail("fromaddr", []string{"toaddr"}, "test Subject", "Hi, test email", []string{"/tmp/ad-hoc-pod.yaml"}, "mailserver:25", "", "", false)
+}
+
 func TestEncrypt(t *testing.T) {
 	p := "This is a pretty long passphrase used to encrypt the string"
 	inputstr := "this is text"

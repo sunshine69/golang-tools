@@ -728,8 +728,11 @@ func SendMail(from string, to []string, subject, body string, attachmentPaths []
 	// Close the boundary
 	message += fmt.Sprintf("--%s--\r\n", boundary)
 
-	// Set up authentication
-	auth := smtp.PlainAuth("", username, password, host)
+	// Set up authentication (only if username and password are provided)
+	var auth smtp.Auth
+	if username != "" && password != "" {
+		auth = smtp.PlainAuth("", username, password, host)
+	}
 
 	// Send the email
 	if useSSL {
@@ -806,7 +809,7 @@ func sendMailTLS(addr string, auth smtp.Auth, from string, to []string, msg []by
 	}
 	defer client.Quit()
 
-	// Authenticate
+	// Authenticate (only if auth is provided)
 	if auth != nil {
 		if err = client.Auth(auth); err != nil {
 			return err
