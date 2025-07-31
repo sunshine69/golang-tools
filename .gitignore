@@ -26,3 +26,4 @@ gitlab/projects/log/*
 *.csr
 *.key
 tmp/**
+utils/utils_test.go

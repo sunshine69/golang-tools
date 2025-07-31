@@ -31,8 +31,8 @@ import (
 	"maps"
 	"math"
 	"math/big"
+	"mime"
 	"mime/multipart"
-	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httputil"
@@ -696,150 +696,144 @@ func ReadFileToBase64Content(filename string) string {
 
 // SendMail sends an email with a text body and multiple attachments over SSL/TLS if requested
 func SendMail(from string, to []string, subject, body string, attachmentPaths []string, smtpServerInfo, username, password string, useSSL bool) error {
-	_serverInfor := strings.Split(smtpServerInfo, ":")
-	smtpServer, smtpPort := _serverInfor[0], Ternary(useSSL, "465", "25")
-	if len(_serverInfor) == 2 {
-		smtpPort = _serverInfor[1]
-	}
-	// Create the buffer to build the MIME message
-	var emailContent bytes.Buffer
+	// Parse SMTP server info (expecting format like "smtp.gmail.com:587")
+	host := strings.Split(smtpServerInfo, ":")[0]
 
-	// Create a multipart message with 'mixed' type (for attachments)
-	writer := multipart.NewWriter(&emailContent)
+	// Create the email headers and body
+	boundary := fmt.Sprintf("boundary_%d", time.Now().Unix())
 
-	// Set the headers for the email
-	headers := map[string]string{
-		"From":    from,
-		"To":      strings.Join(to, ", "),
-		"Subject": subject,
-	}
+	// Build the message
+	message := fmt.Sprintf("From: %s\r\n", from)
+	message += fmt.Sprintf("To: %s\r\n", strings.Join(to, ", "))
+	message += fmt.Sprintf("Subject: %s\r\n", subject)
+	message += "MIME-Version: 1.0\r\n"
+	message += fmt.Sprintf("Content-Type: multipart/mixed; boundary=%s\r\n", boundary)
+	message += "\r\n"
 
-	// Write headers to the email content
-	for key, value := range headers {
-		emailContent.WriteString(fmt.Sprintf("%s: %s\r\n", key, value))
-	}
+	// Add the body
+	message += fmt.Sprintf("--%s\r\n", boundary)
+	message += "Content-Type: text/plain; charset=UTF-8\r\n"
+	message += "Content-Transfer-Encoding: 8bit\r\n"
+	message += "\r\n"
+	message += body + "\r\n"
 
-	// Add a blank line between headers and the body
-	emailContent.WriteString("\r\n")
-
-	// Create the text part of the email (the body)
-	textPart, _ := writer.CreatePart(map[string][]string{
-		"Content-Type": {"text/plain; charset=UTF-8"},
-	})
-	textPart.Write([]byte(body))
-
-	// Add the attachments (if any)
+	// Add attachments
 	for _, attachmentPath := range attachmentPaths {
-		attachmentFile, err := os.Open(attachmentPath)
+		err := addAttachment(&message, attachmentPath, boundary)
 		if err != nil {
-			return fmt.Errorf("could not open attachment: %v", err)
+			return fmt.Errorf("failed to add attachment %s: %v", attachmentPath, err)
 		}
-		defer attachmentFile.Close()
-
-		// Get the attachment's filename
-		_, filename := filepath.Split(attachmentPath)
-
-		// Add the attachment header (Content-Type, Content-Disposition, etc.)
-		attachmentHeader := map[string][]string{
-			"Content-Type":              {fmt.Sprintf("application/octet-stream; name=\"%s\"", filename)},
-			"Content-Transfer-Encoding": {"base64"},
-			"Content-Disposition":       {fmt.Sprintf("attachment; filename=\"%s\"", filename)},
-		}
-
-		// Create the attachment part
-		attachmentPart, _ := writer.CreatePart(attachmentHeader)
-
-		// Encode the file in base64 and write it to the attachment part
-		encoder := base64.NewEncoder(base64.StdEncoding, attachmentPart)
-		_, err = io.Copy(encoder, attachmentFile)
-		if err != nil {
-			return fmt.Errorf("could not encode attachment: %v", err)
-		}
-		encoder.Close()
 	}
 
-	// Close the multipart writer (this adds the final boundary)
-	writer.Close()
+	// Close the boundary
+	message += fmt.Sprintf("--%s--\r\n", boundary)
 
-	// Set up SMTP authentication if username is provided
-	var auth smtp.Auth
-	if username != "" && password != "" {
-		auth = smtp.PlainAuth("", username, password, smtpServer)
-	}
+	// Set up authentication
+	auth := smtp.PlainAuth("", username, password, host)
 
-	// Dial the SMTP server using SSL/TLS or without SSL depending on the useSSL flag
-	var conn net.Conn
-	var err error
-
+	// Send the email
 	if useSSL {
-		// SSL/TLS connection (use port 465 for SSL)
-		conn, err = tls.Dial("tcp", smtpServer+":"+smtpPort, &tls.Config{
-			InsecureSkipVerify: true, // Set to false for production environments
-		})
-		if err != nil {
-			return fmt.Errorf("failed to dial SMTP server over SSL/TLS: %v", err)
-		}
+		return sendMailTLS(smtpServerInfo, auth, from, to, []byte(message))
 	} else {
-		// Non-SSL connection (use port 587 for STARTTLS or 25 for no encryption)
-		conn, err = net.Dial("tcp", smtpServer+":"+smtpPort)
-		if err != nil {
-			return fmt.Errorf("failed to dial SMTP server without SSL: %v", err)
-		}
+		return smtp.SendMail(smtpServerInfo, auth, from, to, []byte(message))
 	}
+}
 
-	// Create a new SMTP client
-	client, err := smtp.NewClient(conn, smtpServer)
+func addAttachment(message *string, attachmentPath, boundary string) error {
+	// Open and read the file
+	file, err := os.Open(attachmentPath)
 	if err != nil {
-		return fmt.Errorf("failed to create SMTP client: %v", err)
+		return err
 	}
+	defer file.Close()
 
-	// If using STARTTLS, initiate the STARTTLS upgrade
-	if !useSSL {
-		if err := client.StartTLS(&tls.Config{
-			InsecureSkipVerify: true,
-		}); err != nil {
-			return fmt.Errorf("failed to start TLS: %v", err)
-		}
-	}
-
-	// Authenticate with the SMTP server if username is provided
-	if auth != nil {
-		if err := client.Auth(auth); err != nil {
-			return fmt.Errorf("SMTP authentication failed: %v", err)
-		}
-	}
-
-	// Set the sender and recipients
-	if err := client.Mail(from); err != nil {
-		return fmt.Errorf("failed to set sender: %v", err)
-	}
-	for _, recipient := range to {
-		if err := client.Rcpt(recipient); err != nil {
-			return fmt.Errorf("failed to set recipient: %v", err)
-		}
-	}
-
-	// Write the email body to the client
-	dataWriter, err := client.Data()
+	fileData, err := io.ReadAll(file)
 	if err != nil {
-		return fmt.Errorf("failed to write email body: %v", err)
+		return err
 	}
 
-	_, err = dataWriter.Write(emailContent.Bytes())
-	if err != nil {
-		return fmt.Errorf("failed to send email data: %v", err)
+	// Get filename from path
+	filename := filepath.Base(attachmentPath)
+
+	// Detect MIME type
+	mimeType := mime.TypeByExtension(filepath.Ext(attachmentPath))
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
 	}
 
-	// Close the client session
-	err = dataWriter.Close()
-	if err != nil {
-		return fmt.Errorf("failed to close data writer: %v", err)
-	}
+	// Encode file data to base64
+	encodedData := base64.StdEncoding.EncodeToString(fileData)
 
-	// Quit the session
-	client.Quit()
+	// Add attachment to message
+	*message += fmt.Sprintf("--%s\r\n", boundary)
+	*message += fmt.Sprintf("Content-Type: %s; name=\"%s\"\r\n", mimeType, filename)
+	*message += "Content-Transfer-Encoding: base64\r\n"
+	*message += fmt.Sprintf("Content-Disposition: attachment; filename=\"%s\"\r\n", filename)
+	*message += "\r\n"
+
+	// Split base64 data into lines of 76 characters (RFC 2045)
+	for i := 0; i < len(encodedData); i += 76 {
+		end := i + 76
+		if end > len(encodedData) {
+			end = len(encodedData)
+		}
+		*message += encodedData[i:end] + "\r\n"
+	}
 
 	return nil
+}
+
+func sendMailTLS(addr string, auth smtp.Auth, from string, to []string, msg []byte) error {
+	// Parse server address
+	host := strings.Split(addr, ":")[0]
+
+	// Create TLS config
+	tlsConfig := &tls.Config{
+		ServerName: host,
+	}
+
+	// Connect to server with TLS
+	conn, err := tls.Dial("tcp", addr, tlsConfig)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	// Create SMTP client
+	client, err := smtp.NewClient(conn, host)
+	if err != nil {
+		return err
+	}
+	defer client.Quit()
+
+	// Authenticate
+	if auth != nil {
+		if err = client.Auth(auth); err != nil {
+			return err
+		}
+	}
+
+	// Set sender
+	if err = client.Mail(from); err != nil {
+		return err
+	}
+
+	// Set recipients
+	for _, recipient := range to {
+		if err = client.Rcpt(recipient); err != nil {
+			return err
+		}
+	}
+
+	// Send message
+	writer, err := client.Data()
+	if err != nil {
+		return err
+	}
+	defer writer.Close()
+
+	_, err = writer.Write(msg)
+	return err
 }
 
 // FileTouch is similar the unix command 'touch'. If file does not exists, an empty file will be created
