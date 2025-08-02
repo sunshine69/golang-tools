@@ -69,12 +69,6 @@ func TestCurl(t *testing.T) {
 	CheckErr(err, "ERROR")
 	log.Println(o)
 }
-func TestGenRandomString(t *testing.T) {
-	// o := RunSystemCommand("ls /", true)
-	// fmt.Printf("OUT: %v\n", o)
-	a := GenRandomString(12)
-	log.Println(a)
-}
 
 func TestRemoveItem(t *testing.T) {
 	o := RemoveItemByIndex([]interface{}{"a", 21, "3"}, 1)
@@ -217,28 +211,6 @@ func TestGoTemplate(t *testing.T) {
 			]`, map[string]any{"packages": []string{"p1", "p2"}})
 
 	println(o)
-}
-
-func TestUpdateMap(t *testing.T) {
-	jsonstr := `{
-		"k":"v",
-		"vars":[
-			{"a":"a val", "b":"B val"},
-			{"a":"a1 val", "b1":"B1 val"}
-		]
-		}`
-	v := map[string]any{}
-	Must("", json.UnmarshalFromString(jsonstr, &v))
-
-	vars := v["vars"].([]any)
-	for _, item := range vars {
-		println(JsonDump(item, ""))
-		item1 := item.(map[string]any)
-		if item1["a"].(string) == "a val" {
-			item1["a"] = "New a val"
-		}
-	}
-	println("2 ", JsonDump(v, ""))
 }
 
 func TestMigrateOldEncrypt(t *testing.T) {

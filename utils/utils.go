@@ -51,6 +51,7 @@ import (
 	"net/smtp"
 
 	jsoniter "github.com/json-iterator/go"
+	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/scrypt"
 	"golang.org/x/net/publicsuffix"
@@ -64,7 +65,9 @@ const (
 	TimeISO8601LayOut     = "2006-01-02T15:04:05-0700"
 	AUTimeLayout          = "02/01/2006 15:04:05 MST"
 	CleanStringDateLayout = "2006-01-02-150405"
-	LetterBytes           = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#%^()-,."
+	LetterCharset         = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#%^()-,."
+	// remove \ as not json friendly, add single quote, json seems to be fine
+	PasswordCharset = `ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{}|;:,.<>?'/~`
 )
 
 var (
@@ -206,192 +209,148 @@ func Sha512Sum(in string) string {
 	return fmt.Sprintf("%x", sum)
 }
 
-// EncryptionConfig holds configuration for encryption
+const (
+	EncryptVersion1 = byte(1)
+)
+
+type KDFType string
+
+const (
+	KDFArgon2id KDFType = "argon2id"
+	KDFScrypt   KDFType = "scrypt"
+)
+
+// EncryptionConfig holds config for encryption
 type EncryptionConfig struct {
-	SaltSize int // Salt size in bytes
-	KeySize  int // Key size in bytes (32 for AES-256)
-	// Scrypt parameters
-	ScryptN int // CPU/memory cost parameter
-	ScryptR int // Block size parameter
-	ScryptP int // Parallelization parameter
+	SaltSize int
+	KeySize  int
+	KDF      KDFType
+
+	// Scrypt
+	ScryptN int
+	ScryptR int
+	ScryptP int
+
+	// Argon2id
+	ArgonTime    uint32
+	ArgonMemory  uint32
+	ArgonThreads uint8
 }
 
-// DefaultEncryptionConfig returns secure default configuration
+// DefaultEncryptionConfig returns secure defaults
 func DefaultEncryptionConfig() EncryptionConfig {
 	return EncryptionConfig{
-		SaltSize: 16,    // 128 bits
-		KeySize:  32,    // 256 bits for AES-256
-		ScryptN:  32768, // CPU/memory cost (2^15)
-		ScryptR:  8,     // Block size
-		ScryptP:  1,     // Parallelization
+		SaltSize:     16,
+		KeySize:      32,
+		KDF:          KDFArgon2id,
+		ScryptN:      32768,
+		ScryptR:      8,
+		ScryptP:      1,
+		ArgonTime:    1,
+		ArgonMemory:  64 * 1024,
+		ArgonThreads: 4,
 	}
 }
 
-// deriveKeyScrypt derives a key using scrypt (works with older Go versions)
-func deriveKeyScrypt(password, salt []byte, config EncryptionConfig) ([]byte, error) {
-	return scrypt.Key(password, salt, config.ScryptN, config.ScryptR, config.ScryptP, config.KeySize)
+// deriveKey uses the selected KDF
+func deriveKey(password, salt []byte, cfg EncryptionConfig) ([]byte, error) {
+	switch cfg.KDF {
+	case KDFArgon2id:
+		return argon2.IDKey(password, salt, cfg.ArgonTime, cfg.ArgonMemory, cfg.ArgonThreads, uint32(cfg.KeySize)), nil
+	case KDFScrypt:
+		return scrypt.Key(password, salt, cfg.ScryptN, cfg.ScryptR, cfg.ScryptP, cfg.KeySize)
+	default:
+		return nil, errors.New("unsupported KDF")
+	}
 }
 
-// Alternative: deriveKeyArgon2 using Argon2 (uncomment if you prefer)
-/*
-func deriveKeyArgon2(password, salt []byte, config EncryptionConfig) []byte {
-	// Argon2id parameters: time=1, memory=64MB, threads=4, keyLen=32
-	return argon2.IDKey(password, salt, 1, 64*1024, 4, config.KeySize)
-}
-*/
+// Encrypt encrypts text using password-derived key with versioning
+func Encrypt(plaintext, password string) (string, error) {
+	cfg := DefaultEncryptionConfig()
 
-// Alternative: Simple PBKDF2 implementation for older Go versions
-func deriveKeySimplePBKDF2(password, salt []byte, iterations, keyLen int) []byte {
-	// Simple PBKDF2 using SHA256 - works with older Go versions
-	prf := func(p, s []byte) []byte {
-		h := sha256.New()
-		h.Write(p)
-		h.Write(s)
-		return h.Sum(nil)
+	if plaintext == "" || password == "" {
+		return "", errors.New("text and password must not be empty")
 	}
 
-	return simplePBKDF2(password, salt, iterations, keyLen, prf, sha256.Size)
-}
-
-// Simple PBKDF2 implementation for compatibility
-func simplePBKDF2(password, salt []byte, c, dkLen int, prf func([]byte, []byte) []byte, hLen int) []byte {
-	if dkLen > (1<<32-1)*hLen {
-		return nil
+	salt := make([]byte, cfg.SaltSize)
+	if _, err := rand.Read(salt); err != nil {
+		return "", err
 	}
 
-	l := (dkLen + hLen - 1) / hLen
-	dk := make([]byte, 0, l*hLen)
-
-	for i := 1; i <= l; i++ {
-		u := prf(password, append(salt, byte(i>>24), byte(i>>16), byte(i>>8), byte(i)))
-		f := make([]byte, len(u))
-		copy(f, u)
-
-		for j := 1; j < c; j++ {
-			u = prf(password, u)
-			for k := range u {
-				f[k] ^= u[k]
-			}
-		}
-		dk = append(dk, f...)
-	}
-
-	return dk[:dkLen]
-}
-
-// EncryptWithSalt encrypts text using password-based key derivation with a provided salt.
-// Returns base64 encoded: salt + nonce + ciphertext
-func EncryptWithSalt(text, password string, salt []byte, config EncryptionConfig) (string, error) {
-	if len(text) == 0 {
-		return "", errors.New("text cannot be empty")
-	}
-	if len(password) == 0 {
-		return "", errors.New("password cannot be empty")
-	}
-	if len(salt) != config.SaltSize {
-		return "", errors.New("invalid salt size")
-	}
-
-	// Derive key using scrypt (compatible with older Go versions)
-	key, err := deriveKeyScrypt([]byte(password), salt, config)
+	key, err := deriveKey([]byte(password), salt, cfg)
 	if err != nil {
 		return "", err
 	}
 
-	// Create AES cipher
-	c, err := aes.NewCipher(key)
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", err
 	}
 
-	// Create GCM mode
-	gcm, err := cipher.NewGCM(c)
+	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return "", err
 	}
 
-	// Generate random nonce
 	nonce := make([]byte, gcm.NonceSize())
-	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return "", err
 	}
 
-	// Encrypt the text
-	ciphertext := gcm.Seal(nil, nonce, []byte(text), nil)
+	ciphertext := gcm.Seal(nil, nonce, []byte(plaintext), nil)
 
-	// Combine salt + nonce + ciphertext
-	result := make([]byte, 0, len(salt)+len(nonce)+len(ciphertext))
-	result = append(result, salt...)
-	result = append(result, nonce...)
-	result = append(result, ciphertext...)
+	// Format: version | salt | nonce | ciphertext
+	buf := bytes.NewBuffer([]byte{EncryptVersion1})
+	buf.Write(salt)
+	buf.Write(nonce)
+	buf.Write(ciphertext)
 
-	return base64.StdEncoding.EncodeToString(result), nil
+	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 
-// Encrypt encrypts text using password-based key derivation with auto-generated salt.
-// Returns base64 encoded: salt + nonce + ciphertext
-func Encrypt(text, password string) (string, error) {
-	config := DefaultEncryptionConfig()
+// Decrypt decrypts a versioned encrypted base64 string
+func Decrypt(dataB64, password string) (string, error) {
+	cfg := DefaultEncryptionConfig()
 
-	// Generate random salt
-	salt := make([]byte, config.SaltSize)
-	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
-		return "", err
+	raw, err := base64.StdEncoding.DecodeString(dataB64)
+	if err != nil || len(raw) < 1+cfg.SaltSize+12+16 {
+		return "", errors.New("decryption failed")
 	}
 
-	return EncryptWithSalt(text, password, salt, config)
-}
+	version := raw[0]
+	if version != EncryptVersion1 {
+		return "", errors.New("unsupported encryption version")
+	}
 
-// Decrypt decrypts base64 encoded data that contains: salt + nonce + ciphertext
-func Decrypt(encryptedData, password string) (string, error) {
-	config := DefaultEncryptionConfig()
+	salt := raw[1 : 1+cfg.SaltSize]
 
-	// Decode base64
-	data, err := base64.StdEncoding.DecodeString(encryptedData)
+	key, err := deriveKey([]byte(password), salt, cfg)
 	if err != nil {
-		return "", err
+		return "", errors.New("decryption failed")
 	}
 
-	// Check minimum length: salt + nonce + at least some ciphertext
-	minLength := config.SaltSize + 12 + 16 // salt + GCM nonce + GCM tag
-	if len(data) < minLength {
-		return "", errors.New("encrypted data too short")
-	}
-
-	// Extract salt
-	salt := data[:config.SaltSize]
-
-	// Derive key using same parameters
-	key, err := deriveKeyScrypt([]byte(password), salt, config)
+	block, err := aes.NewCipher(key)
 	if err != nil {
-		return "", err
+		return "", errors.New("decryption failed")
 	}
 
-	// Create AES cipher
-	c, err := aes.NewCipher(key)
+	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return "", err
+		return "", errors.New("decryption failed")
 	}
 
-	// Create GCM mode
-	gcm, err := cipher.NewGCM(c)
-	if err != nil {
-		return "", err
-	}
-
-	// Extract nonce and ciphertext
 	nonceSize := gcm.NonceSize()
-	if len(data) < config.SaltSize+nonceSize {
-		return "", errors.New("encrypted data too short for nonce")
+	offset := 1 + cfg.SaltSize
+	if len(raw) < offset+nonceSize {
+		return "", errors.New("decryption failed")
 	}
 
-	nonce := data[config.SaltSize : config.SaltSize+nonceSize]
-	ciphertext := data[config.SaltSize+nonceSize:]
+	nonce := raw[offset : offset+nonceSize]
+	ciphertext := raw[offset+nonceSize:]
 
-	// Decrypt
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return "", err
+		return "", errors.New("decryption failed")
 	}
 
 	return string(plaintext), nil
@@ -460,9 +419,8 @@ func RandomHex(n int) (string, error) {
 // MakePassword -
 func MakePassword(length int) string {
 	b := make([]byte, length)
-	const charset = `abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_-+=,[]{}|\/~:;?.`
 	for i := range b {
-		b[i] = charset[GenerateRandom(uint64(len(charset)))]
+		b[i] = PasswordCharset[GenerateRandom(uint64(len(PasswordCharset)))]
 	}
 	return string(b)
 }
