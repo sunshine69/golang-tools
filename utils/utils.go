@@ -66,8 +66,8 @@ const (
 	AUTimeLayout          = "02/01/2006 15:04:05 MST"
 	CleanStringDateLayout = "2006-01-02-150405"
 	LetterCharset         = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#%^()-,."
-	// remove \ as not json friendly, add single quote, json seems to be fine
-	PasswordCharset = `ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{}|;:,.<>?'/~`
+	// remove \ as not json friendly, json seems to be fine. No quotes to make yaml happy
+	PasswordCharset = `ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{}|;:,.<>?/~`
 )
 
 var (
@@ -210,7 +210,8 @@ func Sha512Sum(in string) string {
 }
 
 const (
-	EncryptVersion1 = byte(1)
+	EncryptVersion1 = byte(1) // argon2id, only recent go version supports it, this is default
+	EncryptVersion2 = byte(2) // scrypt version, good enough
 )
 
 type KDFType string
@@ -222,6 +223,7 @@ const (
 
 // EncryptionConfig holds config for encryption
 type EncryptionConfig struct {
+	Version  byte
 	SaltSize int
 	KeySize  int
 	KDF      KDFType
@@ -235,11 +237,33 @@ type EncryptionConfig struct {
 	ArgonTime    uint32
 	ArgonMemory  uint32
 	ArgonThreads uint8
+	OutputFmt    string // string or raw; string we will base64 encoded it, raw we keep encrypted data as is
+}
+
+func NewEncConfigForVersion(version byte) (*EncryptionConfig, error) {
+	switch version {
+	case EncryptVersion1:
+		return DefaultEncryptionConfig(), nil
+	case EncryptVersion2:
+		return &EncryptionConfig{
+			Version:   EncryptVersion2,
+			SaltSize:  24, // larger salt
+			KeySize:   32,
+			KDF:       KDFScrypt,
+			ScryptN:   1 << 15,
+			ScryptR:   8,
+			ScryptP:   1,
+			OutputFmt: "string",
+		}, nil
+	default:
+		return &EncryptionConfig{}, errors.New("unsupported version")
+	}
 }
 
 // DefaultEncryptionConfig returns secure defaults
-func DefaultEncryptionConfig() EncryptionConfig {
-	return EncryptionConfig{
+func DefaultEncryptionConfig() *EncryptionConfig {
+	return &EncryptionConfig{
+		Version:      EncryptVersion1,
 		SaltSize:     16,
 		KeySize:      32,
 		KDF:          KDFArgon2id,
@@ -249,6 +273,7 @@ func DefaultEncryptionConfig() EncryptionConfig {
 		ArgonTime:    1,
 		ArgonMemory:  64 * 1024,
 		ArgonThreads: 4,
+		OutputFmt:    "string",
 	}
 }
 
@@ -265,84 +290,109 @@ func deriveKey(password, salt []byte, cfg EncryptionConfig) ([]byte, error) {
 }
 
 // Encrypt encrypts text using password-derived key with versioning
-func Encrypt(plaintext, password string) (string, error) {
-	cfg := DefaultEncryptionConfig()
-
-	if plaintext == "" || password == "" {
-		return "", errors.New("text and password must not be empty")
+func Encrypt[T string | []byte](data, password T, cfg *EncryptionConfig) (T, error) {
+	if cfg == nil {
+		cfg = DefaultEncryptionConfig()
+	}
+	var passkey []byte
+	var datab []byte
+	switch v := any(password).(type) {
+	case string:
+		passkey, datab = []byte(v), []byte(data)
+	case []byte:
+		passkey, datab = v, []byte(data)
+	}
+	if len(datab) == 0 || len(passkey) == 0 {
+		return *new(T), errors.New("text and password must not be empty")
 	}
 
 	salt := make([]byte, cfg.SaltSize)
 	if _, err := rand.Read(salt); err != nil {
-		return "", err
+		return *new(T), err
 	}
 
-	key, err := deriveKey([]byte(password), salt, cfg)
+	key, err := deriveKey(passkey, salt, *cfg)
 	if err != nil {
-		return "", err
+		return *new(T), err
 	}
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return "", err
+		return *new(T), err
 	}
 
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return "", err
+		return *new(T), err
 	}
 
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", err
+		return *new(T), err
 	}
 
-	ciphertext := gcm.Seal(nil, nonce, []byte(plaintext), nil)
+	ciphertext := gcm.Seal(nil, nonce, datab, nil)
 
 	// Format: version | salt | nonce | ciphertext
-	buf := bytes.NewBuffer([]byte{EncryptVersion1})
+	buf := bytes.NewBuffer([]byte{cfg.Version})
 	buf.Write(salt)
 	buf.Write(nonce)
 	buf.Write(ciphertext)
-
-	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+	if cfg.OutputFmt == "string" {
+		return T(base64.StdEncoding.EncodeToString(buf.Bytes())), nil
+	} else {
+		return T(buf.Bytes()), nil
+	}
 }
 
 // Decrypt decrypts a versioned encrypted base64 string
-func Decrypt(dataB64, password string) (string, error) {
-	cfg := DefaultEncryptionConfig()
+func Decrypt[T string | []byte](data, password T, cfg *EncryptionConfig) (T, error) {
+	if cfg == nil {
+		cfg = DefaultEncryptionConfig()
+	}
+	var raw []byte
+	var passb []byte
+	switch v := any(password).(type) {
+	case string:
+		_temp, err := base64.StdEncoding.DecodeString(string(data))
+		if err != nil {
+			return *new(T), errors.New("decrypt failed, can not decode b64")
+		}
+		passb, raw = []byte(v), _temp
+	case []byte:
+		passb, raw = v, []byte(data)
+	}
 
-	raw, err := base64.StdEncoding.DecodeString(dataB64)
-	if err != nil || len(raw) < 1+cfg.SaltSize+12+16 {
-		return "", errors.New("decryption failed")
+	if len(raw) < 1+cfg.SaltSize+12+16 {
+		return *new(T), errors.New("decryption failed")
 	}
 
 	version := raw[0]
-	if version != EncryptVersion1 {
-		return "", errors.New("unsupported encryption version")
+	if version != cfg.Version {
+		return *new(T), errors.New("unsupported encryption version")
 	}
 
 	salt := raw[1 : 1+cfg.SaltSize]
 
-	key, err := deriveKey([]byte(password), salt, cfg)
+	key, err := deriveKey(passb, salt, *cfg)
 	if err != nil {
-		return "", errors.New("decryption failed")
+		return *new(T), errors.New("decryption failed")
 	}
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return "", errors.New("decryption failed")
+		return *new(T), errors.New("decryption failed")
 	}
 
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return "", errors.New("decryption failed")
+		return *new(T), errors.New("decryption failed")
 	}
 
 	nonceSize := gcm.NonceSize()
 	offset := 1 + cfg.SaltSize
 	if len(raw) < offset+nonceSize {
-		return "", errors.New("decryption failed")
+		return *new(T), errors.New("decryption failed")
 	}
 
 	nonce := raw[offset : offset+nonceSize]
@@ -350,10 +400,13 @@ func Decrypt(dataB64, password string) (string, error) {
 
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return "", errors.New("decryption failed")
+		return *new(T), errors.New("decryption failed")
 	}
-
-	return string(plaintext), nil
+	if cfg.OutputFmt == "string" {
+		return T(string(plaintext)), nil
+	} else {
+		return T(plaintext), nil
+	}
 }
 
 // AES encrypt a string. Output is cipher text base64 encoded. Old and weak version. Keep here for compatibility

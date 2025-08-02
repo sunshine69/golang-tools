@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/base64"
 	"fmt"
 	"log"
 	"os"
@@ -27,15 +28,25 @@ func TestEmail(t *testing.T) {
 }
 
 func TestEncrypt(t *testing.T) {
-	p := "This is a pretty long passphrase used to encrypt the string"
+	p := Must(GenerateRandomBytes(35)) // Use bytes is fine and better if we dont case about printability
+	p1 := Must(base64.StdEncoding.DecodeString(p))
+	// println(string(p1))
 	inputstr := "this is text"
-	o := Must(Encrypt(inputstr, p))
+	cfg := Must(NewEncConfigForVersion(EncryptVersion1))
+	// cfg.KDF = KDFScrypt // u can even change it
+	o := Must(Encrypt(inputstr, string(p1), cfg))
 	println("Encrypted: ", o)
-	o1 := Must(Decrypt(o, p))
+	o1 := Must(Decrypt(o, string(p1), cfg))
 	println("Decrypt result: ", o1)
 	if o1 != inputstr {
 		panic("[ERROR] decrypted not same as input\n")
 	}
+}
+
+func TestDecryptV0(t *testing.T) {
+	cipher := ``
+	println(Must(Decrypt_v0(cipher, ``)))
+
 }
 func TestSha1Sum(t *testing.T) {
 	o := Sha1Sum("1q2w3e")
@@ -217,5 +228,5 @@ func TestMigrateOldEncrypt(t *testing.T) {
 	key := os.Getenv("KEY")
 	oldcontent_enc := ``
 	old_content := Must(Decrypt_v0(oldcontent_enc, key))
-	println(Encrypt(old_content, key))
+	println(Encrypt(old_content, key, nil))
 }
