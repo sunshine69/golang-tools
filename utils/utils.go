@@ -289,20 +289,28 @@ func deriveKey(password, salt []byte, cfg EncryptionConfig) ([]byte, error) {
 	}
 }
 
-// Encrypt encrypts text using password-derived key with versioning
+// Encrypt encrypts text using password-derived key with versioning. Depending on EncryptionConfig field OutputFmt; if string then
+// return base64 encoded of the encrypted otherwise return raw []byte
 func Encrypt[T string | []byte](data, password T, cfg *EncryptionConfig) (T, error) {
 	if cfg == nil {
 		cfg = DefaultEncryptionConfig()
 	}
-	var passkey []byte
-	var datab []byte
+	var raw []byte
+	var err error
+	switch v := any(data).(type) {
+	case string:
+		raw = []byte(string(v))
+	case []byte:
+		raw = []byte(v)
+	}
+	var passb []byte
 	switch v := any(password).(type) {
 	case string:
-		passkey, datab = []byte(v), []byte(data)
+		passb = []byte(string(v))
 	case []byte:
-		passkey, datab = v, []byte(data)
+		passb = []byte(v)
 	}
-	if len(datab) == 0 || len(passkey) == 0 {
+	if len(raw) == 0 || len(passb) == 0 {
 		return *new(T), errors.New("text and password must not be empty")
 	}
 
@@ -311,7 +319,7 @@ func Encrypt[T string | []byte](data, password T, cfg *EncryptionConfig) (T, err
 		return *new(T), err
 	}
 
-	key, err := deriveKey(passkey, salt, *cfg)
+	key, err := deriveKey(passb, salt, *cfg)
 	if err != nil {
 		return *new(T), err
 	}
@@ -331,7 +339,7 @@ func Encrypt[T string | []byte](data, password T, cfg *EncryptionConfig) (T, err
 		return *new(T), err
 	}
 
-	ciphertext := gcm.Seal(nil, nonce, datab, nil)
+	ciphertext := gcm.Seal(nil, nonce, raw, nil)
 
 	// Format: version | salt | nonce | ciphertext
 	buf := bytes.NewBuffer([]byte{cfg.Version})
@@ -345,22 +353,29 @@ func Encrypt[T string | []byte](data, password T, cfg *EncryptionConfig) (T, err
 	}
 }
 
-// Decrypt decrypts a versioned encrypted base64 string
+// Decrypt decrypts a versioned encrypted base64 string. If data is string, assume it is base64 encoded output of the Encrypt
+// Password can be string or []byte. Return type based on the encryption config OutputFmt, if it is string then return as string, otherwise []byte
 func Decrypt[T string | []byte](data, password T, cfg *EncryptionConfig) (T, error) {
 	if cfg == nil {
 		cfg = DefaultEncryptionConfig()
 	}
 	var raw []byte
-	var passb []byte
-	switch v := any(password).(type) {
+	var err error
+	switch v := any(data).(type) {
 	case string:
-		_temp, err := base64.StdEncoding.DecodeString(string(data))
+		raw, err = base64.StdEncoding.DecodeString(string(v))
 		if err != nil {
 			return *new(T), errors.New("decrypt failed, can not decode b64")
 		}
-		passb, raw = []byte(v), _temp
 	case []byte:
-		passb, raw = v, []byte(data)
+		raw = []byte(v)
+	}
+	var passb []byte
+	switch v := any(password).(type) {
+	case string:
+		passb = []byte(string(v))
+	case []byte:
+		passb = []byte(v)
 	}
 
 	if len(raw) < 1+cfg.SaltSize+12+16 {
@@ -892,47 +907,47 @@ func GenRandomString(n int) string {
 	return MakePassword(n)
 }
 
-func RunDSL(dbc *sql.DB, sql string) map[string]interface{} {
+func RunDSL(dbc *sql.DB, sql string) map[string]any {
 	stmt, err := dbc.Prepare(sql)
 	if err != nil {
-		return map[string]interface{}{"result": nil, "error": err}
+		return map[string]any{"result": nil, "error": err}
 	}
 	defer stmt.Close()
 	result, err := stmt.Exec()
-	return map[string]interface{}{"result": result, "error": err}
+	return map[string]any{"result": result, "error": err}
 }
 
-// Run SELECT and return map[string]interface{}{"result": []interface{}, "error": error}
-func RunSQL(dbc *sql.DB, sql string) map[string]interface{} {
-	var result = make([]interface{}, 0)
+// Run SELECT and return map[string]any{"result": []any, "error": error}
+func RunSQL(dbc *sql.DB, sql string) map[string]any {
+	var result = make([]any, 0)
 	ptn := regexp.MustCompile(`[\s]+(from|FROM)[\s]+([^\s]+)[\s]*`)
 	if matches := ptn.FindStringSubmatch(sql); len(matches) == 3 {
 		stmt, err := dbc.Prepare(sql)
 		if err != nil {
-			return map[string]interface{}{"result": nil, "error": err}
+			return map[string]any{"result": nil, "error": err}
 		}
 		defer stmt.Close()
 		rows, err := stmt.Query()
 		if err != nil {
-			return map[string]interface{}{"result": nil, "error": err}
+			return map[string]any{"result": nil, "error": err}
 		}
 		defer rows.Close()
 		columnNames, err := rows.Columns() // []string{"id", "name"}
 		if err != nil {
-			return map[string]interface{}{"result": nil, "error": err}
+			return map[string]any{"result": nil, "error": err}
 		}
-		columns := make([]interface{}, len(columnNames))
+		columns := make([]any, len(columnNames))
 		columnTypes, _ := rows.ColumnTypes()
-		columnPointers := make([]interface{}, len(columnNames))
+		columnPointers := make([]any, len(columnNames))
 		for i := range columns {
 			columnPointers[i] = &columns[i]
 		}
 		for rows.Next() {
 			err := rows.Scan(columnPointers...)
 			if err != nil {
-				return map[string]interface{}{"result": nil, "error": err}
+				return map[string]any{"result": nil, "error": err}
 			}
-			_temp := make(map[string]interface{})
+			_temp := make(map[string]any)
 			for idx, _cName := range columnNames {
 				if strings.ToUpper(columnTypes[idx].DatabaseTypeName()) == "TEXT" {
 					//avoid auto base64 enc by golang when hitting the []byte type
@@ -950,9 +965,9 @@ func RunSQL(dbc *sql.DB, sql string) map[string]interface{} {
 			result = append(result, _temp)
 		}
 	} else {
-		return map[string]interface{}{"result": nil, "error": errors.New("ERROR Malformed sql, no table name found")}
+		return map[string]any{"result": nil, "error": errors.New("ERROR Malformed sql, no table name found")}
 	}
-	return map[string]interface{}{"result": result, "error": nil}
+	return map[string]any{"result": result, "error": nil}
 }
 
 // RemoveDuplicate remove duplicated item in a slice
@@ -970,7 +985,7 @@ func RemoveDuplicate[T comparable](slice []T) []T {
 
 // LoadConfigIntoEnv load the json/yaml config file 'configFile' and export env var - var name is the key and value
 // is the json value
-func LoadConfigIntoEnv(configFile string) map[string]interface{} {
+func LoadConfigIntoEnv(configFile string) map[string]any {
 	configObj := ParseConfig(configFile)
 	for key, val := range configObj {
 		if _val, ok := val.(string); ok {
@@ -986,7 +1001,7 @@ func LoadConfigIntoEnv(configFile string) map[string]interface{} {
 
 // ParseConfig loads the json/yaml config file 'configFile' into a map
 // json is tried first and then yaml
-func ParseConfig(configFile string) map[string]interface{} {
+func ParseConfig(configFile string) map[string]any {
 	if configFile == "" {
 		log.Fatalf("Config file required. Run with -h for help")
 	}
@@ -1067,12 +1082,12 @@ func Getenv(key, fallback string) string {
 	return fallback
 }
 
-func JsonDump(obj interface{}, indent string) string {
+func JsonDump(obj any, indent string) string {
 	msgByte := JsonDumpByte(obj, indent)
 	return string(msgByte)
 }
 
-func JsonDumpByte(obj interface{}, indent string) []byte {
+func JsonDumpByte(obj any, indent string) []byte {
 	if indent == "" {
 		indent = "    "
 	}
@@ -1295,7 +1310,7 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 // Return value is the response. If it is a json of type list then it will be put into the key "results"
 // This is used to make API REST requests and expect response as json. To download or do more general things, use the function
 // Curl above instead
-func MakeRequest(method string, config map[string]interface{}, data []byte, jar *cookiejar.Jar) map[string]interface{} {
+func MakeRequest(method string, config map[string]any, data []byte, jar *cookiejar.Jar) map[string]any {
 	if jar == nil {
 		jar, _ = cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	}
@@ -1310,7 +1325,7 @@ func MakeRequest(method string, config map[string]interface{}, data []byte, jar 
 	_url, ok := config["url"].(string)
 	if !ok {
 		log.Printf("[ERROR] config[\"url\"] value required")
-		return map[string]interface{}{}
+		return map[string]any{}
 	}
 	req, err := http.NewRequest(method, _url, bytes.NewBuffer(data))
 	CheckErrNonFatal(err, "MakeRequest req")
@@ -1330,20 +1345,20 @@ func MakeRequest(method string, config map[string]interface{}, data []byte, jar 
 	content, err := io.ReadAll(resp.Body)
 	CheckErrNonFatal(err, "MakeRequest Readall")
 	if content[0] == []byte("[")[0] {
-		var m []interface{}
+		var m []any
 		if CheckErrNonFatal(json.Unmarshal(content, &m), "MakeRequest Unmarshall") != nil {
 			log.Printf("Api return %v\nreq: %v\n", m, req)
-			return map[string]interface{}{}
+			return map[string]any{}
 		} else {
-			return map[string]interface{}{
+			return map[string]any{
 				"results": m,
 			}
 		}
 	} else {
-		m := map[string]interface{}{}
+		m := map[string]any{}
 		if CheckErrNonFatal(json.Unmarshal(content, &m), "MakeRequest Unmarshall") != nil {
 			log.Printf("Api return %v\nreq: %v\n", m, req)
-			return map[string]interface{}{}
+			return map[string]any{}
 		} else {
 			return m
 		}
@@ -1434,20 +1449,20 @@ func Upload(client *http.Client, url string, values map[string]io.Reader, mimety
 // If key is matched found and
 // If key is not nil and b will be updated or delete per action
 // If key is nil and value matched and action is not add - the item will be removed
-func MergeAttributes(a, b []interface{}, action string) []interface{} {
+func MergeAttributes(a, b []any, action string) []any {
 	if len(a) == 0 {
 		return b
 	}
 STARTLOOP:
 	for _, _a := range a {
-		_a1 := _a.(map[string]interface{})
+		_a1 := _a.(map[string]any)
 		found := false
 		for idxb, _b := range b {
-			_b1 := _b.(map[string]interface{})
+			_b1 := _b.(map[string]any)
 			if _a1["key"] == _b1["key"] {
 				if _a1["key"] != nil {
 					if action == "add" {
-						b[idxb].(map[string]interface{})["value"] = _a1["value"]
+						b[idxb].(map[string]any)["value"] = _a1["value"]
 						found = true
 						continue STARTLOOP
 					} else {
@@ -1482,7 +1497,7 @@ func MustOpenFile(f string) *os.File {
 }
 
 // RemoveItem This func is depricated Use RemoveItemByIndex. Remove an item of the index i in a slice
-func RemoveItem(s []interface{}, i int) []interface{} {
+func RemoveItem(s []any, i int) []any {
 	s[i] = s[len(s)-1]
 	// We do not need to put s[i] at the end, as it will be discarded anyway
 	return s[:len(s)-1]
@@ -1604,7 +1619,7 @@ func GenSelfSignedKey(keyfilename string) {
 	}
 }
 
-func publicKey(priv interface{}) interface{} {
+func publicKey(priv any) any {
 	switch k := priv.(type) {
 	case *rsa.PrivateKey:
 		return &k.PublicKey
@@ -1614,7 +1629,7 @@ func publicKey(priv interface{}) interface{} {
 		return nil
 	}
 }
-func pemBlockForKey(priv interface{}) *pem.Block {
+func pemBlockForKey(priv any) *pem.Block {
 	switch k := priv.(type) {
 	case *rsa.PrivateKey:
 		return &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(k)}
@@ -1631,10 +1646,10 @@ func pemBlockForKey(priv interface{}) *pem.Block {
 }
 
 // Pass an interface, return same interface if they are map of string to interface or list of string as key
-func ValidateInterfaceWithStringKeys(val interface{}) (interface{}, error) {
+func ValidateInterfaceWithStringKeys(val any) (any, error) {
 	switch val := val.(type) {
-	case map[interface{}]interface{}:
-		m := make(map[string]interface{})
+	case map[any]any:
+		m := make(map[string]any)
 		for k, v := range val {
 			k, ok := k.(string)
 			if !ok {
@@ -1643,9 +1658,9 @@ func ValidateInterfaceWithStringKeys(val interface{}) (interface{}, error) {
 			m[k] = v
 		}
 		return m, nil
-	case []interface{}:
+	case []any:
 		var err error
-		var l = make([]interface{}, len(val))
+		var l = make([]any, len(val))
 		for i, v := range l {
 			l[i], err = ValidateInterfaceWithStringKeys(v)
 			if err != nil {
@@ -1724,7 +1739,7 @@ func tmpl_basename(file_path string) string {
 func tmpl_dirname(file_path string) string {
 	return filepath.Dir(file_path)
 }
-func tmpl_toyaml(v interface{}) string {
+func tmpl_toyaml(v any) string {
 	data, err := yaml.Marshal(v)
 	if err != nil {
 		return ""
@@ -1733,7 +1748,7 @@ func tmpl_toyaml(v interface{}) string {
 }
 
 // Stole it from here https://github.com/helm/helm/blob/main/pkg/engine/funcs.go
-func tmpl_to_niceyaml(v interface{}) string {
+func tmpl_to_niceyaml(v any) string {
 	var data bytes.Buffer
 	encoder := yaml.NewEncoder(&data)
 	encoder.SetIndent(2)
@@ -1747,7 +1762,7 @@ func tmpl_to_niceyaml(v interface{}) string {
 }
 
 // stole from here https://github.com/Masterminds/sprig. If more than these we probably just use them :)
-func tmpl_tojson(v interface{}) string {
+func tmpl_tojson(v any) string {
 	data, err := json.Marshal(v)
 	if err != nil {
 		return ""
@@ -1892,7 +1907,7 @@ func parseGoTemplateConfig(configLine, prefix string) (found bool, variable_star
 }
 
 // This func use text/template to avoid un-expected html escaping.
-func GoTemplateFile(src, dest string, data map[string]interface{}, fileMode os.FileMode) {
+func GoTemplateFile(src, dest string, data map[string]any, fileMode os.FileMode) {
 	goTemplateDelimeter := []string{`{{`, `}}`}
 	if firstLine, restFile, matchedPrefix, err := ReadFirstLineWithPrefix(src, []string{`#gotmpl:`, `//gotmpl:`}); err == nil {
 		// Example first line is (similar to jinja2 ansible first line format so we do not need to remember new thing again)
@@ -1986,7 +2001,7 @@ func SliceMap[T, V any](ts []T, fn func(T) *V) []V {
 }
 
 // Similar to the python dict.keys()
-func MapKeysToSlice(m map[string]interface{}) []string {
+func MapKeysToSlice[T any](m map[string]T) []string {
 	keys := make([]string, 0, len(m)) // Preallocate slice with the map's size
 	for key := range m {
 		keys = append(keys, key)
@@ -1994,16 +2009,16 @@ func MapKeysToSlice(m map[string]interface{}) []string {
 	return keys
 }
 
-// Function to convert interface{} => list string
-func ConvertListIfaceToListStr(in interface{}) []string {
+// Function to convert any => list string
+func ConvertListIfaceToListStr(in any) []string {
 	o := []string{}
-	for _, v := range in.([]interface{}) {
+	for _, v := range in.([]any) {
 		o = append(o, v.(string))
 	}
 	return o
 }
 
-func InterfaceToStringList(in []interface{}) []string {
+func InterfaceToStringList(in []any) []string {
 	o := []string{}
 	for _, v := range in {
 		o = append(o, v.(string))
@@ -2011,7 +2026,7 @@ func InterfaceToStringList(in []interface{}) []string {
 	return o
 }
 
-func InterfaceToStringMap(in map[string]interface{}) map[string]string {
+func InterfaceToStringMap(in map[string]any) map[string]string {
 	o := map[string]string{}
 	for k, v := range in {
 		o[k] = v.(string)
@@ -2020,15 +2035,15 @@ func InterfaceToStringMap(in map[string]interface{}) map[string]string {
 }
 
 // SliceToMap convert a slice of any comparable into a map which can set the value later on
-func SliceToMap[T comparable](slice []T) map[T]interface{} {
-	set := make(map[T]interface{})
+func SliceToMap[T comparable](slice []T) map[T]any {
+	set := make(map[T]any)
 	for _, element := range slice {
 		set[element] = nil
 	}
 	return set
 }
 
-func AssertInt64ValueForMap(input map[string]interface{}) map[string]interface{} {
+func AssertInt64ValueForMap(input map[string]any) map[string]any {
 	for k, v := range input {
 		if v, ok := v.(float64); ok {
 			input[k] = int64(v)
@@ -2039,7 +2054,7 @@ func AssertInt64ValueForMap(input map[string]interface{}) map[string]interface{}
 
 // JsonByteToMap take a json as []bytes and decode it into a map[string]any.
 func JsonByteToMap(jsonByte []byte) map[string]any {
-	result := make(map[string]interface{})
+	result := make(map[string]any)
 	err := json.Unmarshal(jsonByte, &result)
 	if err != nil {
 		return nil
@@ -2047,10 +2062,10 @@ func JsonByteToMap(jsonByte []byte) map[string]any {
 	return result
 }
 
-// JsonToMap take a json string and decode it into a map[string]interface{}.
+// JsonToMap take a json string and decode it into a map[string]any.
 // Note that the value if numeric will be cast it to int64. If it is not good for your case, use the func
 // JsonByteToMap which does not manipulate this data
-func JsonToMap(jsonStr string) map[string]interface{} {
+func JsonToMap(jsonStr string) map[string]any {
 	result := JsonByteToMap([]byte(jsonStr))
 	if result == nil {
 		return nil
@@ -2069,7 +2084,7 @@ func ConvertStruct2Map[T any](t T) ([]string, map[string]any) {
 	return sInfo.FieldName, out
 }
 
-func ParseJsonReqBodyToMap(r *http.Request) map[string]interface{} {
+func ParseJsonReqBodyToMap(r *http.Request) map[string]any {
 	switch r.Method {
 	case "POST", "PUT", "DELETE":
 		jsonBytes := bytes.Buffer{}
@@ -2254,7 +2269,7 @@ func LineInFile(filename string, opt *LineInfileOpt) (err error, changed bool) {
 	// ansible lineinfile is confusing. If set search_string and insertafter or inserbefore if search found the line is replaced and the other options has no effect. Unless search_string is not found then they will do it. Why we need that?
 	// Basically the priority is search_string == regexp (thus they are mutually exclusive); and then insertafter or before. They can be all regex except search_string
 	// If state is absent it remove all line matching the string, ignore the `line` param
-	processAbsentLines := func(line_exist_idx map[int]interface{}, index_list []int, search_string_found bool) (error, bool) {
+	processAbsentLines := func(line_exist_idx map[int]any, index_list []int, search_string_found bool) (error, bool) {
 		d, d2 := []string{}, map[int]string{}
 		// fmt.Printf("DEBUG line_exist_idx %v index_list %v search_string_found %v\n", line_exist_idx, index_list, search_string_found)
 		if len(line_exist_idx) == 0 && len(index_list) == 0 {
@@ -2276,7 +2291,7 @@ func LineInFile(filename string, opt *LineInfileOpt) (err error, changed bool) {
 		}
 		// fmt.Printf("DEBUG d2 %s\n", JsonDump(d2, "  "))
 		if opt.State == "print" {
-			o := map[string]interface{}{
+			o := map[string]any{
 				"file":          filename,
 				"matched_lines": d2,
 			}
@@ -2291,7 +2306,7 @@ func LineInFile(filename string, opt *LineInfileOpt) (err error, changed bool) {
 	}
 	// Now we process case by case
 	if opt.Search_string != "" || opt.LineNo > 0 { // Match the whole line or we have line number. This is derterministic behaviour
-		search_string_found, line_exist_idx := true, map[int]interface{}{}
+		search_string_found, line_exist_idx := true, map[int]any{}
 		index_list := []int{}
 		if opt.LineNo > 0 { // If we have line number we ignore the search string to be fast
 			index_list = append(index_list, opt.LineNo-1)
@@ -2364,7 +2379,7 @@ func LineInFile(filename string, opt *LineInfileOpt) (err error, changed bool) {
 		regex_ptn := regexp.MustCompile(opt.Regexp)
 		index_list := []int{}
 		matchesMap := map[int][][]byte{}
-		line_exist_idx := map[int]interface{}{}
+		line_exist_idx := map[int]any{}
 
 		for idx, lineb := range datalines {
 			matches := regex_ptn.FindSubmatch(lineb)
@@ -2853,12 +2868,12 @@ func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []str
 	return block, start_line_no, end_line_no, matchedPattern
 }
 
-// Function to recursively convert interface{} to JSON-compatible types
-func convertInterface(value interface{}) interface{} {
+// Function to recursively convert any to JSON-compatible types
+func convertInterface(value any) any {
 	switch v := value.(type) {
-	case map[interface{}]interface{}:
+	case map[any]any:
 		return convertMap(v)
-	case []interface{}:
+	case []any:
 		return convertSlice(v)
 	default:
 		return v
@@ -2879,9 +2894,9 @@ func SplitFirstLine(text string) (string, string) {
 	return text, "" // If no newline, return the whole text as the first line
 }
 
-// Function to convert map[interface{}]interface{} to map[string]interface{}
-func convertMap(m map[interface{}]interface{}) map[string]interface{} {
-	newMap := make(map[string]interface{})
+// Function to convert map[any]any to map[string]any
+func convertMap(m map[any]any) map[string]any {
+	newMap := make(map[string]any)
 	for key, value := range m {
 		strKey, ok := key.(string)
 		if !ok {
@@ -2895,8 +2910,8 @@ func convertMap(m map[interface{}]interface{}) map[string]interface{} {
 }
 
 // Function to recursively convert slices
-func convertSlice(s []interface{}) []interface{} {
-	newSlice := make([]interface{}, len(s))
+func convertSlice(s []any) []any {
+	newSlice := make([]any, len(s))
 	for i, value := range s {
 		newSlice[i] = convertInterface(value)
 	}
@@ -2904,11 +2919,11 @@ func convertSlice(s []interface{}) []interface{} {
 }
 
 // Custom JSON marshalling function
-func CustomJsonMarshal(v interface{}) ([]byte, error) {
+func CustomJsonMarshal(v any) ([]byte, error) {
 	converted := convertInterface(v)
 	return json.Marshal(converted)
 }
-func CustomJsonMarshalIndent(v interface{}, indent int) ([]byte, error) {
+func CustomJsonMarshalIndent(v any, indent int) ([]byte, error) {
 	converted := convertInterface(v)
 	return json.MarshalIndent(converted, "", strings.Repeat(" ", indent))
 }
