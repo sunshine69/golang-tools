@@ -74,6 +74,24 @@ var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
+// Custom error type section
+type Base64DecodeError struct {
+	Msg string
+	Err error
+}
+
+func (e *Base64DecodeError) Error() string {
+	return fmt.Sprintf("%s: %v", e.Msg, e.Err)
+}
+
+func (e *Base64DecodeError) Unwrap() error {
+	return e.Err
+}
+func IsBase64DecodeError(err error) bool {
+	var b64Err *Base64DecodeError
+	return errors.As(err, &b64Err)
+}
+
 // ArrayFlags to be used for standard golang flag to store multiple values. Something like -f file1 -f file2
 // will store list of file1, file2 in the var of this type.
 // Example:
@@ -365,7 +383,7 @@ func Decrypt[T string | []byte](data, password T, cfg *EncryptionConfig) (T, err
 	case string:
 		raw, err = base64.StdEncoding.DecodeString(string(v))
 		if err != nil {
-			return *new(T), errors.New("decrypt failed, can not decode b64")
+			return *new(T), &Base64DecodeError{Msg: "decrypt failed, can not decode b64", Err: err}
 		}
 	case []byte:
 		raw = []byte(v)
@@ -451,7 +469,7 @@ func Decrypt_v0(ciphertextBase64 string, key string) (string, error) {
 
 	ciphertext, err := base64.StdEncoding.DecodeString(ciphertextBase64)
 	if err != nil {
-		return "Decode error", err
+		return "", &Base64DecodeError{Msg: "", Err: err}
 	}
 	c, err := aes.NewCipher(key1)
 	if err != nil {
@@ -571,7 +589,10 @@ func ComputeHash(plainText string, salt []byte) string {
 
 func VerifyHash(password string, passwordHashString string, saltLength int) bool {
 	// log.Printf("DEBUG VerifyHash input pass: %s - Hash %s s_len %d\n", password, passwordHashString, saltLength)
-	passwordHash, _ := base64.StdEncoding.DecodeString(passwordHashString)
+	passwordHash, err := base64.StdEncoding.DecodeString(passwordHashString)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR] can not decode base64 input - "+err.Error())
+	}
 	saltBytes := []byte(passwordHash[len(passwordHash)-saltLength:])
 	result := ComputeHash(password, saltBytes)
 	return result == passwordHashString
