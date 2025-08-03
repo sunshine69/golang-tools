@@ -32,7 +32,8 @@ func TestEncrypt(t *testing.T) {
 	p1 := Must(base64.StdEncoding.DecodeString(p))
 	// println(string(p1))
 	inputstr := "this is text"
-	cfg := Must(NewEncConfigForVersion(EncryptVersion1))
+	cfg := Must(NewEncConfigForVersion(EncryptVersion2))
+	println(JsonDump(cfg, ""))
 	// cfg.KDF = KDFScrypt // u can even change it
 	o := Must(Encrypt(inputstr, string(p1), cfg))
 	println("Encrypted: ", o)

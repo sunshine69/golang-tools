@@ -228,8 +228,8 @@ func Sha512Sum(in string) string {
 }
 
 const (
-	EncryptVersion1 = byte(1) // argon2id, only recent go version supports it, this is default
-	EncryptVersion2 = byte(2) // scrypt version, good enough
+	EncryptVersion1 = byte(1) // scrypt version, good enough
+	EncryptVersion2 = byte(2) // argon2id, only recent go version supports it, this is default
 )
 
 type KDFType string
@@ -260,9 +260,9 @@ type EncryptionConfig struct {
 
 func NewEncConfigForVersion(version byte) (*EncryptionConfig, error) {
 	switch version {
-	case EncryptVersion1:
-		return DefaultEncryptionConfig(), nil
 	case EncryptVersion2:
+		return DefaultEncryptionConfig(), nil
+	case EncryptVersion1:
 		return &EncryptionConfig{
 			Version:   EncryptVersion2,
 			SaltSize:  24, // larger salt
