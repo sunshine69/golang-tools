@@ -52,7 +52,7 @@ func TestTar(t *testing.T) {
 	}
 	os.RemoveAll("output.tar.zst")
 	os.RemoveAll("extracted")
-	err := CreateTarball("/home/USERNAME/tmp", "output.tar.zst", options)
+	err := CreateTarball("../gitlab", "output.tar.zst", options)
 	if err != nil {
 		fmt.Printf("Error creating tarball: %v\n", err)
 		return

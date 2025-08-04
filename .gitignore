@@ -29,3 +29,4 @@ tmp/**
 utils/utils_test.go
 *.zip
 **/extracted
+*.zst

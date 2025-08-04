@@ -10,8 +10,6 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-// TODO Still having some errors when delaing with symlink. Also encryption does not work yet
-
 // TarOptions contains configuration for the tar creation
 type TarOptions struct {
 	UseCompression   bool
@@ -20,8 +18,120 @@ type TarOptions struct {
 	CompressionLevel int // 1-22 for zstd, default is 3
 }
 
-// CreateTarball creates a tar archive of a directory with optional compression and encryption
 func CreateTarball(sourceDir, outputPath string, options TarOptions) error {
+	// Validate inputs
+	if sourceDir == "" || outputPath == "" {
+		return fmt.Errorf("source directory and output path cannot be empty")
+	}
+
+	// Check if source directory exists
+	if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
+		return fmt.Errorf("source directory does not exist: %s", sourceDir)
+	}
+
+	// Create output file
+	outputFile, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer outputFile.Close()
+
+	var writer io.Writer = outputFile
+
+	// Add encryption layer if requested
+	if options.Encrypt {
+		if options.Password == "" {
+			return fmt.Errorf("password is required for encryption")
+		}
+		encryptedWriter := CreateEncryptionWriter(writer, options.Password)
+		if encryptedWriter == nil {
+			return fmt.Errorf("failed to create encryption writer")
+		}
+		defer encryptedWriter.Close()
+		writer = encryptedWriter
+	}
+
+	// Add compression layer if requested
+	if options.UseCompression {
+		level := options.CompressionLevel
+		if level == 0 {
+			level = 3 // Default compression level
+		}
+
+		zstdWriter, err := zstd.NewWriter(writer, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)))
+		if err != nil {
+			return fmt.Errorf("failed to create zstd writer: %w", err)
+		}
+		defer zstdWriter.Close()
+		writer = zstdWriter
+	}
+
+	// Create tar writer
+	tarWriter := tar.NewWriter(writer)
+	defer tarWriter.Close()
+
+	// Get the base directory name (e.g., "gitlab")
+	baseName := filepath.Base(sourceDir)
+
+	// Walk through the source directory and add files to tar
+	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Determine the relative path and include top-level directory
+		relPath, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path: %w", err)
+		}
+		tarPath := filepath.ToSlash(filepath.Join(baseName, relPath))
+
+		// Handle symlinks correctly by providing the link target
+		linkTarget := ""
+		if info.Mode()&os.ModeSymlink != 0 {
+			linkTarget, err = os.Readlink(path)
+			if err != nil {
+				return fmt.Errorf("failed to read symlink target for %s: %w", path, err)
+			}
+		}
+
+		// Create tar header
+		header, err := tar.FileInfoHeader(info, linkTarget)
+		if err != nil {
+			return fmt.Errorf("failed to create tar header for %s: %w", path, err)
+		}
+		header.Name = tarPath
+
+		// Write header to tar
+		if err := tarWriter.WriteHeader(header); err != nil {
+			return fmt.Errorf("failed to write tar header: %w", err)
+		}
+
+		// If it's a regular file, copy content
+		if info.Mode().IsRegular() {
+			file, err := os.Open(path)
+			if err != nil {
+				return fmt.Errorf("failed to open file %s: %w", path, err)
+			}
+			defer file.Close()
+
+			if _, err := io.Copy(tarWriter, file); err != nil {
+				return fmt.Errorf("failed to write file content: %w", err)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to create tarball: %w", err)
+	}
+
+	return nil
+}
+
+// CreateTarball creates a tar archive of a directory with optional compression and encryption
+func CreateTarballOld(sourceDir, outputPath string, options TarOptions) error {
 	// Validate inputs
 	if sourceDir == "" || outputPath == "" {
 		return fmt.Errorf("source directory and output path cannot be empty")
