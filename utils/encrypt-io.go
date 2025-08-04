@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 
 	"golang.org/x/crypto/pbkdf2"
 )
@@ -313,4 +314,117 @@ func createDecryptionReader(r io.Reader, password string) (io.Reader, error) {
 	}
 
 	return strings.NewReader(string(decryptedData)), nil
+}
+
+// Streaming mode. Not secure as the above but work for large (multi GB files)
+type AESCTRWriter struct {
+	writer   io.Writer
+	stream   cipher.Stream
+	initOnce sync.Once
+	password string
+	err      error
+}
+
+func NewAESCTRWriter(w io.Writer, password string) *AESCTRWriter {
+	return &AESCTRWriter{
+		writer:   w,
+		password: password,
+	}
+}
+
+func (w *AESCTRWriter) init() {
+	salt := make([]byte, 16)
+	if _, err := rand.Read(salt); err != nil {
+		w.err = err
+		return
+	}
+
+	if _, err := w.writer.Write(salt); err != nil {
+		w.err = err
+		return
+	}
+
+	key := pbkdf2.Key([]byte(w.password), salt, 100_000, 32, sha256.New)
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		w.err = err
+		return
+	}
+
+	iv := make([]byte, aes.BlockSize)
+	if _, err := rand.Read(iv); err != nil {
+		w.err = err
+		return
+	}
+
+	if _, err := w.writer.Write(iv); err != nil {
+		w.err = err
+		return
+	}
+
+	w.stream = cipher.NewCTR(block, iv)
+}
+
+func (w *AESCTRWriter) Write(p []byte) (int, error) {
+	w.initOnce.Do(w.init)
+	if w.err != nil {
+		return 0, w.err
+	}
+
+	buf := make([]byte, len(p))
+	w.stream.XORKeyStream(buf, p)
+	return w.writer.Write(buf)
+}
+
+type AESCTRReader struct {
+	reader io.ReadCloser // the underlying source, e.g. file
+	stream cipher.Stream // AES-CTR stream
+	// buffer []byte        // buffer for decryption
+}
+
+// NewAESCTRReader creates a reader that decrypts as data is read.
+func NewAESCTRReader(r io.ReadCloser, password string) (io.ReadCloser, error) {
+	// Read salt (16 bytes)
+	salt := make([]byte, 16)
+	if _, err := io.ReadFull(r, salt); err != nil {
+		return nil, fmt.Errorf("failed to read salt: %w", err)
+	}
+
+	// Derive encryption key
+	key := pbkdf2.Key([]byte(password), salt, 100_000, 32, sha256.New)
+
+	// Initialize AES cipher
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cipher: %w", err)
+	}
+
+	// Read IV (AES block size, 16 bytes)
+	iv := make([]byte, aes.BlockSize)
+	if _, err := io.ReadFull(r, iv); err != nil {
+		return nil, fmt.Errorf("failed to read IV: %w", err)
+	}
+
+	// Create CTR stream
+	stream := cipher.NewCTR(block, iv)
+
+	return &AESCTRReader{
+		reader: r,
+		stream: stream,
+	}, nil
+}
+
+// Read reads encrypted data, decrypts it, and writes plaintext to p
+func (a *AESCTRReader) Read(p []byte) (int, error) {
+	n, err := a.reader.Read(p)
+	if n > 0 {
+		a.stream.XORKeyStream(p[:n], p[:n])
+	}
+	return n, err
+}
+
+// Close closes the underlying reader
+func (a *AESCTRReader) Close() error {
+	return a.reader.Close()
 }

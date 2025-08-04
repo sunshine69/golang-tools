@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// Zip works and tested on linux
+// Zip works and tested on linux and windows
 
 // ZipOptions contains configuration for ZIP creation
 type ZipOptions struct {
@@ -45,7 +45,10 @@ func (zo *ZipOptions) WithPassword(pass string) *ZipOptions {
 	return zo
 }
 
-// CreateZipArchive creates a ZIP archive optimized for Windows
+// CreateZipArchive creates a ZIP archive using default options. Support encryption but not zip encryption.
+// Rather a string AES encryption layer however that means if you enable encryption, you have to use the ExtractZipArchive func here to
+// extract. All zip tool wont be able to extract it.
+// Default option set encryption to false thus zip archive can be extracted by other standard zip tools.
 func CreateZipArchive(sourceDir, outputPath string, options *ZipOptions) error {
 	// Validate inputs
 	if sourceDir == "" || outputPath == "" {
