@@ -16,8 +16,9 @@ import (
 type ZipOptions struct {
 	UseCompression   bool
 	CompressionLevel int // 0-9 for ZIP, -1 for default
-	Encrypt          bool
-	Password         string
+	// Use GCM only as Zipreader requires fixed block in reader. To handle large file, disable encryption, write to temporary file, then call stream CTR encryption to convert the file at the caller side
+	Encrypt  bool
+	Password string
 }
 
 func NewZipOptions() *ZipOptions {
@@ -48,7 +49,7 @@ func (zo *ZipOptions) WithPassword(pass string) *ZipOptions {
 // CreateZipArchive creates a ZIP archive using default options. Support encryption but not zip encryption.
 // Rather a string AES encryption layer however that means if you enable encryption, you have to use the ExtractZipArchive func here to
 // extract. All zip tool wont be able to extract it.
-// Default option set encryption to false thus zip archive can be extracted by other standard zip tools.
+// Default option set encryption to false thus zip archive can be extracted by other standard zip
 func CreateZipArchive(sourceDir, outputPath string, options *ZipOptions) error {
 	// Validate inputs
 	if sourceDir == "" || outputPath == "" {

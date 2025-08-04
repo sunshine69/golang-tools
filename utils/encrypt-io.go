@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
 
@@ -93,76 +94,76 @@ func (ew *encryptedFileWriter) Close() error {
 	return nil
 }
 
-// Option 2: Writer with explicit Flush method
-type FlushableEncryptionWriter struct {
-	writer   io.Writer
-	password string
-	buffer   []byte
-	flushed  bool
-}
+// // Option 2: Writer with explicit Flush method
+// type FlushableEncryptionWriter struct {
+// 	writer   io.Writer
+// 	password string
+// 	buffer   []byte
+// 	flushed  bool
+// }
 
-func CreateFlushableEncryptionWriter(w io.Writer, password string) *FlushableEncryptionWriter {
-	return &FlushableEncryptionWriter{
-		writer:   w,
-		password: password,
-		buffer:   make([]byte, 0),
-		flushed:  false,
-	}
-}
+// func CreateFlushableEncryptionWriter(w io.Writer, password string) *FlushableEncryptionWriter {
+// 	return &FlushableEncryptionWriter{
+// 		writer:   w,
+// 		password: password,
+// 		buffer:   make([]byte, 0),
+// 		flushed:  false,
+// 	}
+// }
 
-func (ew *FlushableEncryptionWriter) Write(data []byte) (int, error) {
-	if ew.flushed {
-		return 0, fmt.Errorf("writer already flushed")
-	}
-	ew.buffer = append(ew.buffer, data...)
-	return len(data), nil
-}
+// func (ew *FlushableEncryptionWriter) Write(data []byte) (int, error) {
+// 	if ew.flushed {
+// 		return 0, fmt.Errorf("writer already flushed")
+// 	}
+// 	ew.buffer = append(ew.buffer, data...)
+// 	return len(data), nil
+// }
 
-func (ew *FlushableEncryptionWriter) Flush() error {
-	if ew.flushed {
-		return nil
-	}
-	ew.flushed = true
+// func (ew *FlushableEncryptionWriter) Flush() error {
+// 	if ew.flushed {
+// 		return nil
+// 	}
+// 	ew.flushed = true
 
-	// Same encryption logic as Close() method above
-	salt := make([]byte, 16)
-	if _, err := rand.Read(salt); err != nil {
-		return fmt.Errorf("failed to generate salt: %w", err)
-	}
+// 	// Same encryption logic as Close() method above
+// 	salt := make([]byte, 16)
+// 	if _, err := rand.Read(salt); err != nil {
+// 		return fmt.Errorf("failed to generate salt: %w", err)
+// 	}
 
-	if _, err := ew.writer.Write(salt); err != nil {
-		return fmt.Errorf("failed to write salt: %w", err)
-	}
+// 	if _, err := ew.writer.Write(salt); err != nil {
+// 		return fmt.Errorf("failed to write salt: %w", err)
+// 	}
 
-	key := pbkdf2.Key([]byte(ew.password), salt, 100000, 32, sha256.New)
+// 	key := pbkdf2.Key([]byte(ew.password), salt, 100000, 32, sha256.New)
 
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return fmt.Errorf("failed to create AES cipher: %w", err)
-	}
+// 	block, err := aes.NewCipher(key)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to create AES cipher: %w", err)
+// 	}
 
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return fmt.Errorf("failed to create GCM: %w", err)
-	}
+// 	gcm, err := cipher.NewGCM(block)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to create GCM: %w", err)
+// 	}
 
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := rand.Read(nonce); err != nil {
-		return fmt.Errorf("failed to generate nonce: %w", err)
-	}
+// 	nonce := make([]byte, gcm.NonceSize())
+// 	if _, err := rand.Read(nonce); err != nil {
+// 		return fmt.Errorf("failed to generate nonce: %w", err)
+// 	}
 
-	if _, err := ew.writer.Write(nonce); err != nil {
-		return fmt.Errorf("failed to write nonce: %w", err)
-	}
+// 	if _, err := ew.writer.Write(nonce); err != nil {
+// 		return fmt.Errorf("failed to write nonce: %w", err)
+// 	}
 
-	encrypted := gcm.Seal(nil, nonce, ew.buffer, nil)
+// 	encrypted := gcm.Seal(nil, nonce, ew.buffer, nil)
 
-	if _, err := ew.writer.Write(encrypted); err != nil {
-		return fmt.Errorf("failed to write encrypted data: %w", err)
-	}
+// 	if _, err := ew.writer.Write(encrypted); err != nil {
+// 		return fmt.Errorf("failed to write encrypted data: %w", err)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 // Option 3: Functional approach with defer
 func WithEncryptedWriter(w io.Writer, password string, fn func(io.Writer) error) error {
@@ -241,37 +242,36 @@ func (sw *StreamingEncryptionWriter) initStream() error {
 }
 
 // Usage examples:
+// func ExampleUsage() {
+// 	var output strings.Builder
 
-func ExampleUsage() {
-	var output strings.Builder
+// 	// Option 1: Using io.WriteCloser
+// 	func() {
+// 		writer := CreateEncryptionWriter(&output, "password123")
+// 		defer writer.Close() // This will trigger encryption
 
-	// Option 1: Using io.WriteCloser
-	func() {
-		writer := CreateEncryptionWriter(&output, "password123")
-		defer writer.Close() // This will trigger encryption
+// 		writer.Write([]byte("Hello, "))
+// 		writer.Write([]byte("World!"))
+// 	}()
 
-		writer.Write([]byte("Hello, "))
-		writer.Write([]byte("World!"))
-	}()
+// 	// Option 2: Using Flush method
+// 	writer := CreateFlushableEncryptionWriter(&output, "password123")
+// 	writer.Write([]byte("Hello, "))
+// 	writer.Write([]byte("World!"))
+// 	writer.Flush() // Explicit flush triggers encryption
 
-	// Option 2: Using Flush method
-	writer := CreateFlushableEncryptionWriter(&output, "password123")
-	writer.Write([]byte("Hello, "))
-	writer.Write([]byte("World!"))
-	writer.Flush() // Explicit flush triggers encryption
+// 	// Option 3: Using functional approach
+// 	WithEncryptedWriter(&output, "password123", func(w io.Writer) error {
+// 		w.Write([]byte("Hello, "))
+// 		w.Write([]byte("World!"))
+// 		return nil
+// 	}) // Automatically closes and encrypts
 
-	// Option 3: Using functional approach
-	WithEncryptedWriter(&output, "password123", func(w io.Writer) error {
-		w.Write([]byte("Hello, "))
-		w.Write([]byte("World!"))
-		return nil
-	}) // Automatically closes and encrypts
-
-	// Option 4: Streaming encryption (encrypts immediately)
-	streamWriter, _ := CreateStreamingEncryptionWriter(&output, "password123")
-	streamWriter.Write([]byte("Hello, ")) // Encrypted immediately
-	streamWriter.Write([]byte("World!"))  // Encrypted immediately
-}
+// 	// Option 4: Streaming encryption (encrypts immediately)
+// 	streamWriter, _ := CreateStreamingEncryptionWriter(&output, "password123")
+// 	streamWriter.Write([]byte("Hello, ")) // Encrypted immediately
+// 	streamWriter.Write([]byte("World!"))  // Encrypted immediately
+// }
 
 // Decryption reader remains the same
 func createDecryptionReader(r io.Reader, password string) (io.Reader, error) {
@@ -427,4 +427,40 @@ func (a *AESCTRReader) Read(p []byte) (int, error) {
 // Close closes the underlying reader
 func (a *AESCTRReader) Close() error {
 	return a.reader.Close()
+}
+
+func DecryptFile(inFile, outFile string, password string) error {
+	f, err := os.Open(inFile)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	r, err := NewAESCTRReader(f, password)
+	if err != nil {
+		return err
+	}
+	defer r.Close() // this closes the file
+
+	inf, err := os.Create(outFile)
+	if err != nil {
+		return err
+	}
+	defer inf.Close()
+	_, err = io.Copy(inf, r)
+	return err
+}
+
+func EncryptFile(inFile, outFile, password string) error {
+	outFH, err := os.Create(outFile)
+	if err != nil {
+		return err
+	}
+	encWriter := NewAESCTRWriter(outFH, password)
+	infile, err := os.Open(inFile)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(encWriter, infile)
+	return err
 }
