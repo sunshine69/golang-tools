@@ -18,7 +18,6 @@ type ZipOptions struct {
 	CompressionLevel int // 0-9 for ZIP, -1 for default
 	Encrypt          bool
 	Password         string
-	KeepRootDir      bool
 }
 
 // CreateZipArchive creates a ZIP archive optimized for Windows
@@ -87,14 +86,26 @@ func CreateZipArchive(sourceDir, outputPath string, options *ZipOptions) error {
 			return nil
 		}
 
-		// Get relative path
-		relPath, err := filepath.Rel(sourceDir, path)
-		if err != nil {
-			return fmt.Errorf("failed to get relative path: %w", err)
+		// Determine path inside ZIP
+		var zipPath string
+
+		// Match 'zip' CLI behavior: if sourceDir is absolute, keep full path minus leading slash
+		if filepath.IsAbs(sourceDir) {
+			zipPath = strings.TrimPrefix(path, string(filepath.Separator)) // removes leading '/'
+		} else {
+			// Default: use path relative to sourceDir
+			baseName := filepath.Base(sourceDir)
+
+			relPath, err := filepath.Rel(sourceDir, path)
+			if err != nil {
+				return fmt.Errorf("failed to get relative path: %w", err)
+			}
+			zipPath = filepath.Join(baseName, relPath)
+
 		}
 
-		// Convert Windows paths to forward slashes for ZIP format
-		zipPath := filepath.ToSlash(relPath)
+		// Normalize path to use forward slashes
+		zipPath = filepath.ToSlash(zipPath)
 
 		// Skip the root directory entry
 		if zipPath == "." {

@@ -20,7 +20,7 @@ func TestZip(t *testing.T) {
 	outputPath := "backup.zip"
 
 	if runtime.GOOS != "windows" {
-		sourceDir = "/home/USERNAME/tmp"
+		sourceDir = "."
 	}
 	os.Remove("backup.zip")
 	os.RemoveAll("extracted")
