@@ -24,7 +24,7 @@ func TestZip(t *testing.T) {
 	}
 	os.Remove("backup.zip")
 	os.RemoveAll("extracted")
-	err := CreateZipArchive(sourceDir, outputPath, options)
+	err := CreateZipArchive(sourceDir, outputPath, &options)
 	if err != nil {
 		fmt.Printf("Error creating ZIP archive: %v\n", err)
 		return
@@ -33,7 +33,7 @@ func TestZip(t *testing.T) {
 	fmt.Println("ZIP archive created successfully!")
 
 	// Extract example
-	err = ExtractZipArchive(outputPath, "extracted", options)
+	err = ExtractZipArchive(outputPath, "extracted", &options)
 	if err != nil {
 		fmt.Printf("Error extracting ZIP archive: %v\n", err)
 		return

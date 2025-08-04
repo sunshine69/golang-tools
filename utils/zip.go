@@ -18,10 +18,11 @@ type ZipOptions struct {
 	CompressionLevel int // 0-9 for ZIP, -1 for default
 	Encrypt          bool
 	Password         string
+	KeepRootDir      bool
 }
 
 // CreateZipArchive creates a ZIP archive optimized for Windows
-func CreateZipArchive(sourceDir, outputPath string, options ZipOptions) error {
+func CreateZipArchive(sourceDir, outputPath string, options *ZipOptions) error {
 	// Validate inputs
 	if sourceDir == "" || outputPath == "" {
 		return fmt.Errorf("source directory and output path cannot be empty")
@@ -31,7 +32,13 @@ func CreateZipArchive(sourceDir, outputPath string, options ZipOptions) error {
 	if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
 		return fmt.Errorf("source directory does not exist: %s", sourceDir)
 	}
-
+	if options == nil {
+		options = &ZipOptions{
+			UseCompression:   true,
+			CompressionLevel: 5,
+			Encrypt:          false,
+		}
+	}
 	// Create output file
 	outputFile, err := os.Create(outputPath)
 	if err != nil {
@@ -185,7 +192,7 @@ func isWindowsSystemFile(path string) bool {
 }
 
 // ExtractZipArchive extracts a ZIP archive with optional decryption
-func ExtractZipArchive(zipPath, extractDir string, options ZipOptions) error {
+func ExtractZipArchive(zipPath, extractDir string, options *ZipOptions) error {
 	// Open the ZIP file
 	file, err := os.Open(zipPath)
 	if err != nil {
@@ -194,7 +201,13 @@ func ExtractZipArchive(zipPath, extractDir string, options ZipOptions) error {
 	defer file.Close()
 
 	var zipReader *zip.Reader
-
+	if options == nil {
+		options = &ZipOptions{
+			UseCompression:   true,
+			CompressionLevel: 5,
+			Encrypt:          false,
+		}
+	}
 	// Handle decryption if needed
 	if options.Encrypt {
 		if options.Password == "" {
