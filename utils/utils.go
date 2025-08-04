@@ -263,16 +263,10 @@ func NewEncConfigForVersion(version byte) (*EncryptionConfig, error) {
 	case EncryptVersion2:
 		return DefaultEncryptionConfig(), nil
 	case EncryptVersion1:
-		return &EncryptionConfig{
-			Version:   EncryptVersion2,
-			SaltSize:  24, // larger salt
-			KeySize:   32,
-			KDF:       KDFScrypt,
-			ScryptN:   1 << 15,
-			ScryptR:   8,
-			ScryptP:   1,
-			OutputFmt: "string",
-		}, nil
+		ec := DefaultEncryptionConfig()
+		ec.KDF = KDFScrypt
+		ec.Version = EncryptVersion1
+		return ec, nil
 	default:
 		return &EncryptionConfig{}, errors.New("unsupported version")
 	}
