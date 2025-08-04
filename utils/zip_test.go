@@ -16,7 +16,7 @@ func TestZip(t *testing.T) {
 	}
 
 	// Windows-friendly paths
-	sourceDir := "C:\\Users\\YourName\\Documents"
+	sourceDir := `..\gitlab`
 	outputPath := "backup.zip"
 
 	if runtime.GOOS != "windows" {
@@ -33,6 +33,7 @@ func TestZip(t *testing.T) {
 	fmt.Println("ZIP archive created successfully!")
 
 	// Extract example
+	os.MkdirAll("extracted", 0o755)
 	err = ExtractZipArchive(outputPath, "extracted", &options)
 	if err != nil {
 		fmt.Printf("Error extracting ZIP archive: %v\n", err)

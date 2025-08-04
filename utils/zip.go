@@ -91,7 +91,12 @@ func CreateZipArchive(sourceDir, outputPath string, options *ZipOptions) error {
 
 		// Match 'zip' CLI behavior: if sourceDir is absolute, keep full path minus leading slash
 		if filepath.IsAbs(sourceDir) {
-			zipPath = strings.TrimPrefix(path, string(filepath.Separator)) // removes leading '/'
+			if runtime.GOOS == "windows" {
+				volume := filepath.VolumeName(path)
+				zipPath = strings.TrimPrefix(path, volume+string(filepath.Separator)) // removes leading 'C:'
+			} else {
+				zipPath = strings.TrimPrefix(path, string(filepath.Separator)) // removes leading '/'
+			}
 		} else {
 			// Default: use path relative to sourceDir
 			baseName := filepath.Base(sourceDir)
@@ -318,118 +323,6 @@ func ExtractZipArchive(zipPath, extractDir string, options *ZipOptions) error {
 				fmt.Printf("Warning: failed to set permissions for %s: %v\n", path, err)
 			}
 		}
-	}
-
-	return nil
-}
-
-// Simple version without encryption for testing
-func CreateSimpleZip(sourceDir, outputPath string) error {
-	outputFile, err := os.Create(outputPath)
-	if err != nil {
-		return err
-	}
-	defer outputFile.Close()
-
-	zipWriter := zip.NewWriter(outputFile)
-	defer zipWriter.Close()
-
-	return filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Skip system files
-		if isWindowsSystemFile(path) {
-			if info.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		relPath, err := filepath.Rel(sourceDir, path)
-		if err != nil {
-			return err
-		}
-
-		zipPath := filepath.ToSlash(relPath)
-		if zipPath == "." {
-			return nil
-		}
-
-		if info.IsDir() {
-			if !strings.HasSuffix(zipPath, "/") {
-				zipPath += "/"
-			}
-			_, err := zipWriter.Create(zipPath)
-			return err
-		}
-
-		if info.Mode().IsRegular() {
-			header := &zip.FileHeader{
-				Name:               zipPath,
-				Method:             zip.Deflate,
-				Modified:           info.ModTime(),
-				UncompressedSize64: uint64(info.Size()),
-			}
-			header.SetMode(0644) // Safe file mode
-
-			zipFile, err := zipWriter.CreateHeader(header)
-			if err != nil {
-				return err
-			}
-
-			sourceFile, err := os.Open(path)
-			if err != nil {
-				return err
-			}
-			defer sourceFile.Close()
-
-			_, err = io.Copy(zipFile, sourceFile)
-			return err
-		}
-
-		return nil
-	})
-}
-
-// Simple extraction without encryption
-func ExtractSimpleZip(zipPath, extractDir string) error {
-	reader, err := zip.OpenReader(zipPath)
-	if err != nil {
-		return err
-	}
-	defer reader.Close()
-
-	for _, file := range reader.File {
-		path := filepath.Join(extractDir, file.Name)
-
-		// Security check
-		if !strings.HasPrefix(path, filepath.Clean(extractDir)+string(os.PathSeparator)) {
-			return fmt.Errorf("invalid file path: %s", file.Name)
-		}
-
-		if strings.HasSuffix(file.Name, "/") {
-			os.MkdirAll(path, 0755)
-			continue
-		}
-
-		os.MkdirAll(filepath.Dir(path), 0755)
-
-		fileReader, err := file.Open()
-		if err != nil {
-			return err
-		}
-
-		outFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-		if err != nil {
-			fileReader.Close()
-			return err
-		}
-
-		io.Copy(outFile, fileReader)
-		fileReader.Close()
-		outFile.Close()
 	}
 
 	return nil
