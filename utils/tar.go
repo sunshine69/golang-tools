@@ -18,7 +18,32 @@ type TarOptions struct {
 	CompressionLevel int // 1-22 for zstd, default is 3
 }
 
-func CreateTarball(sourceDir, outputPath string, options TarOptions) error {
+func NewTarOptions() *TarOptions {
+	return &TarOptions{
+		UseCompression:   true,
+		CompressionLevel: 3, // default is 3, mine use 15 and seems good - 19 too slow
+		Encrypt:          false,
+		Password:         "",
+	}
+}
+func (zo *TarOptions) WithCompressionLevel(level int) *TarOptions {
+	zo.CompressionLevel = level
+	return zo
+}
+func (zo *TarOptions) WithEncrypt(enabled bool) *TarOptions {
+	zo.Encrypt = enabled
+	return zo
+}
+func (zo *TarOptions) EnableCompression(enabled bool) *TarOptions {
+	zo.UseCompression = enabled
+	return zo
+}
+func (zo *TarOptions) WithPassword(pass string) *TarOptions {
+	zo.Password = pass
+	return zo
+}
+
+func CreateTarball(sourceDir, outputPath string, options *TarOptions) error {
 	// Validate inputs
 	if sourceDir == "" || outputPath == "" {
 		return fmt.Errorf("source directory and output path cannot be empty")
@@ -28,7 +53,9 @@ func CreateTarball(sourceDir, outputPath string, options TarOptions) error {
 	if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
 		return fmt.Errorf("source directory does not exist: %s", sourceDir)
 	}
-
+	if options == nil {
+		options = NewTarOptions()
+	}
 	// Create output file
 	outputFile, err := os.Create(outputPath)
 	if err != nil {
@@ -131,7 +158,7 @@ func CreateTarball(sourceDir, outputPath string, options TarOptions) error {
 }
 
 // ExtractTarball extracts a tarball with optional decompression and decryption
-func ExtractTarball(tarballPath, extractDir string, options TarOptions) error {
+func ExtractTarball(tarballPath, extractDir string, options *TarOptions) error {
 	// Open the tarball file
 	file, err := os.Open(tarballPath)
 	if err != nil {

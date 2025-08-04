@@ -8,13 +8,7 @@ import (
 )
 
 func TestZip(t *testing.T) {
-	options := ZipOptions{
-		UseCompression:   true,
-		CompressionLevel: 6, // Good balance of speed/compression
-		Encrypt:          false,
-		Password:         "your-secure-password",
-	}
-
+	options := NewZipOptions()
 	// Windows-friendly paths
 	sourceDir := `..\gitlab`
 	outputPath := "backup.zip"
@@ -24,7 +18,7 @@ func TestZip(t *testing.T) {
 	}
 	os.Remove("backup.zip")
 	os.RemoveAll("extracted")
-	err := CreateZipArchive(sourceDir, outputPath, &options)
+	err := CreateZipArchive(sourceDir, outputPath, options)
 	if err != nil {
 		fmt.Printf("Error creating ZIP archive: %v\n", err)
 		return
@@ -34,7 +28,7 @@ func TestZip(t *testing.T) {
 
 	// Extract example
 	os.MkdirAll("extracted", 0o755)
-	err = ExtractZipArchive(outputPath, "extracted", &options)
+	err = ExtractZipArchive(outputPath, "extracted", options)
 	if err != nil {
 		fmt.Printf("Error extracting ZIP archive: %v\n", err)
 		return
@@ -45,15 +39,9 @@ func TestZip(t *testing.T) {
 
 // Example usage
 func TestTar(t *testing.T) {
-	options := TarOptions{
-		UseCompression:   true,
-		Encrypt:          false,
-		Password:         "your-secure-password",
-		CompressionLevel: 5,
-	}
 	os.RemoveAll("output.tar.zst")
 	os.RemoveAll("extracted")
-	err := CreateTarball("../gitlab", "output.tar.zst", options)
+	err := CreateTarball("../gitlab", "output.tar.zst", NewTarOptions().WithCompressionLevel(3))
 	if err != nil {
 		fmt.Printf("Error creating tarball: %v\n", err)
 		return
@@ -61,5 +49,5 @@ func TestTar(t *testing.T) {
 
 	fmt.Println("Tarball created successfully!")
 	os.MkdirAll("extracted", 0o755)
-	CheckErr(ExtractTarball("output.tar.zst", "extracted", options), "")
+	CheckErr(ExtractTarball("output.tar.zst", "extracted", NewTarOptions()), "")
 }

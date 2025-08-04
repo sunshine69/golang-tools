@@ -20,6 +20,31 @@ type ZipOptions struct {
 	Password         string
 }
 
+func NewZipOptions() *ZipOptions {
+	return &ZipOptions{
+		UseCompression:   true,
+		CompressionLevel: 6,
+		Encrypt:          false,
+		Password:         "",
+	}
+}
+func (zo *ZipOptions) WithCompressionLevel(level int) *ZipOptions {
+	zo.CompressionLevel = level
+	return zo
+}
+func (zo *ZipOptions) WithEncrypt(enabled bool) *ZipOptions {
+	zo.Encrypt = enabled
+	return zo
+}
+func (zo *ZipOptions) EnableCompression(enabled bool) *ZipOptions {
+	zo.UseCompression = enabled
+	return zo
+}
+func (zo *ZipOptions) WithPassword(pass string) *ZipOptions {
+	zo.Password = pass
+	return zo
+}
+
 // CreateZipArchive creates a ZIP archive optimized for Windows
 func CreateZipArchive(sourceDir, outputPath string, options *ZipOptions) error {
 	// Validate inputs
@@ -32,11 +57,7 @@ func CreateZipArchive(sourceDir, outputPath string, options *ZipOptions) error {
 		return fmt.Errorf("source directory does not exist: %s", sourceDir)
 	}
 	if options == nil {
-		options = &ZipOptions{
-			UseCompression:   true,
-			CompressionLevel: 5,
-			Encrypt:          false,
-		}
+		options = NewZipOptions()
 	}
 	// Create output file
 	outputFile, err := os.Create(outputPath)
