@@ -1,0 +1,316 @@
+package utils
+
+import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/sha256"
+	"fmt"
+	"io"
+	"strings"
+
+	"golang.org/x/crypto/pbkdf2"
+)
+
+// Option 1: Return io.WriteCloser instead of io.Writer
+type encryptedFileWriter struct {
+	writer   io.Writer
+	password string
+	buffer   []byte
+	closed   bool
+}
+
+// CreateEncryptionWriter returns io.WriteCloser so callers can close it
+func CreateEncryptionWriter(w io.Writer, password string) io.WriteCloser {
+	return &encryptedFileWriter{
+		writer:   w,
+		password: password,
+		buffer:   make([]byte, 0),
+		closed:   false,
+	}
+}
+
+func (ew *encryptedFileWriter) Write(data []byte) (int, error) {
+	if ew.closed {
+		return 0, fmt.Errorf("writer is closed")
+	}
+	ew.buffer = append(ew.buffer, data...)
+	return len(data), nil
+}
+
+func (ew *encryptedFileWriter) Close() error {
+	if ew.closed {
+		return nil
+	}
+	ew.closed = true
+
+	// Generate a random salt
+	salt := make([]byte, 16)
+	if _, err := rand.Read(salt); err != nil {
+		return fmt.Errorf("failed to generate salt: %w", err)
+	}
+
+	// Write salt to output
+	if _, err := ew.writer.Write(salt); err != nil {
+		return fmt.Errorf("failed to write salt: %w", err)
+	}
+
+	// Derive key from password using PBKDF2
+	key := pbkdf2.Key([]byte(ew.password), salt, 100000, 32, sha256.New)
+
+	// Create AES cipher
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return fmt.Errorf("failed to create AES cipher: %w", err)
+	}
+
+	// Create GCM mode
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return fmt.Errorf("failed to create GCM: %w", err)
+	}
+
+	// Generate nonce
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return fmt.Errorf("failed to generate nonce: %w", err)
+	}
+
+	// Write nonce to output
+	if _, err := ew.writer.Write(nonce); err != nil {
+		return fmt.Errorf("failed to write nonce: %w", err)
+	}
+
+	// Encrypt all buffered data at once
+	encrypted := gcm.Seal(nil, nonce, ew.buffer, nil)
+
+	// Write encrypted data
+	if _, err := ew.writer.Write(encrypted); err != nil {
+		return fmt.Errorf("failed to write encrypted data: %w", err)
+	}
+
+	return nil
+}
+
+// Option 2: Writer with explicit Flush method
+type FlushableEncryptionWriter struct {
+	writer   io.Writer
+	password string
+	buffer   []byte
+	flushed  bool
+}
+
+func CreateFlushableEncryptionWriter(w io.Writer, password string) *FlushableEncryptionWriter {
+	return &FlushableEncryptionWriter{
+		writer:   w,
+		password: password,
+		buffer:   make([]byte, 0),
+		flushed:  false,
+	}
+}
+
+func (ew *FlushableEncryptionWriter) Write(data []byte) (int, error) {
+	if ew.flushed {
+		return 0, fmt.Errorf("writer already flushed")
+	}
+	ew.buffer = append(ew.buffer, data...)
+	return len(data), nil
+}
+
+func (ew *FlushableEncryptionWriter) Flush() error {
+	if ew.flushed {
+		return nil
+	}
+	ew.flushed = true
+
+	// Same encryption logic as Close() method above
+	salt := make([]byte, 16)
+	if _, err := rand.Read(salt); err != nil {
+		return fmt.Errorf("failed to generate salt: %w", err)
+	}
+
+	if _, err := ew.writer.Write(salt); err != nil {
+		return fmt.Errorf("failed to write salt: %w", err)
+	}
+
+	key := pbkdf2.Key([]byte(ew.password), salt, 100000, 32, sha256.New)
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return fmt.Errorf("failed to create AES cipher: %w", err)
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return fmt.Errorf("failed to create GCM: %w", err)
+	}
+
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return fmt.Errorf("failed to generate nonce: %w", err)
+	}
+
+	if _, err := ew.writer.Write(nonce); err != nil {
+		return fmt.Errorf("failed to write nonce: %w", err)
+	}
+
+	encrypted := gcm.Seal(nil, nonce, ew.buffer, nil)
+
+	if _, err := ew.writer.Write(encrypted); err != nil {
+		return fmt.Errorf("failed to write encrypted data: %w", err)
+	}
+
+	return nil
+}
+
+// Option 3: Functional approach with defer
+func WithEncryptedWriter(w io.Writer, password string, fn func(io.Writer) error) error {
+	encWriter := CreateEncryptionWriter(w, password)
+	defer encWriter.Close()
+
+	return fn(encWriter)
+}
+
+// Option 4: Streaming encryption writer (encrypts data as it comes)
+type StreamingEncryptionWriter struct {
+	writer    io.Writer
+	stream    cipher.Stream
+	initiated bool
+	password  string
+}
+
+func CreateStreamingEncryptionWriter(w io.Writer, password string) (*StreamingEncryptionWriter, error) {
+	return &StreamingEncryptionWriter{
+		writer:    w,
+		password:  password,
+		initiated: false,
+	}, nil
+}
+
+func (sw *StreamingEncryptionWriter) Write(data []byte) (int, error) {
+	if !sw.initiated {
+		if err := sw.initStream(); err != nil {
+			return 0, err
+		}
+		sw.initiated = true
+	}
+
+	encrypted := make([]byte, len(data))
+	sw.stream.XORKeyStream(encrypted, data)
+
+	return sw.writer.Write(encrypted)
+}
+
+func (sw *StreamingEncryptionWriter) initStream() error {
+	// Generate salt
+	salt := make([]byte, 16)
+	if _, err := rand.Read(salt); err != nil {
+		return fmt.Errorf("failed to generate salt: %w", err)
+	}
+
+	// Write salt
+	if _, err := sw.writer.Write(salt); err != nil {
+		return fmt.Errorf("failed to write salt: %w", err)
+	}
+
+	// Derive key
+	key := pbkdf2.Key([]byte(sw.password), salt, 100000, 32, sha256.New)
+
+	// Create cipher
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return fmt.Errorf("failed to create cipher: %w", err)
+	}
+
+	// Generate IV
+	iv := make([]byte, aes.BlockSize)
+	if _, err := rand.Read(iv); err != nil {
+		return fmt.Errorf("failed to generate IV: %w", err)
+	}
+
+	// Write IV
+	if _, err := sw.writer.Write(iv); err != nil {
+		return fmt.Errorf("failed to write IV: %w", err)
+	}
+
+	// Create stream cipher
+	sw.stream = cipher.NewCFBEncrypter(block, iv)
+
+	return nil
+}
+
+// Usage examples:
+
+func ExampleUsage() {
+	var output strings.Builder
+
+	// Option 1: Using io.WriteCloser
+	func() {
+		writer := CreateEncryptionWriter(&output, "password123")
+		defer writer.Close() // This will trigger encryption
+
+		writer.Write([]byte("Hello, "))
+		writer.Write([]byte("World!"))
+	}()
+
+	// Option 2: Using Flush method
+	writer := CreateFlushableEncryptionWriter(&output, "password123")
+	writer.Write([]byte("Hello, "))
+	writer.Write([]byte("World!"))
+	writer.Flush() // Explicit flush triggers encryption
+
+	// Option 3: Using functional approach
+	WithEncryptedWriter(&output, "password123", func(w io.Writer) error {
+		w.Write([]byte("Hello, "))
+		w.Write([]byte("World!"))
+		return nil
+	}) // Automatically closes and encrypts
+
+	// Option 4: Streaming encryption (encrypts immediately)
+	streamWriter, _ := CreateStreamingEncryptionWriter(&output, "password123")
+	streamWriter.Write([]byte("Hello, ")) // Encrypted immediately
+	streamWriter.Write([]byte("World!"))  // Encrypted immediately
+}
+
+// Decryption reader remains the same
+func createDecryptionReader(r io.Reader, password string) (io.Reader, error) {
+	// Read salt
+	salt := make([]byte, 16)
+	if _, err := io.ReadFull(r, salt); err != nil {
+		return nil, fmt.Errorf("failed to read salt: %w", err)
+	}
+
+	// Derive key
+	key := pbkdf2.Key([]byte(password), salt, 100000, 32, sha256.New)
+
+	// Create cipher
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GCM: %w", err)
+	}
+
+	// Read nonce
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(r, nonce); err != nil {
+		return nil, fmt.Errorf("failed to read nonce: %w", err)
+	}
+
+	// Read all encrypted data
+	encryptedData, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read encrypted data: %w", err)
+	}
+
+	// Decrypt all data at once
+	decryptedData, err := gcm.Open(nil, nonce, encryptedData, nil)
+	if err != nil {
+		return nil, fmt.Errorf("decryption failed: %w", err)
+	}
+
+	return strings.NewReader(string(decryptedData)), nil
+}

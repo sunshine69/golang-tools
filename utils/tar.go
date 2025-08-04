@@ -1,0 +1,211 @@
+package utils
+
+import (
+	"archive/tar"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+
+	"github.com/klauspost/compress/zstd"
+)
+
+// TODO Still having some errors when delaing with symlink. Also encryption does not work yet
+
+// TarOptions contains configuration for the tar creation
+type TarOptions struct {
+	UseCompression   bool
+	Encrypt          bool
+	Password         string
+	CompressionLevel int // 1-22 for zstd, default is 3
+}
+
+// CreateTarball creates a tar archive of a directory with optional compression and encryption
+func CreateTarball(sourceDir, outputPath string, options TarOptions) error {
+	// Validate inputs
+	if sourceDir == "" || outputPath == "" {
+		return fmt.Errorf("source directory and output path cannot be empty")
+	}
+
+	// Check if source directory exists
+	if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
+		return fmt.Errorf("source directory does not exist: %s", sourceDir)
+	}
+
+	// Create output file
+	outputFile, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer outputFile.Close()
+
+	var writer io.Writer = outputFile
+
+	// Add encryption layer if requested
+	if options.Encrypt {
+		if options.Password == "" {
+			return fmt.Errorf("password is required for encryption")
+		}
+
+		encryptedWriter := CreateEncryptionWriter(writer, options.Password)
+		if err != nil {
+			return fmt.Errorf("failed to create encryption writer: %w", err)
+		}
+		writer = encryptedWriter
+	}
+
+	// Add compression layer if requested
+	if options.UseCompression {
+		level := options.CompressionLevel
+		if level == 0 {
+			level = 3 // Default compression level
+		}
+
+		zstdWriter, err := zstd.NewWriter(writer, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)))
+		if err != nil {
+			return fmt.Errorf("failed to create zstd writer: %w", err)
+		}
+		defer zstdWriter.Close()
+		writer = zstdWriter
+	}
+
+	// Create tar writer
+	tarWriter := tar.NewWriter(writer)
+	defer tarWriter.Close()
+
+	// Walk through the source directory and add files to tar
+	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Create tar header
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			return fmt.Errorf("failed to create tar header for %s: %w", path, err)
+		}
+
+		// Set the name relative to the source directory
+		relPath, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path: %w", err)
+		}
+
+		// Normalize path separators for tar format
+		header.Name = filepath.ToSlash(relPath)
+
+		// Write header
+		if err := tarWriter.WriteHeader(header); err != nil {
+			return fmt.Errorf("failed to write tar header: %w", err)
+		}
+
+		// If it's a regular file, write its content
+		if info.Mode().IsRegular() {
+			file, err := os.Open(path)
+			if err != nil {
+				return fmt.Errorf("failed to open file %s: %w", path, err)
+			}
+			defer file.Close()
+
+			if _, err := io.Copy(tarWriter, file); err != nil {
+				return fmt.Errorf("failed to write file content: %w", err)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to create tarball: %w", err)
+	}
+
+	return nil
+}
+
+// Additional utility functions for reading encrypted/compressed tarballs
+
+// ExtractTarball extracts a tarball with optional decompression and decryption
+func ExtractTarball(tarballPath, extractDir string, options TarOptions) error {
+	// Open the tarball file
+	file, err := os.Open(tarballPath)
+	if err != nil {
+		return fmt.Errorf("failed to open tarball: %w", err)
+	}
+	defer file.Close()
+
+	var reader io.Reader = file
+
+	// Add decryption layer if needed
+	if options.Encrypt {
+		if options.Password == "" {
+			return fmt.Errorf("password is required for decryption")
+		}
+
+		decryptedReader, err := createDecryptionReader(reader, options.Password)
+		if err != nil {
+			return fmt.Errorf("failed to create decryption reader: %w", err)
+		}
+		reader = decryptedReader
+	}
+
+	// Add decompression layer if needed
+	if options.UseCompression {
+		zstdReader, err := zstd.NewReader(reader)
+		if err != nil {
+			return fmt.Errorf("failed to create zstd reader: %w", err)
+		}
+		defer zstdReader.Close()
+		reader = zstdReader
+	}
+
+	// Create tar reader
+	tarReader := tar.NewReader(reader)
+
+	// Extract files
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read tar header: %w", err)
+		}
+
+		// Create the full path
+		path := filepath.Join(extractDir, header.Name)
+
+		// Handle different file types
+		switch header.Typeflag {
+		case tar.TypeDir:
+			// Create directory
+			if err := os.MkdirAll(path, os.FileMode(header.Mode)); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", path, err)
+			}
+		case tar.TypeReg:
+			// Create parent directories
+			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+				return fmt.Errorf("failed to create parent directories for %s: %w", path, err)
+			}
+
+			// Create and write file
+			outFile, err := os.Create(path)
+			if err != nil {
+				return fmt.Errorf("failed to create file %s: %w", path, err)
+			}
+
+			if _, err := io.Copy(outFile, tarReader); err != nil {
+				outFile.Close()
+				return fmt.Errorf("failed to write file content: %w", err)
+			}
+
+			outFile.Close()
+
+			// Set file permissions
+			if err := os.Chmod(path, os.FileMode(header.Mode)); err != nil {
+				return fmt.Errorf("failed to set file permissions: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
