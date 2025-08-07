@@ -94,86 +94,60 @@ func (ew *encryptedFileWriter) Close() error {
 	return nil
 }
 
-// // Option 2: Writer with explicit Flush method
-// type FlushableEncryptionWriter struct {
-// 	writer   io.Writer
-// 	password string
-// 	buffer   []byte
-// 	flushed  bool
-// }
+// Decryption reader remains the same
+func createDecryptionReader(r io.Reader, password string) (io.Reader, error) {
+	// Read salt
+	salt := make([]byte, 16)
+	if _, err := io.ReadFull(r, salt); err != nil {
+		return nil, fmt.Errorf("failed to read salt: %w", err)
+	}
 
-// func CreateFlushableEncryptionWriter(w io.Writer, password string) *FlushableEncryptionWriter {
-// 	return &FlushableEncryptionWriter{
-// 		writer:   w,
-// 		password: password,
-// 		buffer:   make([]byte, 0),
-// 		flushed:  false,
-// 	}
-// }
+	// Derive key
+	key := pbkdf2.Key([]byte(password), salt, 100000, 32, sha256.New)
 
-// func (ew *FlushableEncryptionWriter) Write(data []byte) (int, error) {
-// 	if ew.flushed {
-// 		return 0, fmt.Errorf("writer already flushed")
-// 	}
-// 	ew.buffer = append(ew.buffer, data...)
-// 	return len(data), nil
-// }
+	// Create cipher
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
+	}
 
-// func (ew *FlushableEncryptionWriter) Flush() error {
-// 	if ew.flushed {
-// 		return nil
-// 	}
-// 	ew.flushed = true
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GCM: %w", err)
+	}
 
-// 	// Same encryption logic as Close() method above
-// 	salt := make([]byte, 16)
-// 	if _, err := rand.Read(salt); err != nil {
-// 		return fmt.Errorf("failed to generate salt: %w", err)
-// 	}
+	// Read nonce
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(r, nonce); err != nil {
+		return nil, fmt.Errorf("failed to read nonce: %w", err)
+	}
 
-// 	if _, err := ew.writer.Write(salt); err != nil {
-// 		return fmt.Errorf("failed to write salt: %w", err)
-// 	}
+	// Read all encrypted data
+	encryptedData, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read encrypted data: %w", err)
+	}
 
-// 	key := pbkdf2.Key([]byte(ew.password), salt, 100000, 32, sha256.New)
+	// Decrypt all data at once
+	decryptedData, err := gcm.Open(nil, nonce, encryptedData, nil)
+	if err != nil {
+		return nil, fmt.Errorf("decryption failed: %w", err)
+	}
 
-// 	block, err := aes.NewCipher(key)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to create AES cipher: %w", err)
-// 	}
+	return strings.NewReader(string(decryptedData)), nil
+}
 
-// 	gcm, err := cipher.NewGCM(block)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to create GCM: %w", err)
-// 	}
-
-// 	nonce := make([]byte, gcm.NonceSize())
-// 	if _, err := rand.Read(nonce); err != nil {
-// 		return fmt.Errorf("failed to generate nonce: %w", err)
-// 	}
-
-// 	if _, err := ew.writer.Write(nonce); err != nil {
-// 		return fmt.Errorf("failed to write nonce: %w", err)
-// 	}
-
-// 	encrypted := gcm.Seal(nil, nonce, ew.buffer, nil)
-
-// 	if _, err := ew.writer.Write(encrypted); err != nil {
-// 		return fmt.Errorf("failed to write encrypted data: %w", err)
-// 	}
-
-// 	return nil
-// }
-
-// Option 3: Functional approach with defer
+// Functional approach with defer
 func WithEncryptedWriter(w io.Writer, password string, fn func(io.Writer) error) error {
-	encWriter := CreateEncryptionWriter(w, password)
-	defer encWriter.Close()
+	encWriter, err := CreateStreamingEncryptionWriter(w, password)
+	if err != nil {
+		return err
+	}
 
 	return fn(encWriter)
 }
 
-// Option 4: Streaming encryption writer (encrypts data as it comes)
+// Streaming encryption writer (encrypts data as it comes)
 type StreamingEncryptionWriter struct {
 	writer    io.Writer
 	stream    cipher.Stream
@@ -239,81 +213,6 @@ func (sw *StreamingEncryptionWriter) initStream() error {
 	sw.stream = cipher.NewCFBEncrypter(block, iv)
 
 	return nil
-}
-
-// Usage examples:
-// func ExampleUsage() {
-// 	var output strings.Builder
-
-// 	// Option 1: Using io.WriteCloser
-// 	func() {
-// 		writer := CreateEncryptionWriter(&output, "password123")
-// 		defer writer.Close() // This will trigger encryption
-
-// 		writer.Write([]byte("Hello, "))
-// 		writer.Write([]byte("World!"))
-// 	}()
-
-// 	// Option 2: Using Flush method
-// 	writer := CreateFlushableEncryptionWriter(&output, "password123")
-// 	writer.Write([]byte("Hello, "))
-// 	writer.Write([]byte("World!"))
-// 	writer.Flush() // Explicit flush triggers encryption
-
-// 	// Option 3: Using functional approach
-// 	WithEncryptedWriter(&output, "password123", func(w io.Writer) error {
-// 		w.Write([]byte("Hello, "))
-// 		w.Write([]byte("World!"))
-// 		return nil
-// 	}) // Automatically closes and encrypts
-
-// 	// Option 4: Streaming encryption (encrypts immediately)
-// 	streamWriter, _ := CreateStreamingEncryptionWriter(&output, "password123")
-// 	streamWriter.Write([]byte("Hello, ")) // Encrypted immediately
-// 	streamWriter.Write([]byte("World!"))  // Encrypted immediately
-// }
-
-// Decryption reader remains the same
-func createDecryptionReader(r io.Reader, password string) (io.Reader, error) {
-	// Read salt
-	salt := make([]byte, 16)
-	if _, err := io.ReadFull(r, salt); err != nil {
-		return nil, fmt.Errorf("failed to read salt: %w", err)
-	}
-
-	// Derive key
-	key := pbkdf2.Key([]byte(password), salt, 100000, 32, sha256.New)
-
-	// Create cipher
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create GCM: %w", err)
-	}
-
-	// Read nonce
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(r, nonce); err != nil {
-		return nil, fmt.Errorf("failed to read nonce: %w", err)
-	}
-
-	// Read all encrypted data
-	encryptedData, err := io.ReadAll(r)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read encrypted data: %w", err)
-	}
-
-	// Decrypt all data at once
-	decryptedData, err := gcm.Open(nil, nonce, encryptedData, nil)
-	if err != nil {
-		return nil, fmt.Errorf("decryption failed: %w", err)
-	}
-
-	return strings.NewReader(string(decryptedData)), nil
 }
 
 // Streaming mode. Not secure as the above but work for large (multi GB files)
