@@ -329,13 +329,20 @@ func (a *AESCTRReader) Close() error {
 }
 
 func DecryptFile(inFile, outFile string, password string) error {
-	f, err := os.Open(inFile)
-	if err != nil {
-		return err
+	var inputF io.ReadCloser
+	var err error
+	switch inFile {
+	case "-":
+		inputF = os.Stdin
+	default:
+		inputF, err = os.Open(inFile)
+		if err != nil {
+			return err
+		}
+		defer inputF.Close()
 	}
-	defer f.Close()
 
-	r, err := NewAESCTRReader(f, password)
+	r, err := NewAESCTRReader(inputF, password)
 	if err != nil {
 		return err
 	}
@@ -351,9 +358,16 @@ func DecryptFile(inFile, outFile string, password string) error {
 }
 
 func EncryptFile(inFile, outFile, password string) error {
-	outFH, err := os.Create(outFile)
-	if err != nil {
-		return err
+	var outFH io.Writer
+	var err error
+	switch outFile {
+	case "-":
+		outFH = os.Stdin
+	default:
+		outFH, err = os.Create(outFile)
+		if err != nil {
+			return err
+		}
 	}
 	encWriter := NewAESCTRWriter(outFH, password)
 	infile, err := os.Open(inFile)
