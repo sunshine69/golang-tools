@@ -42,7 +42,7 @@ func TestTar(t *testing.T) {
 	os.RemoveAll("output.tar.zst")
 	os.RemoveAll("extracted")
 	to := NewTarOptions().WithCompressionLevel(3).WithEncrypt(true).WithPassword(`1qa2ws`)
-	err := CreateTarball("../gitlab", "output.tar.zst", to)
+	err := CreateTarball(`../gitlab`, "output.tar.zst", to)
 	if err != nil {
 		fmt.Printf("Error creating tarball: %v\n", err)
 		return
@@ -51,4 +51,5 @@ func TestTar(t *testing.T) {
 	fmt.Println("Tarball created successfully!")
 	os.MkdirAll("extracted", 0o755)
 	CheckErr(ExtractTarball("output.tar.zst", "extracted", to), "")
+	fmt.Println("Tarball extracted successfully!")
 }

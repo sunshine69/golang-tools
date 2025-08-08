@@ -134,6 +134,7 @@ func CreateTarball(sourceDir, outputPath string, options *TarOptions) error {
 		header, err := tar.FileInfoHeader(info, linkTarget)
 		if err != nil {
 			if runtime.GOOS == "windows" {
+				fmt.Fprintf(os.Stderr, "[WARN] hit windows file permission error, will enforce file permission - "+tarPath+"\n")
 				header = &tar.Header{
 					Size:    info.Size(),
 					Mode:    0644, // Enforce mode
