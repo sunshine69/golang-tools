@@ -57,11 +57,18 @@ func CreateTarball(sourceDir, outputPath string, options *TarOptions) error {
 		options = NewTarOptions()
 	}
 	// Create output file
-	outputFile, err := os.Create(outputPath)
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
+	var outputFile io.WriteCloser
+	var err error
+	switch outputPath {
+	case "-":
+		outputFile = os.Stdout
+	default:
+		outputFile, err = os.Create(outputPath)
+		if err != nil {
+			return fmt.Errorf("failed to create output file: %w", err)
+		}
+		defer outputFile.Close()
 	}
-	defer outputFile.Close()
 
 	var writer io.Writer = outputFile
 
@@ -159,13 +166,19 @@ func CreateTarball(sourceDir, outputPath string, options *TarOptions) error {
 
 // ExtractTarball extracts a tarball with optional decompression and decryption
 func ExtractTarball(tarballPath, extractDir string, options *TarOptions) error {
-	// Open the tarball file
-	file, err := os.Open(tarballPath)
-	if err != nil {
-		return fmt.Errorf("failed to open tarball: %w", err)
+	var file io.ReadCloser
+	var err error
+	switch tarballPath {
+	case "-":
+		file = os.Stdin
+	default:
+		// Open the tarball file
+		file, err = os.Open(tarballPath)
+		if err != nil {
+			return fmt.Errorf("failed to open tarball: %w", err)
+		}
+		defer file.Close()
 	}
-	defer file.Close()
-
 	var reader io.Reader = file
 
 	// Add decryption layer if needed
