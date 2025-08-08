@@ -3,19 +3,15 @@ package utils
 import (
 	"fmt"
 	"os"
-	"runtime"
 	"testing"
 )
 
 func TestZip(t *testing.T) {
 	options := NewZipOptions().WithEncrypt(true).WithPassword(`1qa2ws`)
 	// Windows-friendly paths
-	sourceDir := `..\gitlab`
+	sourceDir := `../gitlab`
 	outputPath := "backup.zip"
 
-	if runtime.GOOS != "windows" {
-		sourceDir = "."
-	}
 	os.Remove("backup.zip")
 	os.RemoveAll("extracted")
 	err := CreateZipArchive(sourceDir, outputPath, options)

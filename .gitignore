@@ -30,3 +30,5 @@ utils/utils_test.go
 *.zip
 **/extracted
 *.zst
+*.dec
+*.enc 

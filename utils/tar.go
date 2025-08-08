@@ -78,11 +78,11 @@ func CreateTarball(sourceDir, outputPath string, options *TarOptions) error {
 		if options.Password == "" {
 			return fmt.Errorf("password is required for encryption")
 		}
-		encryptedWriter := NewAESCTRWriter(writer, options.Password)
-		if encryptedWriter == nil {
-			return fmt.Errorf("failed to create encryption writer")
+		encryptedWriter, err := NewStreamEncryptWriter(writer, options.Password)
+		if err != nil {
+			return fmt.Errorf("failed to create encryption writer - " + err.Error())
 		}
-		// defer encryptedWriter.Close()
+		defer encryptedWriter.Close()
 		writer = encryptedWriter
 	}
 
@@ -197,7 +197,7 @@ func ExtractTarball(tarballPath, extractDir string, options *TarOptions) error {
 			return fmt.Errorf("password is required for decryption")
 		}
 
-		decryptedReader, err := NewAESCTRReader(file, options.Password)
+		decryptedReader, err := NewStreamDecryptReader(file, options.Password)
 		if err != nil {
 			return fmt.Errorf("failed to create decryption reader: %w", err)
 		}
