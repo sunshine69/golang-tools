@@ -14,12 +14,9 @@ func main() {
 	// Create flags
 	create := flag.Bool("c", false, "Create archive")
 	extract := flag.Bool("x", false, "Extract archive")
-	inputFile := flag.String("f", "", "Input file (for extract)")
-	outputFile := flag.String("o", "", "Output file (for create)")
-	inputDir := flag.String("d", ".", "Input directory (for create)")
-	extractDir := flag.String("C", ".", "Extract directory (for extract)")
-	encrypt := flag.Bool("e", false, "Enable encryption")
-	password := flag.String("p", "", "Password for encryption")
+	inputFile := flag.String("i", "", "Input file (for extract) dir for create")
+	outputFile := flag.String("o", "", "Output file (for create) or extract dir")
+	password := flag.String("p", "", "Password for encryption. If provided encrypt is enabled")
 
 	// Parse flags
 	flag.Parse()
@@ -37,50 +34,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Validate required arguments using switch
-	switch operation {
-	case "create":
-		if *outputFile == "" {
-			fmt.Println("Error: Output file (-o) is required for create operation")
-			flag.Usage()
-			os.Exit(1)
-		}
-	case "extract":
-		if *inputFile == "" {
-			fmt.Println("Error: Input file (-f) is required for extract operation")
-			flag.Usage()
-			os.Exit(1)
-		}
-	}
-
 	// Validate directories
-	switch operation {
-	case "create":
-		if _, err := os.Stat(*inputDir); os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "Error: Input directory does not exist: %s\n", *inputDir)
-			os.Exit(1)
-		}
-	case "extract":
-		if _, err := os.Stat(*extractDir); os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "Error: Extract directory does not exist: %s\n", *extractDir)
-			os.Exit(1)
-		}
+	if *inputFile == "" || *outputFile == "" {
+		fmt.Fprintf(os.Stderr, "Input and output file/path required\n")
+		os.Exit(1)
 	}
-
-	// Display configuration
-	// fmt.Fprintf(os.Stderr, "Operation: %s\n", operation)
-	// fmt.Fprintf(os.Stderr, "Input Dir: %s\n", *inputDir)
-	// fmt.Fprintf(os.Stderr, "Output File: %s\n", *outputFile)
-	// fmt.Fprintf(os.Stderr, "Input File: %s\n", *inputFile)
-	// fmt.Fprintf(os.Stderr, "Extract Dir: %s\n", *extractDir)
-	// fmt.Fprintf(os.Stderr, "Encrypt: %t\n", *encrypt)
 
 	// Call appropriate function based on operation using switch
+
 	switch operation {
 	case "create":
-		createTar(*inputDir, *outputFile, *encrypt, *password)
+		createTar(*inputFile, *outputFile, *password != "", *password)
 	case "extract":
-		extractTar(*inputFile, *extractDir, *encrypt, *password)
+		extractTar(*inputFile, *outputFile, *password != "", *password)
 	}
 }
 
