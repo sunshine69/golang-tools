@@ -348,11 +348,17 @@ func DecryptFile(inFile, outFile string, password string) error {
 	}
 	defer r.Close() // this closes the file
 
-	inf, err := os.Create(outFile)
-	if err != nil {
-		return err
+	var inf io.WriteCloser
+	switch outFile {
+	case "-":
+		inf = os.Stdout
+	default:
+		inf, err = os.Create(outFile)
+		if err != nil {
+			return err
+		}
+		defer inf.Close()
 	}
-	defer inf.Close()
 	_, err = io.Copy(inf, r)
 	return err
 }
@@ -362,7 +368,7 @@ func EncryptFile(inFile, outFile, password string) error {
 	var err error
 	switch outFile {
 	case "-":
-		outFH = os.Stdin
+		outFH = os.Stdout
 	default:
 		outFH, err = os.Create(outFile)
 		if err != nil {
@@ -370,9 +376,16 @@ func EncryptFile(inFile, outFile, password string) error {
 		}
 	}
 	encWriter := NewAESCTRWriter(outFH, password)
-	infile, err := os.Open(inFile)
-	if err != nil {
-		return err
+
+	var infile io.ReadCloser
+	switch inFile {
+	case "-":
+		infile = os.Stdin
+	default:
+		infile, err = os.Open(inFile)
+		if err != nil {
+			return err
+		}
 	}
 	_, err = io.Copy(encWriter, infile)
 	return err
