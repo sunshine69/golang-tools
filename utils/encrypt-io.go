@@ -58,7 +58,7 @@ func (ew *encryptedFileWriter) Close() error {
 	}
 
 	// Derive key from password using PBKDF2
-	key := pbkdf2.Key([]byte(ew.password), salt, 100000, 32, sha256.New)
+	key := pbkdf2.Key([]byte(ew.password), salt, 350000, 32, sha256.New)
 
 	// Create AES cipher
 	block, err := aes.NewCipher(key)
@@ -103,7 +103,7 @@ func createDecryptionReader(r io.Reader, password string) (io.Reader, error) {
 	}
 
 	// Derive key
-	key := pbkdf2.Key([]byte(password), salt, 100000, 32, sha256.New)
+	key := pbkdf2.Key([]byte(password), salt, 350000, 32, sha256.New)
 
 	// Create cipher
 	block, err := aes.NewCipher(key)
@@ -190,7 +190,7 @@ func (sw *StreamingEncryptionWriter) initStream() error {
 	}
 
 	// Derive key
-	key := pbkdf2.Key([]byte(sw.password), salt, 100000, 32, sha256.New)
+	key := pbkdf2.Key([]byte(sw.password), salt, 350000, 32, sha256.New)
 
 	// Create cipher
 	block, err := aes.NewCipher(key)
@@ -243,7 +243,7 @@ func (w *AESCTRWriter) init() {
 		return
 	}
 
-	key := pbkdf2.Key([]byte(w.password), salt, 100_000, 32, sha256.New)
+	key := pbkdf2.Key([]byte(w.password), salt, 350000, 32, sha256.New)
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -291,7 +291,7 @@ func NewAESCTRReader(r io.ReadCloser, password string) (io.ReadCloser, error) {
 	}
 
 	// Derive encryption key
-	key := pbkdf2.Key([]byte(password), salt, 100_000, 32, sha256.New)
+	key := pbkdf2.Key([]byte(password), salt, 350000, 32, sha256.New)
 
 	// Initialize AES cipher
 	block, err := aes.NewCipher(key)
