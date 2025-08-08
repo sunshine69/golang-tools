@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/klauspost/compress/zstd"
 )
@@ -132,7 +133,15 @@ func CreateTarball(sourceDir, outputPath string, options *TarOptions) error {
 		// Create tar header
 		header, err := tar.FileInfoHeader(info, linkTarget)
 		if err != nil {
-			return fmt.Errorf("failed to create tar header for %s: %w", path, err)
+			if runtime.GOOS == "windows" {
+				header = &tar.Header{
+					Size:    info.Size(),
+					Mode:    0644, // Enforce mode
+					ModTime: info.ModTime(),
+				}
+			} else {
+				return fmt.Errorf("failed to create tar header for %s: %w", path, err)
+			}
 		}
 		header.Name = tarPath
 
