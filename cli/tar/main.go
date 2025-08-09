@@ -9,6 +9,7 @@ import (
 )
 
 var compressLevel *int = flag.Int("l", 5, "Zstd compression level 0-21")
+var encMode = flag.String("em", "", "Encryption Mode: GCM or CTR. Default CTR if empty")
 
 func main() {
 	// Create flags
@@ -55,6 +56,9 @@ func createTar(inputDir, outputFile string, encrypt bool, password string) {
 	to := u.NewTarOptions().WithCompressionLevel(*compressLevel)
 	if encrypt {
 		to = to.WithEncrypt(true).WithPassword(password)
+		if *encMode == "GCM" {
+			to = to.WithEncryptMode(u.EncryptModeGCM)
+		}
 	}
 	u.CheckErr(u.CreateTarball(inputDir, outputFile, to), "")
 }
@@ -64,6 +68,9 @@ func extractTar(inputFile, extractDir string, encrypt bool, password string) {
 	to := u.NewTarOptions().WithCompressionLevel(*compressLevel)
 	if encrypt {
 		to = to.WithEncrypt(true).WithPassword(password)
+		if *encMode == "GCM" {
+			to = to.WithEncryptMode(u.EncryptModeGCM)
+		}
 	}
 	u.CheckErr(u.ExtractTarball(inputFile, extractDir, to), "")
 }
