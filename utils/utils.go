@@ -97,7 +97,7 @@ func IsBase64DecodeError(err error) bool {
 // Example:
 //
 // var myvar ArrayFlags
-// flag.Var(&myvar, "-f", "", "File names")
+// flag.Var(&myvar, "-f", "File names")
 type ArrayFlags []string
 
 func (i *ArrayFlags) String() string {
