@@ -15,6 +15,7 @@ import (
 type TarOptions struct {
 	UseCompression   bool
 	Encrypt          bool
+	EncryptMode      EncryptMode
 	Password         string
 	CompressionLevel int // 1-22 for zstd, default is 3
 }
@@ -24,6 +25,7 @@ func NewTarOptions() *TarOptions {
 		UseCompression:   true,
 		CompressionLevel: 3, // default is 3, mine use 15 and seems good - 19 too slow
 		Encrypt:          false,
+		EncryptMode:      EncryptModeCTR,
 		Password:         "",
 	}
 }
@@ -41,6 +43,10 @@ func (zo *TarOptions) EnableCompression(enabled bool) *TarOptions {
 }
 func (zo *TarOptions) WithPassword(pass string) *TarOptions {
 	zo.Password = pass
+	return zo
+}
+func (zo *TarOptions) WithEncryptMode(m EncryptMode) *TarOptions {
+	zo.EncryptMode = m
 	return zo
 }
 
@@ -78,11 +84,21 @@ func CreateTarball(sourceDir, outputPath string, options *TarOptions) error {
 		if options.Password == "" {
 			return fmt.Errorf("password is required for encryption")
 		}
-		encryptedWriter, err := NewStreamEncryptWriter(writer, options.Password)
-		if err != nil {
-			return fmt.Errorf("failed to create encryption writer - " + err.Error())
+		var encryptedWriter io.WriteCloser
+		switch options.EncryptMode {
+		case EncryptModeGCM:
+			encryptedWriter = CreateEncryptionWriter(writer, options.Password)
+			if encryptedWriter == nil {
+				return fmt.Errorf("failed to create encryption writer")
+			}
+			defer encryptedWriter.Close()
+		case EncryptModeCTR:
+			encryptedWriter, err = NewStreamEncryptWriter(writer, options.Password)
+			if err != nil {
+				return fmt.Errorf("failed to create encryption writer - " + err.Error())
+			}
+			defer encryptedWriter.Close()
 		}
-		defer encryptedWriter.Close()
 		writer = encryptedWriter
 	}
 
@@ -196,10 +212,19 @@ func ExtractTarball(tarballPath, extractDir string, options *TarOptions) error {
 		if options.Password == "" {
 			return fmt.Errorf("password is required for decryption")
 		}
-
-		decryptedReader, err := NewStreamDecryptReader(file, options.Password)
-		if err != nil {
-			return fmt.Errorf("failed to create decryption reader: %w", err)
+		var decryptedReader io.Reader
+		var err error
+		switch options.EncryptMode {
+		case EncryptModeGCM:
+			decryptedReader, err = CreateDecryptionReader(file, options.Password)
+			if err != nil {
+				return fmt.Errorf("failed to create decryption reader GCM: %w", err)
+			}
+		case EncryptModeCTR:
+			decryptedReader, err = NewStreamDecryptReader(file, options.Password)
+			if err != nil {
+				return fmt.Errorf("failed to create decryption reader CTR: %w", err)
+			}
 		}
 		reader = decryptedReader
 	}

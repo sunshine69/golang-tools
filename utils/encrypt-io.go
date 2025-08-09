@@ -25,7 +25,7 @@ type encryptedFileWriter struct {
 	closed   bool
 }
 
-// CreateEncryptionWriter returns io.WriteCloser so callers can close it
+// CreateEncryptionWriter returns io.WriteCloser so callers can close it. This is GCM mode (highly secure)
 func CreateEncryptionWriter(w io.Writer, password string) io.WriteCloser {
 	return &encryptedFileWriter{
 		writer:   w,
@@ -61,7 +61,7 @@ func (ew *encryptedFileWriter) Close() error {
 	}
 
 	// Derive key from password using PBKDF2
-	key := pbkdf2.Key([]byte(ew.password), salt, 350000, 32, sha256.New)
+	key := pbkdf2.Key([]byte(ew.password), salt, defaultIterPBKDF2, 32, sha256.New)
 
 	// Create AES cipher
 	block, err := aes.NewCipher(key)
@@ -98,7 +98,7 @@ func (ew *encryptedFileWriter) Close() error {
 }
 
 // Decryption reader remains the same
-func createDecryptionReader(r io.Reader, password string) (io.Reader, error) {
+func CreateDecryptionReader(r io.Reader, password string) (io.Reader, error) {
 	// Read salt
 	salt := make([]byte, 16)
 	if _, err := io.ReadFull(r, salt); err != nil {
@@ -106,7 +106,7 @@ func createDecryptionReader(r io.Reader, password string) (io.Reader, error) {
 	}
 
 	// Derive key
-	key := pbkdf2.Key([]byte(password), salt, 350000, 32, sha256.New)
+	key := pbkdf2.Key([]byte(password), salt, defaultIterPBKDF2, 32, sha256.New)
 
 	// Create cipher
 	block, err := aes.NewCipher(key)
@@ -141,15 +141,20 @@ func createDecryptionReader(r io.Reader, password string) (io.Reader, error) {
 }
 
 // AES CTR IO
+type EncryptMode string
+
+const EncryptModeGCM EncryptMode = "GCM"
+const EncryptModeCTR EncryptMode = "AESC1CTR"
+
 const (
-	magic        = "AESC1CTR" // 8 bytes
-	version      = uint8(1)   // 1 byte
-	saltSize     = 16
-	ivSize       = aes.BlockSize // 16
-	keySize      = 32            // AES-256
-	macSize      = 32            // HMAC-SHA256
-	defaultIter  = 310_000       // PBKDF2 iterations
-	defaultFrame = 16 * 1024     // 16 KiB default frame size (small for streaming)
+	magic             = "AESC1CTR" // 8 bytes
+	version           = uint8(1)   // 1 byte
+	saltSize          = 16
+	ivSize            = aes.BlockSize // 16
+	keySize           = 32            // AES-256
+	macSize           = 32            // HMAC-SHA256
+	defaultIterPBKDF2 = 310_000       // PBKDF2 iterations
+	defaultFrame      = 16 * 1024     // 16 KiB default frame size (small for streaming)
 )
 
 var (
@@ -249,7 +254,7 @@ func NewStreamEncryptWriter(w io.Writer, password string, opts ...StreamEncryptO
 	s := &StreamEncryptWriter{
 		w:         w,
 		frameSize: defaultFrame,
-		iter:      defaultIter,
+		iter:      defaultIterPBKDF2,
 		h:         sha256.New,
 	}
 
@@ -492,7 +497,11 @@ func (s *StreamDecryptReader) Close() error {
 // End stream IO
 
 // Utility functions
-func DecryptFile(inFile, outFile string, password string) error {
+// DecryptFile will decrypt file. Assume it is encrypted using EncryptFile func. They uses CTR mode suitable for large files
+func DecryptFile(inFile, outFile string, password string, encMode EncryptMode) error {
+	if encMode == "" {
+		encMode = EncryptModeCTR
+	}
 	var inputF io.ReadCloser
 	var err error
 	switch inFile {
@@ -505,12 +514,21 @@ func DecryptFile(inFile, outFile string, password string) error {
 		}
 		defer inputF.Close()
 	}
-
-	r, err := NewStreamDecryptReader(inputF, password)
-	if err != nil {
-		return err
+	var r io.Reader
+	switch encMode {
+	case EncryptModeCTR:
+		r1, err := NewStreamDecryptReader(inputF, password)
+		if err != nil {
+			return err
+		}
+		defer r1.Close() // this closes the file
+		r = r1
+	case EncryptModeGCM:
+		r, err = CreateDecryptionReader(inputF, password)
+		if err != nil {
+			return err
+		}
 	}
-	defer r.Close() // this closes the file
 
 	var inf io.WriteCloser
 	switch outFile {
@@ -527,7 +545,11 @@ func DecryptFile(inFile, outFile string, password string) error {
 	return err
 }
 
-func EncryptFile(inFile, outFile, password string) error {
+// EncryptFile will encrypt file. Extract using DecryptFile func. They uses CTR mode suitable for large files
+func EncryptFile(inFile, outFile, password string, encMode EncryptMode) error {
+	if encMode == "" {
+		encMode = EncryptModeCTR
+	}
 	var outFH io.Writer
 	var err error
 	switch outFile {
@@ -539,11 +561,23 @@ func EncryptFile(inFile, outFile, password string) error {
 			return err
 		}
 	}
-	encWriter, err := NewStreamEncryptWriter(outFH, password)
-	if err != nil {
-		return err
+
+	var encWriter io.WriteCloser
+	switch encMode {
+	case EncryptModeCTR:
+		encWriter, err = NewStreamEncryptWriter(outFH, password)
+		if err != nil {
+			return err
+		}
+		defer encWriter.Close()
+	case EncryptModeGCM:
+		encWriter = CreateEncryptionWriter(outFH, password)
+		if encWriter == nil {
+			return fmt.Errorf("can not CreateEncryptionWriter")
+		}
+		defer encWriter.Close()
 	}
-	defer encWriter.Close()
+
 	var infile io.ReadCloser
 	switch inFile {
 	case "-":

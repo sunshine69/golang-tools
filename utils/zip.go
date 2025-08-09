@@ -255,7 +255,7 @@ func ExtractZipArchive(zipPath, extractDir string, options *ZipOptions) error {
 			return fmt.Errorf("password is required for decryption")
 		}
 
-		decryptedReader, err := createDecryptionReader(file, options.Password)
+		decryptedReader, err := CreateDecryptionReader(file, options.Password)
 		if err != nil {
 			return fmt.Errorf("failed to create decryption reader: %w", err)
 		}
