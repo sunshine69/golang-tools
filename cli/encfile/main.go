@@ -58,8 +58,8 @@ func main() {
 	}
 
 	if operation == "encrypt" {
-		u.EncryptFile(inputFile, outputFile, password)
+		u.EncryptFile(inputFile, outputFile, password, u.EncryptModeCTR)
 	} else {
-		u.DecryptFile(inputFile, outputFile, password)
+		u.DecryptFile(inputFile, outputFile, password, u.EncryptModeCTR)
 	}
 }

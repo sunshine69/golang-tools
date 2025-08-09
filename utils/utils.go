@@ -507,7 +507,7 @@ func MakePassword(length int) string {
 
 // GoFindExec take a directory path and list of regex pattern to match the file name. If it matches then it call the callback function for that file name.
 // filetype is parsed from the directory prefix, file:// for file, dir:// for directory
-func GoFindExec(directories []string, path_pattern []string, callback func(filename string) error) {
+func GoFindExec(directories []string, path_pattern []string, callback func(filename string) error) error {
 	pathPtn := []*regexp.Regexp{}
 	for _, p := range path_pattern {
 		pathPtn = append(pathPtn, regexp.MustCompile(p))
@@ -545,9 +545,10 @@ func GoFindExec(directories []string, path_pattern []string, callback func(filen
 			return nil
 		})
 		if err1 != nil {
-			panic(err1.Error())
+			return err1
 		}
 	}
+	return nil
 }
 
 // ReadFileToLines will read a file and return content as a slice of lines. If cleanline is true then each line will be trim and empty line will be removed
@@ -571,6 +572,7 @@ func ReadFileToLines(filename string, cleanline bool) []string {
 	}
 }
 
+// ComputeHash calcuate sha512 from a plaintext and salt
 func ComputeHash(plainText string, salt []byte) string {
 	plainTextWithSalt := []byte(plainText)
 	plainTextWithSalt = append(plainTextWithSalt, salt...)
@@ -581,8 +583,8 @@ func ComputeHash(plainText string, salt []byte) string {
 	return base64.StdEncoding.EncodeToString(out)
 }
 
+// VerifyHash validate password against its hash string created by ComputerHash
 func VerifyHash(password string, passwordHashString string, saltLength int) bool {
-	// log.Printf("DEBUG VerifyHash input pass: %s - Hash %s s_len %d\n", password, passwordHashString, saltLength)
 	passwordHash, err := base64.StdEncoding.DecodeString(passwordHashString)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[ERROR] can not decode base64 input - "+err.Error())
@@ -598,6 +600,9 @@ func MakeSalt(length int8) (salt *[]byte) {
 	return &asalt
 }
 
+// DEPRICATED
+// Note that we implement much more secure and complete Zip in func CreateZipArchive, ExtractZipArchive funcs
+// Keep this here for compatibility only
 // Encrypt zip files. The password will be automtically generated and return to the caller
 // Requires command 'zip' available in the system. Note zip encryption is very weak. Better
 // to use 7zip encryption instead
@@ -629,6 +634,9 @@ func ZipEncript(filePath ...string) string {
 	return key
 }
 
+// DEPRICATED
+// Note that we implement much more secure and complete Zip in func CreateZipArchive, ExtractZipArchive funcs
+// Keep this here for compatibility only
 // ZipDecrypt decrypt the zip file. First arg is the file name, second is the key used to encrypt it.
 // Requires the command 'unzip' installed
 func ZipDecrypt(filePath ...string) error {
@@ -652,6 +660,7 @@ func ZipDecrypt(filePath ...string) error {
 	return nil
 }
 
+// BcryptHashPassword return bcrypt hash for a given password
 func BcryptHashPassword(password string, cost int) (string, error) {
 	//Too slow with cost 14 - Maybe 10 or 6 for normal user, 8 for super user? remember it is 2^cost iterations
 	if cost == -1 {
@@ -661,11 +670,13 @@ func BcryptHashPassword(password string, cost int) (string, error) {
 	return string(bytes), err
 }
 
+// BcryptCheckPasswordHash validate password against its bcrypt hash
 func BcryptCheckPasswordHash(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
 }
 
+// DEPRICATED - Should use the ExtractZipArchive
 // Unzip will unzip the 'src' file into the directory 'dest'
 // This version is pure go - so no need to have the zip command.
 func Unzip(src, dest string) error {
@@ -1000,37 +1011,44 @@ func RemoveDuplicate[T comparable](slice []T) []T {
 
 // LoadConfigIntoEnv load the json/yaml config file 'configFile' and export env var - var name is the key and value
 // is the json value
-func LoadConfigIntoEnv(configFile string) map[string]any {
-	configObj := ParseConfig(configFile)
+func LoadConfigIntoEnv(configFile string) (map[string]any, error) {
+	configObj, err := ParseConfig(configFile)
+	if err != nil {
+		return nil, err
+	}
 	for key, val := range configObj {
 		if _val, ok := val.(string); ok {
 			if err := os.Setenv(key, _val); err != nil {
-				panic(fmt.Sprintf("[ERROR] can not set env vars from yaml config file %v\n", err))
+				return nil, fmt.Errorf("can not set env vars from yaml config file %v", err)
 			}
 		} else {
-			panic(fmt.Sprintf("[ERROR] key %s not set properly. It needs to be non empty and string type. Check your config file", key))
+			return nil, fmt.Errorf("key %s not set properly. It needs to be non empty and string type. Check your config file", key)
 		}
 	}
-	return configObj
+	return configObj, nil
 }
 
 // ParseConfig loads the json/yaml config file 'configFile' into a map
 // json is tried first and then yaml
-func ParseConfig(configFile string) map[string]any {
+func ParseConfig(configFile string) (map[string]any, error) {
 	if configFile == "" {
 		log.Fatalf("Config file required. Run with -h for help")
 	}
 	configDataBytes, err := os.ReadFile(configFile)
-	CheckErr(err, "ParseConfig")
+	if err != nil {
+		return nil, err
+	}
 	config := JsonByteToMap(configDataBytes)
 	if config == nil {
 		err = yaml.Unmarshal(configDataBytes, &config)
-		CheckErr(err, "ParseConfig yaml.Unmarshal")
+		if err != nil {
+			return nil, err
+		}
 	}
-	return config
+	return config, nil
 }
 
-// Mimic the Ternary in other languages but only support simple form so nobody can abuse it
+// Emulate the Ternary in other languages but only support simple form so nobody can abuse it
 func Ternary[T any](expr bool, x, y T) T {
 	if expr {
 		return x
@@ -1042,6 +1060,11 @@ func Ternary[T any](expr bool, x, y T) T {
 // return strings.TrimSuffix(fileName, filepath.Ext(fileName))
 func FileNameWithoutExtension(fileName string) string {
 	return fileName[:len(fileName)-len(filepath.Ext(fileName))]
+}
+
+// Basename -
+func Basename(fileName, ext string) string {
+	return fileName[:len(fileName)-len(ext)]
 }
 
 // RunSystemCommand run the command 'cmd'. It will use 'bash -c <the-command>' thus requires bash installed
@@ -1187,12 +1210,29 @@ func Assert(cond bool, msg string, fatal bool) bool {
 
 // Make a HTTP request to url and get data. Emulate the curl command. Take the env var CURL_DEBUG - set to 'yes' if u
 // need more debugging. CA_CERT_FILE, SSL_KEY_FILE, SSL_CERT_FILE correspondingly if required
+//
 // To ignore cert check set INSECURE_SKIP_VERIFY to yes
+//
 // data - set it to empty string if you do not need to send any data.
+//
 // savefilename - if you do not want to save to a file, set it to empty string
+//
 // headers - Same as header array it is a list of string with : as separator. Eg. []string{"Authorization: Bearer <myToken>"}
+//
 // custom_client - if you want more option, create your own http/Client and then setup the way you want and pass
 // it here. Otherwise give it nil
+//
+// Note the error return will not be nil if server returncode is not 2XX - it will have the first status code in it string so by checking err you can see the server response code.
+//
+// Example to use cutom client is to make session aware using cookie jar
+//
+//	 import "golang.org/x/net/publicsuffix"
+//	 jar, _ = cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+//
+//		client := http.Client{
+//		  Jar:     jar,
+//		  Timeout: time.Duration(_timeout) * time.Second,
+//	 }
 func Curl(method, url, data, savefilename string, headers []string, custom_client *http.Client) (string, error) {
 	CURL_DEBUG := Getenv("CURL_DEBUG", "no")
 	ca_cert_file := Getenv("CA_CERT_FILE", "")
@@ -1287,44 +1327,52 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 		req.Header.Set(_tmp[0], strings.TrimSpace(_tmp[1]))
 	}
 	resp, err := client.Do(req)
-	if CURL_DEBUG == "yes" {
-		log.Println("[DEBUG] REQUEST: " + JsonDump(Must(httputil.DumpRequest(req, true)), ""))
-		log.Println("[DEBUG] RESPONSE" + JsonDump(Must(httputil.DumpResponse(resp, true)), ""))
-	}
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
+	if CURL_DEBUG == "yes" {
+		log.Println("[DEBUG] REQUEST: " + JsonDump(Must(httputil.DumpRequest(req, true)), ""))
+		log.Println("[DEBUG] RESPONSE" + JsonDump(Must(httputil.DumpResponse(resp, true)), ""))
+	}
+	var returnerr error
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		returnerr = fmt.Errorf("%d", resp.StatusCode)
+	}
 	if savefilename == "" {
 		content, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("%s - %s", returnerr, err)
 		}
-		return string(content), nil
+		return string(content), returnerr
 	} else {
 		outfile, err := os.Create(savefilename)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("%s - %s", returnerr, err)
 		}
 		defer outfile.Close()
 		_, err = io.Copy(outfile, resp.Body)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("%s - %s", returnerr, err)
 		}
-		return "OK save to " + savefilename, nil
+		return "OK save to " + savefilename, returnerr
 	}
 }
 
 // MakeRequest make a http request with method (POST or GET etc...). It support sessions - if you have existing session stored in cookie jar then pass it to
+//
 // the `jar` param otherwise a new cookie ja session will be created.
+//
 // config has these keys:
+//
 // - timeout - set the time out of time int. Default is 600 secs
 // - url - the URL that the request will be sent to
 // - token - string - the Authorization token if required. It will make the header 'Authorization' using the token
 // - headers - a map[string]string to pass any arbitrary reuqets headers Key : Value
+//
 // Return value is the response. If it is a json of type list then it will be put into the key "results"
-// This is used to make API REST requests and expect response as json. To download or do more general things, use the function
-// Curl above instead
+//
+// This is used to make API REST requests and expect response as json. To download or do more general things, use the function Curl above instead
 func MakeRequest(method string, config map[string]any, data []byte, jar *cookiejar.Jar) map[string]any {
 	if jar == nil {
 		jar, _ = cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
@@ -1381,16 +1429,24 @@ func MakeRequest(method string, config map[string]any, data []byte, jar *cookiej
 }
 
 // Prepare a form that you will submit to that URL.
+//
 // client if it is nil then new http client will be used
+//
 // url is the url the POST request to
+//
 // values is a map which key is the postform field name. The value of the map should be any io.Reader to read data from
 // like *os.File to post attachment etc..
+//
 // mimetype if set which has the key is the file name in the values above, and the value is the mime type of that file
+//
 // headers is extra header in the format key/value pair. note the header 'Content-Type' should be automatically added
+//
 // Note:
+//
 // This is not working for report portal (RP) basically golang somehow send it using : Content type 'application/octet-stream' (or the server complain about that not supported). There are two parts each of them has different content type and it seems golang implementation does not fully support it? (the jsonPaths must be application-json).
 // For whatever it is, even the header printed out correct - server complain. Curl work though so we will use curl for now
 // I think golang behaviour is correct it should be 'application/octet-stream' for the file part, but the RP java server does not behave.
+//
 // So we add a manual set header map in for this case
 func Upload(client *http.Client, url string, values map[string]io.Reader, mimetype map[string]string, headers map[string]string) (err error) {
 	if client == nil {
@@ -1459,10 +1515,15 @@ func Upload(client *http.Client, url string, values map[string]io.Reader, mimety
 }
 
 // Add or delete attrbs set in a to b. action can be 'add'; if it is empty it will do a delete.
+//
 // a and b is a list of map of items having two fields, key and value.
-// If key does not exists in b and action is add - it will add it to b
-// If key is matched found and
-// If key is not nil and b will be updated or delete per action
+//
+// # If key does not exists in b and action is add - it will add it to b
+//
+// # If key is matched found and
+//
+// # If key is not nil and b will be updated or delete per action
+//
 // If key is nil and value matched and action is not add - the item will be removed
 func MergeAttributes(a, b []any, action string) []any {
 	if len(a) == 0 {
@@ -2089,6 +2150,7 @@ func JsonToMap(jsonStr string) map[string]any {
 }
 
 // Take a struct and convert into a map[string]any - the key of the map is the struct field name, and the value is the struct field value.
+//
 // This is useful to pass it to the gop template to render the struct value
 func ConvertStruct2Map[T any](t T) ([]string, map[string]any) {
 	sInfo := ReflectStruct(t, "")
@@ -2174,6 +2236,7 @@ func ReplaceAllFuncN(re *regexp.Regexp, src []byte, repl func([]int, [][]byte) [
 
 // Quickly replace. Normally if you want to re-use the regex ptn then better compile the pattern first and used the
 // standard lib regex replace func. This only save u some small typing.
+//
 // the 'repl' can contain capture using $1 or $2 for first group etc..
 func ReplacePattern(input []byte, pattern string, repl string, count int) ([]byte, int) {
 	re := regexp.MustCompile(pattern)
@@ -2241,7 +2304,7 @@ func NewLineInfileOpt(opt *LineInfileOpt) *LineInfileOpt {
 	return opt
 }
 
-// Simulate ansible lineinfile module. There are some difference intentionaly to avoid confusing behaviour and reduce complexbility
+// Simulate ansible lineinfile module. There are some difference intentionaly to avoid confusing behaviour and reduce complexbility.
 // No option backref, the default behaviour is yes.
 func LineInFile(filename string, opt *LineInfileOpt) (err error, changed bool) {
 	var returnFunc = func(err error, changed bool) (error, bool) {
@@ -2667,9 +2730,13 @@ func ExtractTextBlock(filename string, start_pattern, end_pattern []string) (blo
 }
 
 // Extract a text block which contains marker which could be an int or a list of pattern. if it is an int it is the line number.
+//
 // First we get the text from the line number or search for a match to the upper pattern. If we found we will search down for the marker if it is defined, and when found, search for the lower_bound_pattern.
-// The marker should be in the middle
+//
+// # The marker should be in the middle
+//
 // Return the text within the upper and lower, but not including the lower bound. Also return the line number range and full file content as datalines
+//
 // upper and lower is important; you can ignore marker by using a empty []string{}
 func ExtractTextBlockContains(filename string, upper_bound_pattern, lower_bound_pattern []string, marker []string, start_line int) (block string, start_line_no int, end_line_no int, datalines []string, matchedPatterns [][]string) {
 	datab := Must(os.ReadFile(filename))
@@ -2715,11 +2782,16 @@ func ExtractTextBlockContains(filename string, upper_bound_pattern, lower_bound_
 }
 
 // Given a list of string of regex pattern and a list of string, find the coninuous match in that input list and return the start line of the match and the line content
+//
 // max_line defined the maximum line to search; set to 0 to use the len of input lines which is full
-// start_line is the line to start searching; set to 0 to start from begining
+//
+// start_line is the line to start searching; set to 0 to start from begining.
 // start_line should be smaller than max_line
+//
 // direction is the direction of the search -1 is upward; otherwise is down. If it is not 0 then the value is used for the step jump while searching eg. 1 for every line, 2 for every
+//
 // 2 lines, -2 is backward every two lines
+//
 // If found match return true, the line no we match and the line content.
 func SearchPatternListInStrings(datalines []string, pattern []string, start_line, max_line, direction int) (found_marker bool, start_line_no int, matchedPatterns []string) {
 	total_lines := len(datalines)
@@ -2774,9 +2846,11 @@ datalines_Loop:
 }
 
 // ExtractLineInLines will find a line match a pattern with capture (or not). The pattern is in between a start pattern and end pattern to narrow down
+//
 // search range. Return the result of FindAllStringSubmatch func of the match line
-// This is simpler as it does not support multiple pattern as a marker like the other func eg ExtractTextBlockContains so input should be small
-// and pattern match should be unique. Use the other function to devide it into small range and then use this func.
+//
+// This is simpler as it does not support multiple pattern as a marker like the other func eg ExtractTextBlockContains so input should be small and pattern match should be unique. Use the other function to devide it into small range and then use this func.
+//
 // start and line can be the same pattern. Same as line and end; it will return the match of start (or end) pattern
 func ExtractLineInLines(blocklines []string, start, line, end string) [][]string {
 	p0, p1, p2 := regexp.MustCompile(start), regexp.MustCompile(line), regexp.MustCompile(end)
@@ -2809,7 +2883,9 @@ func ExtractLineInLines(blocklines []string, start, line, end string) [][]string
 }
 
 // SplitTextByPattern splits a multiline text into sections based on a regex pattern.
+//
 // If includeMatch is true, the matching lines are included in the result.
+//
 // pattern should a multiline pattern like `(?m)^Header line.*`
 func SplitTextByPattern(text, pattern string, includeMatch bool) []string {
 	re := regexp.MustCompile(pattern)
@@ -2851,7 +2927,9 @@ func LineInLines(datalines []string, search_pattern string, replace string) (out
 }
 
 // Find a block text matching and replace content with replText. Return the old text block. Use ExtractTextBlockContains under the hood to get the text block, see that func for help.
+//
 // if not care about marker pass a empty slice []string{}.
+//
 // To be sure of accuracy all of pattern must be uniquely identified. Recommend to use full line matching (use anchor ^ and $). The lowerbound if in the pattern there is string EOF then even the lowerbound not found but we hit EOF it will still return match for the block. See example in the test function
 func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []string, marker []string, replText string, keepBoundaryLines bool, backup bool, start_line int) (oldBlock string, start, end int, matchedPattern [][]string) {
 	fstat, err := os.Stat(filename)
@@ -2895,7 +2973,7 @@ func convertInterface(value any) any {
 	}
 }
 
-// SplitFirstLine return the first line from a text block. Line ending can be unix based or windows based
+// SplitFirstLine return the first line from a text block. Line ending can be unix based or windows based.
 // The rest of the block is return also as the second output
 func SplitFirstLine(text string) (string, string) {
 	// Handle both \n and \r\n newlines
@@ -2943,7 +3021,7 @@ func CustomJsonMarshalIndent(v any, indent int) ([]byte, error) {
 	return json.MarshalIndent(converted, "", strings.Repeat(" ", indent))
 }
 
-// CreateDirTree take the directory structure from the source and create it in the target
+// CreateDirTree take the directory structure from the source and create it in the target.
 // Path should be absolute path. They should not overlap to avoid recursive loop
 func CreateDirTree(srcDirpath, targetRoot string) error {
 	if isExist, err := FileExists(srcDirpath); !isExist || err != nil {

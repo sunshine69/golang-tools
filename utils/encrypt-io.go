@@ -97,7 +97,7 @@ func (ew *encryptedFileWriter) Close() error {
 	return nil
 }
 
-// Decryption reader remains the same
+// CreateDecryptionReader return a decryption reader (GCM mode)
 func CreateDecryptionReader(r io.Reader, password string) (io.Reader, error) {
 	// Read salt
 	salt := make([]byte, 16)
