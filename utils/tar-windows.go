@@ -213,7 +213,8 @@ func CreateTarball(sources interface{}, outputPath string, options *TarOptions) 
 					defer file.Close()
 
 					if _, err := io.Copy(tarWriter, file); err != nil {
-						return fmt.Errorf("failed to write file content: %w", err)
+						fmt.Fprintf(os.Stderr, "failed to write file content: %w", err)
+						return nil
 					}
 				}
 				return nil
@@ -259,7 +260,8 @@ func CreateTarball(sources interface{}, outputPath string, options *TarOptions) 
 				defer file.Close()
 
 				if _, err := io.Copy(tarWriter, file); err != nil {
-					return fmt.Errorf("failed to write file content: %w", err)
+					fmt.Fprintf(os.Stderr, "failed to write file content: %w", err)
+					return nil
 				}
 			}
 		}
