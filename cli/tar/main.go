@@ -63,7 +63,7 @@ func main() {
 	SetTarOpt()
 	switch operation {
 	case "create":
-		u.CheckErr(u.CreateTarball(inputFiles, *outputFile, tarOption), "CreateTarball")
+		u.CheckErr(u.CreateTarball([]string(inputFiles), *outputFile, tarOption), "CreateTarball")
 	case "extract":
 		u.CheckErr(u.ExtractTarball(inputFiles[0], *outputFile, tarOption), "ExtractTarball")
 	}

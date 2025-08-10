@@ -1,3 +1,6 @@
+//go:build !windows
+// +build !windows
+
 package utils
 
 import (
@@ -6,9 +9,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
+	"syscall"
 
 	"github.com/klauspost/compress/zstd"
+	"golang.org/x/sys/unix"
 )
 
 // TarOptions contains configuration for the tar creation
@@ -56,13 +60,14 @@ func (zo *TarOptions) WithStripTopLevelDir(s bool) *TarOptions {
 	return zo
 }
 
+// CreateTarball accepts either a string or []string (same as your original) and
+// now handles unix special files (block/char devices, fifos, sockets) when creating the tar.
 func CreateTarball(sources interface{}, outputPath string, options *TarOptions) error {
-	// Validate output path
 	if outputPath == "" {
 		return fmt.Errorf("output path cannot be empty")
 	}
 
-	// Normalize input into a slice of file paths
+	// Normalize to slice
 	var fileList []string
 	switch v := sources.(type) {
 	case string:
@@ -76,9 +81,9 @@ func CreateTarball(sources interface{}, outputPath string, options *TarOptions) 
 		return fmt.Errorf("sources must be a string or []string")
 	}
 
-	// Verify each source exists
+	// Verify each source exists (use Lstat so we don't follow symlinks here)
 	for _, f := range fileList {
-		if _, err := os.Stat(f); os.IsNotExist(err) {
+		if _, err := os.Lstat(f); os.IsNotExist(err) {
 			return fmt.Errorf("source path does not exist: %s", f)
 		}
 	}
@@ -87,7 +92,7 @@ func CreateTarball(sources interface{}, outputPath string, options *TarOptions) 
 		options = NewTarOptions()
 	}
 
-	// Create output file or use stdout
+	// Prepare output
 	var outputFile io.WriteCloser
 	var err error
 	switch outputPath {
@@ -103,118 +108,139 @@ func CreateTarball(sources interface{}, outputPath string, options *TarOptions) 
 
 	var writer io.Writer = outputFile
 
-	// Encryption layer
+	// Encryption
 	if options.Encrypt {
 		if options.Password == "" {
 			return fmt.Errorf("password is required for encryption")
 		}
-		var encryptedWriter io.WriteCloser
+		var ew io.WriteCloser
 		switch options.EncryptMode {
 		case EncryptModeGCM:
-			encryptedWriter = CreateEncryptionWriter(writer, options.Password)
-			if encryptedWriter == nil {
+			ew = CreateEncryptionWriter(writer, options.Password)
+			if ew == nil {
 				return fmt.Errorf("failed to create encryption writer")
 			}
-			defer encryptedWriter.Close()
+			defer ew.Close()
 		case EncryptModeCTR:
-			encryptedWriter, err = NewStreamEncryptWriter(writer, options.Password)
+			ew, err = NewStreamEncryptWriter(writer, options.Password)
 			if err != nil {
-				return fmt.Errorf("failed to create encryption writer - " + err.Error())
+				return fmt.Errorf("failed to create encryption writer - %v", err)
 			}
-			defer encryptedWriter.Close()
+			defer ew.Close()
 		}
-		writer = encryptedWriter
+		writer = ew
 	}
 
-	// Compression layer
+	// Compression
 	if options.UseCompression {
-		level := options.CompressionLevel
-		if level == 0 {
-			level = 3 // Default compression level
-		}
-
-		zstdWriter, err := zstd.NewWriter(writer, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)))
+		// If CompressionLevel==0, zstd uses default; keep user's semantics
+		zw, err := zstd.NewWriter(writer, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(options.CompressionLevel)))
 		if err != nil {
 			return fmt.Errorf("failed to create zstd writer: %w", err)
 		}
-		defer zstdWriter.Close()
-		writer = zstdWriter
+		defer zw.Close()
+		writer = zw
 	}
 
 	// Tar writer
-	tarWriter := tar.NewWriter(writer)
-	defer tarWriter.Close()
+	tw := tar.NewWriter(writer)
+	defer tw.Close()
 
-	// Iterate over each source file/directory
+	// Track used paths to avoid collisions
+	usedNames := make(map[string]struct{})
+
 	for _, source := range fileList {
 		source = filepath.Clean(source)
 
-		info, err := os.Stat(source)
+		// Use Lstat so symlink bit is preserved for the source itself
+		info, err := os.Lstat(source)
 		if err != nil {
 			return fmt.Errorf("failed to stat %s: %w", source, err)
 		}
 
 		if info.IsDir() {
-			// Directory: walk recursively
-			err = filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
+			baseDir := filepath.Base(source)
+			err = filepath.Walk(source, func(path string, fi os.FileInfo, err error) error {
 				if err != nil {
 					return err
 				}
 
 				var relPath string
 				if options.StripTopLevelDir {
-					relPath, err = filepath.Rel(source, path) // Strip top-level dir
+					relPath, err = filepath.Rel(source, path)
 				} else {
-					relPath, err = filepath.Rel(filepath.Dir(source), path) // Keep top-level dir
+					relPath, err = filepath.Rel(filepath.Dir(source), path)
 				}
 				if err != nil {
 					return fmt.Errorf("failed to get relative path: %w", err)
 				}
 
-				// Skip empty string (root dir entry when stripping)
 				if relPath == "." {
-					return nil
+					return nil // skip root entry
 				}
 
+				// Collision prevention
 				tarPath := filepath.ToSlash(relPath)
+				if options.StripTopLevelDir && len(fileList) > 1 {
+					if _, exists := usedNames[tarPath]; exists {
+						// prefix with original baseDir to avoid collision
+						tarPath = filepath.ToSlash(filepath.Join(baseDir, relPath))
+					}
+				}
+				usedNames[tarPath] = struct{}{}
 
+				// readlink for symlink target if symlink
 				linkTarget := ""
-				if info.Mode()&os.ModeSymlink != 0 {
+				if fi.Mode()&os.ModeSymlink != 0 {
 					linkTarget, err = os.Readlink(path)
 					if err != nil {
 						return fmt.Errorf("failed to read symlink target for %s: %w", path, err)
 					}
 				}
 
-				header, err := tar.FileInfoHeader(info, linkTarget)
+				hdr, err := tar.FileInfoHeader(fi, linkTarget)
 				if err != nil {
-					if runtime.GOOS == "windows" {
-						fmt.Fprintf(os.Stderr, "[WARN] enforcing file permission for %s\n", tarPath)
-						header = &tar.Header{
-							Name:    tarPath,
-							Size:    info.Size(),
-							Mode:    0644,
-							ModTime: info.ModTime(),
-						}
+					return fmt.Errorf("failed to create header for %s: %w", path, err)
+				}
+				hdr.Name = tarPath
+
+				// Populate device major/minor and typeflag for special files
+				if st, ok := fi.Sys().(*syscall.Stat_t); ok {
+					// Only set dev fields for device nodes
+					rdev := uint64(st.Rdev)
+					// Major/minor helpers from unix package
+					hdr.Devmajor = int64(unix.Major(rdev))
+					hdr.Devminor = int64(unix.Minor(rdev))
+				}
+
+				// Adjust Typeflag for FIFOs, sockets, devices (tar.FileInfoHeader may set for some)
+				switch fi.Mode() & os.ModeType {
+				case os.ModeNamedPipe:
+					hdr.Typeflag = tar.TypeFifo
+				case os.ModeSocket:
+					// no official tar.Type for sockets in Go stdlib; use 's' (GNU extension)
+					hdr.Typeflag = byte('s')
+				case os.ModeDevice:
+					if fi.Mode()&os.ModeCharDevice != 0 {
+						hdr.Typeflag = tar.TypeChar
 					} else {
-						return fmt.Errorf("failed to create tar header for %s: %w", path, err)
+						hdr.Typeflag = tar.TypeBlock
 					}
 				}
-				header.Name = tarPath
 
-				if err := tarWriter.WriteHeader(header); err != nil {
-					return fmt.Errorf("failed to write tar header: %w", err)
+				if err := tw.WriteHeader(hdr); err != nil {
+					return fmt.Errorf("failed to write header: %w", err)
 				}
 
-				if info.Mode().IsRegular() {
-					file, err := os.Open(path)
+				// For regular files, copy contents. For others (symlink, fifo, device, socket) do NOT copy content.
+				if fi.Mode().IsRegular() {
+					f, err := os.Open(path)
 					if err != nil {
 						return fmt.Errorf("failed to open file %s: %w", path, err)
 					}
-					defer file.Close()
-
-					if _, err := io.Copy(tarWriter, file); err != nil {
-						return fmt.Errorf("failed to write file content: %w", err)
+					defer f.Close()
+					if _, err := io.Copy(tw, f); err != nil {
+						return fmt.Errorf("failed to copy file %s: %w", path, err)
 					}
 				}
 				return nil
@@ -223,7 +249,14 @@ func CreateTarball(sources interface{}, outputPath string, options *TarOptions) 
 				return err
 			}
 		} else {
-			// Single file: always just the base name
+			// Single file (or special file)
+			name := filepath.Base(source)
+			if _, exists := usedNames[name]; exists {
+				name = filepath.Base(filepath.Dir(source)) + "_" + name
+			}
+			usedNames[name] = struct{}{}
+
+			// Use Lstat info for source
 			linkTarget := ""
 			if info.Mode()&os.ModeSymlink != 0 {
 				linkTarget, err = os.Readlink(source)
@@ -232,35 +265,45 @@ func CreateTarball(sources interface{}, outputPath string, options *TarOptions) 
 				}
 			}
 
-			header, err := tar.FileInfoHeader(info, linkTarget)
+			hdr, err := tar.FileInfoHeader(info, linkTarget)
 			if err != nil {
-				if runtime.GOOS == "windows" {
-					fmt.Fprintf(os.Stderr, "[WARN] enforcing file permission for %s\n", filepath.Base(source))
-					header = &tar.Header{
-						Name:    filepath.Base(source),
-						Size:    info.Size(),
-						Mode:    0644,
-						ModTime: info.ModTime(),
-					}
+				return fmt.Errorf("failed to create header for %s: %w", source, err)
+			}
+			hdr.Name = name
+
+			// device major/minor
+			if st, ok := info.Sys().(*syscall.Stat_t); ok {
+				rdev := uint64(st.Rdev)
+				hdr.Devmajor = int64(unix.Major(rdev))
+				hdr.Devminor = int64(unix.Minor(rdev))
+			}
+
+			// adjust typeflag for special files
+			switch info.Mode() & os.ModeType {
+			case os.ModeNamedPipe:
+				hdr.Typeflag = tar.TypeFifo
+			case os.ModeSocket:
+				hdr.Typeflag = byte('s')
+			case os.ModeDevice:
+				if info.Mode()&os.ModeCharDevice != 0 {
+					hdr.Typeflag = tar.TypeChar
 				} else {
-					return fmt.Errorf("failed to create tar header for %s: %w", source, err)
+					hdr.Typeflag = tar.TypeBlock
 				}
 			}
-			header.Name = filepath.Base(source)
 
-			if err := tarWriter.WriteHeader(header); err != nil {
-				return fmt.Errorf("failed to write tar header: %w", err)
+			if err := tw.WriteHeader(hdr); err != nil {
+				return fmt.Errorf("failed to write header: %w", err)
 			}
 
 			if info.Mode().IsRegular() {
-				file, err := os.Open(source)
+				f, err := os.Open(source)
 				if err != nil {
 					return fmt.Errorf("failed to open file %s: %w", source, err)
 				}
-				defer file.Close()
-
-				if _, err := io.Copy(tarWriter, file); err != nil {
-					return fmt.Errorf("failed to write file content: %w", err)
+				defer f.Close()
+				if _, err := io.Copy(tw, f); err != nil {
+					return fmt.Errorf("failed to copy file %s: %w", source, err)
 				}
 			}
 		}
@@ -269,7 +312,8 @@ func CreateTarball(sources interface{}, outputPath string, options *TarOptions) 
 	return nil
 }
 
-// ExtractTarball extracts a tarball with optional decompression and decryption
+// ExtractTarball extracts a tarball with optional decompression and decryption.
+// It now handles FIFOs and device nodes (if running as root). Sockets are skipped.
 func ExtractTarball(tarballPath, extractDir string, options *TarOptions) error {
 	var file io.ReadCloser
 	var err error
@@ -287,12 +331,11 @@ func ExtractTarball(tarballPath, extractDir string, options *TarOptions) error {
 	var reader io.Reader = file
 
 	// Add decryption layer if needed
-	if options.Encrypt {
+	if options != nil && options.Encrypt {
 		if options.Password == "" {
 			return fmt.Errorf("password is required for decryption")
 		}
 		var decryptedReader io.Reader
-		var err error
 		switch options.EncryptMode {
 		case EncryptModeGCM:
 			decryptedReader, err = CreateDecryptionReader(file, options.Password)
@@ -309,7 +352,7 @@ func ExtractTarball(tarballPath, extractDir string, options *TarOptions) error {
 	}
 
 	// Add decompression layer if needed
-	if options.UseCompression {
+	if options != nil && options.UseCompression {
 		zstdReader, err := zstd.NewReader(reader)
 		if err != nil {
 			return fmt.Errorf("failed to create zstd reader: %w", err)
@@ -331,38 +374,98 @@ func ExtractTarball(tarballPath, extractDir string, options *TarOptions) error {
 			return fmt.Errorf("failed to read tar header: %w", err)
 		}
 
-		// Create the full path
-		path := filepath.Join(extractDir, header.Name)
+		// Prevent path traversal: clean and join
+		targetPath := filepath.Join(extractDir, filepath.Clean(header.Name))
 
-		// Handle different file types
 		switch header.Typeflag {
 		case tar.TypeDir:
-			// Create directory
-			if err := os.MkdirAll(path, os.FileMode(header.Mode)); err != nil {
-				return fmt.Errorf("failed to create directory %s: %w", path, err)
+			if err := os.MkdirAll(targetPath, os.FileMode(header.Mode)); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
 			}
+
+		case tar.TypeSymlink:
+			// Ensure parent exists
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+				return fmt.Errorf("failed to create parent directories for symlink %s: %w", targetPath, err)
+			}
+			if err := os.Symlink(header.Linkname, targetPath); err != nil {
+				return fmt.Errorf("failed to create symlink %s -> %s: %w", targetPath, header.Linkname, err)
+			}
+
+		case tar.TypeFifo:
+			// create parent
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+				return fmt.Errorf("failed to create parent directories for fifo %s: %w", targetPath, err)
+			}
+			// create FIFO
+			if err := unix.Mkfifo(targetPath, uint32(header.Mode)); err != nil {
+				return fmt.Errorf("failed to create fifo %s: %w", targetPath, err)
+			}
+
+		case tar.TypeChar, tar.TypeBlock:
+			// device nodes — need root to create
+			if os.Geteuid() != 0 {
+				fmt.Fprintf(os.Stderr, "[WARN] skipping device %s (need root to create device nodes)\n", targetPath)
+				// consume data if any (there shouldn't be)
+				// no data copy for devices
+				continue
+			}
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+				return fmt.Errorf("failed to create parent directories for device %s: %w", targetPath, err)
+			}
+			var devType uint32
+			if header.Typeflag == tar.TypeChar {
+				devType = unix.S_IFCHR
+			} else {
+				devType = unix.S_IFBLK
+			}
+			mode := uint32(header.Mode) | devType
+			dev := int(unix.Mkdev(uint32(header.Devmajor), uint32(header.Devminor)))
+			if err := unix.Mknod(targetPath, mode, dev); err != nil {
+				return fmt.Errorf("failed to mknod device %s: %w", targetPath, err)
+			}
+
+		case byte('s'): // socket recorded (GNU extension) — cannot recreate socket; skip
+			fmt.Fprintf(os.Stderr, "[INFO] skipping socket %s (sockets are transient and cannot be restored)\n", targetPath)
+			continue
+
 		case tar.TypeReg:
-			// Create parent directories
-			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-				return fmt.Errorf("failed to create parent directories for %s: %w", path, err)
+			// Regular file
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+				return fmt.Errorf("failed to create parent directories for %s: %w", targetPath, err)
 			}
-
-			// Create and write file
-			outFile, err := os.Create(path)
+			outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.FileMode(header.Mode))
 			if err != nil {
-				return fmt.Errorf("failed to create file %s: %w", path, err)
+				return fmt.Errorf("failed to create file %s: %w", targetPath, err)
 			}
-
 			if _, err := io.Copy(outFile, tarReader); err != nil {
 				outFile.Close()
 				return fmt.Errorf("failed to write file content: %w", err)
 			}
-
 			outFile.Close()
 
-			// Set file permissions
-			if err := os.Chmod(path, os.FileMode(header.Mode)); err != nil {
-				return fmt.Errorf("failed to set file permissions: %w", err)
+		default:
+			// fallback: try to handle as file
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+				return fmt.Errorf("failed to create parent directories for %s: %w", targetPath, err)
+			}
+			outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.FileMode(header.Mode))
+			if err != nil {
+				return fmt.Errorf("failed to create fallback file %s: %w", targetPath, err)
+			}
+			if _, err := io.Copy(outFile, tarReader); err != nil {
+				outFile.Close()
+				return fmt.Errorf("failed to write fallback file content: %w", err)
+			}
+			outFile.Close()
+		}
+
+		// after extraction set mode/time where applicable (symlinks don't take Chmod)
+		switch header.Typeflag {
+		case tar.TypeDir, tar.TypeReg:
+			if err := os.Chmod(targetPath, os.FileMode(header.Mode)); err != nil && header.Typeflag != tar.TypeSymlink {
+				// ignore chmod errors on some filesystems or under non-root; warn
+				fmt.Fprintf(os.Stderr, "[WARN] failed to chmod %s: %v\n", targetPath, err)
 			}
 		}
 	}
