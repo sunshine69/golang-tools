@@ -8,16 +8,34 @@ import (
 	u "github.com/sunshine69/golang-tools/utils"
 )
 
-var compressLevel *int = flag.Int("l", 5, "Zstd compression level 0-21")
-var encMode = flag.String("em", "", "Encryption Mode: GCM or CTR. Default CTR if empty")
+var (
+	compressLevel          *int = flag.Int("l", 5, "Zstd compression level 0-21")
+	enableGCM                   = flag.Bool("em", false, "Enable GCM Encryption Mode: Default CTR suitable for streaming data and big file")
+	enableStripTopLevelDir      = flag.Bool("strip-dir", false, "Strip top level dir")
+	encrypt                bool
+	password               = flag.String("p", "", "Password for encryption. If provided encrypt is enabled")
+	tarOption              *u.TarOptions
+)
+
+func SetTarOpt() {
+	encrypt = *password != ""
+	tarOption = u.NewTarOptions().WithCompressionLevel(*compressLevel)
+	if encrypt {
+		tarOption = tarOption.WithEncrypt(true).WithPassword(*password)
+		if *enableGCM {
+			tarOption = tarOption.WithEncryptMode(u.EncryptModeGCM)
+		}
+	}
+	tarOption = tarOption.WithStripTopLevelDir(*enableStripTopLevelDir)
+}
 
 func main() {
 	// Create flags
 	create := flag.Bool("c", false, "Create archive")
 	extract := flag.Bool("x", false, "Extract archive")
-	inputFile := flag.String("i", "", "Input file (for extract) dir for create")
-	outputFile := flag.String("o", "", "Output file (for create) or extract dir")
-	password := flag.String("p", "", "Password for encryption. If provided encrypt is enabled")
+	var inputFiles u.ArrayFlags
+	flag.Var(&inputFiles, "i", "Input file(s)")
+	outputFile := flag.String("o", "", "Output file/dir (for create or extract")
 
 	// Parse flags
 	flag.Parse()
@@ -36,41 +54,17 @@ func main() {
 	}
 
 	// Validate directories
-	if *inputFile == "" || *outputFile == "" {
+	if len(inputFiles) == 0 || *outputFile == "" {
 		fmt.Fprintf(os.Stderr, "Input and output file/path required\n")
 		os.Exit(1)
 	}
 
 	// Call appropriate function based on operation using switch
-
+	SetTarOpt()
 	switch operation {
 	case "create":
-		createTar(*inputFile, *outputFile, *password != "", *password)
+		u.CheckErr(u.CreateTarball(inputFiles, *outputFile, tarOption), "CreateTarball")
 	case "extract":
-		extractTar(*inputFile, *outputFile, *password != "", *password)
+		u.CheckErr(u.ExtractTarball(inputFiles[0], *outputFile, tarOption), "ExtractTarball")
 	}
-}
-
-func createTar(inputDir, outputFile string, encrypt bool, password string) {
-	fmt.Fprintf(os.Stderr, "Creating tar archive from %s to %s\n", inputDir, outputFile)
-	to := u.NewTarOptions().WithCompressionLevel(*compressLevel)
-	if encrypt {
-		to = to.WithEncrypt(true).WithPassword(password)
-		if *encMode == "GCM" {
-			to = to.WithEncryptMode(u.EncryptModeGCM)
-		}
-	}
-	u.CheckErr(u.CreateTarball(inputDir, outputFile, to), "")
-}
-
-func extractTar(inputFile, extractDir string, encrypt bool, password string) {
-	fmt.Fprintf(os.Stderr, "Extracting archive %s to %s\n", inputFile, extractDir)
-	to := u.NewTarOptions().WithCompressionLevel(*compressLevel)
-	if encrypt {
-		to = to.WithEncrypt(true).WithPassword(password)
-		if *encMode == "GCM" {
-			to = to.WithEncryptMode(u.EncryptModeGCM)
-		}
-	}
-	u.CheckErr(u.ExtractTarball(inputFile, extractDir, to), "")
 }

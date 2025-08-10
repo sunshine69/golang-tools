@@ -17,7 +17,8 @@ type TarOptions struct {
 	Encrypt          bool
 	EncryptMode      EncryptMode
 	Password         string
-	CompressionLevel int // 1-22 for zstd, default is 3
+	CompressionLevel int  // 1-22 for zstd, default is 3
+	StripTopLevelDir bool // New option: true = remove top-level folder from tar paths
 }
 
 func NewTarOptions() *TarOptions {
@@ -27,6 +28,7 @@ func NewTarOptions() *TarOptions {
 		Encrypt:          false,
 		EncryptMode:      EncryptModeCTR,
 		Password:         "",
+		StripTopLevelDir: false,
 	}
 }
 func (zo *TarOptions) WithCompressionLevel(level int) *TarOptions {
@@ -49,21 +51,43 @@ func (zo *TarOptions) WithEncryptMode(m EncryptMode) *TarOptions {
 	zo.EncryptMode = m
 	return zo
 }
+func (zo *TarOptions) WithStripTopLevelDir(s bool) *TarOptions {
+	zo.StripTopLevelDir = s
+	return zo
+}
 
-func CreateTarball(sourceDir, outputPath string, options *TarOptions) error {
-	// Validate inputs
-	if sourceDir == "" || outputPath == "" {
-		return fmt.Errorf("source directory and output path cannot be empty")
+func CreateTarball(sources interface{}, outputPath string, options *TarOptions) error {
+	// Validate output path
+	if outputPath == "" {
+		return fmt.Errorf("output path cannot be empty")
 	}
 
-	// Check if source directory exists
-	if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
-		return fmt.Errorf("source directory does not exist: %s", sourceDir)
+	// Normalize input into a slice of file paths
+	var fileList []string
+	switch v := sources.(type) {
+	case string:
+		fileList = []string{v}
+	case []string:
+		if len(v) == 0 {
+			return fmt.Errorf("no source files provided")
+		}
+		fileList = v
+	default:
+		return fmt.Errorf("sources must be a string or []string")
 	}
+
+	// Verify each source exists
+	for _, f := range fileList {
+		if _, err := os.Stat(f); os.IsNotExist(err) {
+			return fmt.Errorf("source path does not exist: %s", f)
+		}
+	}
+
 	if options == nil {
 		options = NewTarOptions()
 	}
-	// Create output file
+
+	// Create output file or use stdout
 	var outputFile io.WriteCloser
 	var err error
 	switch outputPath {
@@ -79,7 +103,7 @@ func CreateTarball(sourceDir, outputPath string, options *TarOptions) error {
 
 	var writer io.Writer = outputFile
 
-	// Add encryption layer if requested
+	// Encryption layer
 	if options.Encrypt {
 		if options.Password == "" {
 			return fmt.Errorf("password is required for encryption")
@@ -102,7 +126,7 @@ func CreateTarball(sourceDir, outputPath string, options *TarOptions) error {
 		writer = encryptedWriter
 	}
 
-	// Add compression layer if requested
+	// Compression layer
 	if options.UseCompression {
 		level := options.CompressionLevel
 		if level == 0 {
@@ -117,74 +141,129 @@ func CreateTarball(sourceDir, outputPath string, options *TarOptions) error {
 		writer = zstdWriter
 	}
 
-	// Create tar writer
+	// Tar writer
 	tarWriter := tar.NewWriter(writer)
 	defer tarWriter.Close()
 
-	// Get the base directory name (e.g., "gitlab")
-	baseName := filepath.Base(sourceDir)
+	// Iterate over each source file/directory
+	for _, source := range fileList {
+		source = filepath.Clean(source)
 
-	// Walk through the source directory and add files to tar
-	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		info, err := os.Stat(source)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to stat %s: %w", source, err)
 		}
 
-		// Determine the relative path and include top-level directory
-		relPath, err := filepath.Rel(sourceDir, path)
-		if err != nil {
-			return fmt.Errorf("failed to get relative path: %w", err)
-		}
-		tarPath := filepath.ToSlash(filepath.Join(baseName, relPath))
-
-		// Handle symlinks correctly by providing the link target
-		linkTarget := ""
-		if info.Mode()&os.ModeSymlink != 0 {
-			linkTarget, err = os.Readlink(path)
-			if err != nil {
-				return fmt.Errorf("failed to read symlink target for %s: %w", path, err)
-			}
-		}
-
-		// Create tar header
-		header, err := tar.FileInfoHeader(info, linkTarget)
-		if err != nil {
-			if runtime.GOOS == "windows" {
-				fmt.Fprintf(os.Stderr, "[WARN] hit windows file permission error, will enforce file permission - "+tarPath+"\n")
-				header = &tar.Header{
-					Size:    info.Size(),
-					Mode:    0644, // Enforce mode
-					ModTime: info.ModTime(),
+		if info.IsDir() {
+			// Directory: walk recursively
+			err = filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
 				}
-			} else {
-				return fmt.Errorf("failed to create tar header for %s: %w", path, err)
-			}
-		}
-		header.Name = tarPath
 
-		// Write header to tar
-		if err := tarWriter.WriteHeader(header); err != nil {
-			return fmt.Errorf("failed to write tar header: %w", err)
-		}
+				var relPath string
+				if options.StripTopLevelDir {
+					relPath, err = filepath.Rel(source, path) // Strip top-level dir
+				} else {
+					relPath, err = filepath.Rel(filepath.Dir(source), path) // Keep top-level dir
+				}
+				if err != nil {
+					return fmt.Errorf("failed to get relative path: %w", err)
+				}
 
-		// If it's a regular file, copy content
-		if info.Mode().IsRegular() {
-			file, err := os.Open(path)
+				// Skip empty string (root dir entry when stripping)
+				if relPath == "." {
+					return nil
+				}
+
+				tarPath := filepath.ToSlash(relPath)
+
+				linkTarget := ""
+				if info.Mode()&os.ModeSymlink != 0 {
+					linkTarget, err = os.Readlink(path)
+					if err != nil {
+						return fmt.Errorf("failed to read symlink target for %s: %w", path, err)
+					}
+				}
+
+				header, err := tar.FileInfoHeader(info, linkTarget)
+				if err != nil {
+					if runtime.GOOS == "windows" {
+						fmt.Fprintf(os.Stderr, "[WARN] enforcing file permission for %s\n", tarPath)
+						header = &tar.Header{
+							Name:    tarPath,
+							Size:    info.Size(),
+							Mode:    0644,
+							ModTime: info.ModTime(),
+						}
+					} else {
+						return fmt.Errorf("failed to create tar header for %s: %w", path, err)
+					}
+				}
+				header.Name = tarPath
+
+				if err := tarWriter.WriteHeader(header); err != nil {
+					return fmt.Errorf("failed to write tar header: %w", err)
+				}
+
+				if info.Mode().IsRegular() {
+					file, err := os.Open(path)
+					if err != nil {
+						return fmt.Errorf("failed to open file %s: %w", path, err)
+					}
+					defer file.Close()
+
+					if _, err := io.Copy(tarWriter, file); err != nil {
+						return fmt.Errorf("failed to write file content: %w", err)
+					}
+				}
+				return nil
+			})
 			if err != nil {
-				return fmt.Errorf("failed to open file %s: %w", path, err)
+				return err
 			}
-			defer file.Close()
+		} else {
+			// Single file: always just the base name
+			linkTarget := ""
+			if info.Mode()&os.ModeSymlink != 0 {
+				linkTarget, err = os.Readlink(source)
+				if err != nil {
+					return fmt.Errorf("failed to read symlink target for %s: %w", source, err)
+				}
+			}
 
-			if _, err := io.Copy(tarWriter, file); err != nil {
-				return fmt.Errorf("failed to write file content: %w", err)
+			header, err := tar.FileInfoHeader(info, linkTarget)
+			if err != nil {
+				if runtime.GOOS == "windows" {
+					fmt.Fprintf(os.Stderr, "[WARN] enforcing file permission for %s\n", filepath.Base(source))
+					header = &tar.Header{
+						Name:    filepath.Base(source),
+						Size:    info.Size(),
+						Mode:    0644,
+						ModTime: info.ModTime(),
+					}
+				} else {
+					return fmt.Errorf("failed to create tar header for %s: %w", source, err)
+				}
+			}
+			header.Name = filepath.Base(source)
+
+			if err := tarWriter.WriteHeader(header); err != nil {
+				return fmt.Errorf("failed to write tar header: %w", err)
+			}
+
+			if info.Mode().IsRegular() {
+				file, err := os.Open(source)
+				if err != nil {
+					return fmt.Errorf("failed to open file %s: %w", source, err)
+				}
+				defer file.Close()
+
+				if _, err := io.Copy(tarWriter, file); err != nil {
+					return fmt.Errorf("failed to write file content: %w", err)
+				}
 			}
 		}
-
-		return nil
-	})
-
-	if err != nil {
-		return fmt.Errorf("failed to create tarball: %w", err)
 	}
 
 	return nil
