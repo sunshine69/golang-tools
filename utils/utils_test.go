@@ -233,7 +233,7 @@ func TestMigrateOldEncrypt(t *testing.T) {
 }
 
 func TestGoFindExec(t *testing.T) {
-	GoFindExec([]string{"dir://."}, []string{`.*`}, func(myfile string) error {
+	GoFindExec([]string{"file://."}, []string{`.*\.zip`}, func(myfile string) error {
 		println(myfile)
 		return nil
 	})

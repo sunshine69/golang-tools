@@ -111,19 +111,19 @@ func (i *ArrayFlags) Set(value string) error {
 
 // Time handling
 const (
-	millisPerSecond     = int64(time.Second / time.Millisecond)
-	nanosPerMillisecond = int64(time.Millisecond / time.Nanosecond)
-	nanosPerSecond      = int64(time.Second / time.Nanosecond)
+	MillisPerSecond     = int64(time.Second / time.Millisecond)
+	NanosPerMillisecond = int64(time.Millisecond / time.Nanosecond)
+	NanosPerSecond      = int64(time.Second / time.Nanosecond)
 )
 
-// NsToTime -
+// NsToTime - Convert a nanoseconds number to time object
 func NsToTime(ns int64) time.Time {
-	secs := ns / nanosPerSecond
-	nanos := ns - secs*nanosPerSecond
+	secs := ns / NanosPerSecond
+	nanos := ns - secs*NanosPerSecond
 	return time.Unix(secs, nanos)
 }
 
-// ChunkString -
+// ChunkString - Break a strings into a chunk of size chunkSize
 func ChunkString(s string, chunkSize int) []string {
 	var chunks []string
 	runes := []rune(s)
@@ -141,6 +141,8 @@ func ChunkString(s string, chunkSize int) []string {
 	return chunks
 }
 
+// Generate a random number as uint64. Use linux /dev/random
+// directly. This may have better randomness?
 func GenerateLinuxRandom(max uint64) (uint64, error) {
 	f, err := os.Open("/dev/random")
 	if err != nil {
@@ -506,8 +508,14 @@ func MakePassword(length int) string {
 	return string(b)
 }
 
-// GoFindExec take a directory path and list of regex pattern to match the file name. If it matches then it call the callback function for that file name.
-// filetype is parsed from the directory prefix, file:// for file, dir:// for directory
+// GoFindExec take a list of directory paths and list of regex pattern to match the file/dir name. If it matches then it call the callback function for that file/dir path (relatively to the current working dir if your dir/file path is relative path)
+//
+// filetype is parsed from the directory prefix eg. file:// for file, dir:// for directory. It only return the file type for the corresponding path.
+//
+//	Eg. GoFindExec([]string{"file://."},[]string{`.*`}, func(myfilepath) error {
+//		println(myfilepath)
+//	 return nil
+//	})
 func GoFindExec(directories []string, path_pattern []string, callback func(filename string) error) error {
 	pathPtn := []*regexp.Regexp{}
 	for _, p := range path_pattern {

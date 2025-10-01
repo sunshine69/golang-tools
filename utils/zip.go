@@ -11,6 +11,7 @@ import (
 )
 
 // Zip works and tested on linux and windows
+// Recommend to use tar.go with all encryption and streaming (thus you can pipe it) as it works better for file permissions and much smaller archive.
 
 // ZipOptions contains configuration for ZIP creation
 type ZipOptions struct {
