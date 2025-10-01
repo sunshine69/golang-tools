@@ -588,7 +588,7 @@ func ComputeHash(plainText string, salt []byte) string {
 func VerifyHash(password string, passwordHashString string, saltLength int) bool {
 	passwordHash, err := base64.StdEncoding.DecodeString(passwordHashString)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[ERROR] can not decode base64 input - "+err.Error())
+		fmt.Fprintf(os.Stderr, "[ERROR] can not decode base64 input - %s\n", err.Error())
 	}
 	saltBytes := []byte(passwordHash[len(passwordHash)-saltLength:])
 	result := ComputeHash(password, saltBytes)
@@ -1180,7 +1180,7 @@ func CheckErrNonFatal(err error, location string) error {
 	if err != nil {
 		msg := fmt.Sprintf("[ERROR] at %s - %v. IGNORED\n", location, err)
 		println(msg)
-		return fmt.Errorf(msg)
+		return errors.New(msg)
 	}
 	return nil
 }

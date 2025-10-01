@@ -231,3 +231,10 @@ func TestMigrateOldEncrypt(t *testing.T) {
 	old_content := Must(Decrypt_v0(oldcontent_enc, key))
 	println(Encrypt(old_content, key, nil))
 }
+
+func TestGoFindExec(t *testing.T) {
+	GoFindExec([]string{"dir://."}, []string{`.*`}, func(myfile string) error {
+		println(myfile)
+		return nil
+	})
+}
