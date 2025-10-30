@@ -263,12 +263,12 @@ type EncryptionConfig struct {
 
 func NewEncConfigForVersion(version byte) (*EncryptionConfig, error) {
 	switch version {
-	case EncryptVersion2:
-		return DefaultEncryptionConfig(), nil
 	case EncryptVersion1:
+		return DefaultEncryptionConfig(), nil
+	case EncryptVersion2:
 		ec := DefaultEncryptionConfig()
 		ec.KDF = KDFScrypt
-		ec.Version = EncryptVersion1
+		ec.Version = EncryptVersion2
 		return ec, nil
 	default:
 		return &EncryptionConfig{}, errors.New("unsupported version")
