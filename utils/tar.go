@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
-	"time"
 
 	"github.com/klauspost/compress/zstd"
 	"golang.org/x/sys/unix"
@@ -59,56 +58,6 @@ func (zo *TarOptions) WithEncryptMode(m EncryptMode) *TarOptions {
 func (zo *TarOptions) WithStripTopLevelDir(s bool) *TarOptions {
 	zo.StripTopLevelDir = s
 	return zo
-}
-
-// writeStreamEntry writes a single tar entry whose size is unknown in advance.
-// It uses a PAX extended header for compliance.
-func writeStreamEntry(tw *tar.Writer, r io.Reader, name string) error {
-	// 1. Write PAX extended header indicating streaming mode
-	paxHdr := &tar.Header{
-		Typeflag: tar.TypeXHeader,
-		Name:     fmt.Sprintf("PaxHeader/%s", name),
-		Mode:     0600,
-		ModTime:  time.Now(),
-		Format:   tar.FormatPAX,
-		PAXRecords: map[string]string{
-			"size":    "0",              // Unknown size placeholder
-			"path":    name,             // Target name
-			"comment": "streamed input", // Optional
-		},
-	}
-	if err := tw.WriteHeader(paxHdr); err != nil {
-		return fmt.Errorf("failed to write PAX header: %w", err)
-	}
-
-	// 2. Write the file header (size=0, but allowed since we’re using PAX)
-	fileHdr := &tar.Header{
-		Name:     name,
-		Mode:     0600,
-		ModTime:  time.Now(),
-		Typeflag: tar.TypeReg,
-		Size:     0,
-		Format:   tar.FormatPAX,
-	}
-	if err := tw.WriteHeader(fileHdr); err != nil {
-		return fmt.Errorf("failed to write stream header: %w", err)
-	}
-
-	// 3. Stream data directly to the tar writer’s underlying stream
-	written, err := io.Copy(tw, r)
-	if err != nil {
-		return fmt.Errorf("failed to stream data: %w", err)
-	}
-
-	// 4. Align to 512 bytes
-	const blockSize = 512
-	if pad := (blockSize - (written % blockSize)) % blockSize; pad > 0 {
-		if _, err := tw.Write(make([]byte, pad)); err != nil {
-			return fmt.Errorf("failed to pad stream: %w", err)
-		}
-	}
-
-	return nil
 }
 
 // CreateTarball accepts either a string or []string (same as your original) and
@@ -203,35 +152,10 @@ func CreateTarball(sources interface{}, outputPath string, options *TarOptions) 
 	for _, source := range fileList {
 		source = filepath.Clean(source)
 
+		// Use Lstat so symlink bit is preserved for the source itself
 		info, err := os.Lstat(source)
 		if err != nil {
 			return fmt.Errorf("failed to stat %s: %w", source, err)
-		}
-
-		// Handle stdin or named pipe input
-		if source == "-" || (info != nil && info.Mode()&os.ModeNamedPipe != 0) {
-			filename := os.Getenv("TAR_FILENAME")
-			if filename == "" {
-				filename = "stdin"
-			}
-
-			var reader io.Reader
-			if source == "-" {
-				reader = os.Stdin
-			} else {
-				f, err := os.Open(source)
-				if err != nil {
-					return fmt.Errorf("failed to open FIFO %s: %w", source, err)
-				}
-				defer f.Close()
-				reader = f
-			}
-
-			if err := writeStreamEntry(tw, reader, filename); err != nil {
-				return err
-			}
-
-			continue
 		}
 
 		if info.IsDir() {
