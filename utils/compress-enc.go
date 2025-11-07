@@ -215,7 +215,10 @@ func processOutputFile(outputPath string, overwrite bool) (outputFile io.WriteCl
 	default:
 		switch {
 		case GetFirstValue(IsNamedPipe(outputPath)):
-			outputFile = Must(os.Open(outputPath))
+			outputFile, err = os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE, 0666)
+			if err != nil {
+				return nil, err
+			}
 		case Exists(outputPath) && !overwrite:
 			panic("[ERROR] Output file exists\n")
 		default:
