@@ -84,23 +84,13 @@ func CreateCompEncArchive(source string, outputPath string, options *CompEncOpti
 	}
 
 	// Prepare output
-	var outputFile io.WriteCloser
-	var err error
-	switch outputPath {
-	case "-":
-		outputFile = os.Stdout
-	default:
-		outputFile, err = os.Create(outputPath)
-		if err != nil {
-			return fmt.Errorf("failed to create output file: %w", err)
-		}
-		defer outputFile.Close()
-	}
-
+	var outputFile = Must(processOutputFile(outputPath, options.OverwriteExisting))
+	defer outputFile.Close()
 	var writer io.Writer = outputFile
 
 	// Encryption
 	if options.Encrypt {
+		var err error
 		if options.Password == "" {
 			return fmt.Errorf("password is required for encryption")
 		}
@@ -211,19 +201,29 @@ func ExtractCompEncArchive(inputPath, outputPath string, options *CompEncOptions
 	}
 
 	// Extract files
-	if outputPath == "" {
-		outputPath = filepath.Base(inputPath) + ".decompenc"
-	}
-	if !options.OverwriteExisting && Exists(outputPath) {
-		panic("[ERROR] file " + outputPath + " exists.")
-	}
-	var targetF io.WriteCloser
-	if outputPath == "-" {
-		targetF = os.Stdout
-	} else {
-		targetF = Must(os.Create(outputPath))
-	}
-	defer targetF.Close()
-	Must(io.Copy(targetF, reader))
+	var outputFile = Must(processOutputFile(outputPath, options.OverwriteExisting))
+	defer outputFile.Close()
+	Must(io.Copy(outputFile, reader))
 	return nil
+}
+
+// remember to close
+func processOutputFile(outputPath string, overwrite bool) (outputFile io.WriteCloser, err error) {
+	switch {
+	case outputPath == "-":
+		outputFile = os.Stdout
+	default:
+		switch {
+		case GetFirstValue(IsNamedPipe(outputPath)):
+			outputFile = Must(os.Open(outputPath))
+		case Exists(outputPath) && !overwrite:
+			panic("[ERROR] Output file exists\n")
+		default:
+			outputFile, err = os.Create(outputPath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create output file: %w", err)
+			}
+		}
+	}
+	return
 }

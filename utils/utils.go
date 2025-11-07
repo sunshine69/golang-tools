@@ -3068,3 +3068,15 @@ var MaskCredentialPattern *regexp.Regexp = regexp.MustCompile(`(?i)(password|tok
 func MaskCredential(inputstr string) string {
 	return MaskCredentialPattern.ReplaceAllString(inputstr, "$1$2 *****")
 }
+
+func IsNamedPipe(path string) (bool, fs.FileInfo) {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return false, fileInfo
+	}
+	return fileInfo.Mode()&os.ModeNamedPipe != 0, fileInfo
+}
+
+func GetFirstValue[T, T1 any](x T, y T1) T {
+	return x
+}
