@@ -1350,7 +1350,10 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 	}
 	if savefilename == "" {
 		content, err := io.ReadAll(resp.Body)
-		return string(content), fmt.Errorf("%s - ReadBody err: %s", returnerr, err)
+		if err != nil {
+			return string(content), fmt.Errorf("%s %s", returnerr, err)
+		}
+		return string(content), returnerr
 	} else {
 		outfile, err := os.Create(savefilename)
 		if err != nil {
