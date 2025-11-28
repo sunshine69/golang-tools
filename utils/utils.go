@@ -1350,19 +1350,16 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 	}
 	if savefilename == "" {
 		content, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return "", fmt.Errorf("%s - %s", returnerr, err)
-		}
-		return string(content), returnerr
+		return string(content), fmt.Errorf("%s - ReadBody err: %s", returnerr, err)
 	} else {
 		outfile, err := os.Create(savefilename)
 		if err != nil {
-			return "", fmt.Errorf("%s - %s", returnerr, err)
+			return "", fmt.Errorf("%s - CreateFile err: %s", returnerr, err)
 		}
 		defer outfile.Close()
 		_, err = io.Copy(outfile, resp.Body)
 		if err != nil {
-			return "", fmt.Errorf("%s - %s", returnerr, err)
+			return "", fmt.Errorf("%s - CopyFile err: %s", returnerr, err)
 		}
 		return "OK save to " + savefilename, returnerr
 	}
