@@ -1249,13 +1249,15 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 	ssl_cert_file := Getenv("SSL_CERT_FILE", "")
 	InsecureSkipVerify := Ternary(Getenv("INSECURE_SKIP_VERIFY", "no") == "yes", true, false)
 
-	var cert *tls.Certificate = nil
+	var cert tls.Certificate
+	var useCert bool = false
 	var err error
 	if ssl_cert_file != "" && ssl_key_file != "" {
+		useCert = true
 		if CURL_DEBUG == "yes" {
 			log.Printf("Load ssl cert %s and key %s\n", ssl_cert_file, ssl_key_file)
 		}
-		*cert, err = tls.LoadX509KeyPair(ssl_cert_file, ssl_key_file)
+		cert, err = tls.LoadX509KeyPair(ssl_cert_file, ssl_key_file)
 		if err != nil {
 			log.Printf("[ERROR] can not LoadX509KeyPair\n")
 			return "", err
@@ -1278,14 +1280,14 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 	}
 	var tlsConfig *tls.Config = nil
 
-	if caCertPool != nil || cert != nil || InsecureSkipVerify {
+	if caCertPool != nil || useCert || InsecureSkipVerify {
 		if CURL_DEBUG == "yes" {
 			log.Printf("[DEBUG] going to create tlsConfig with caCertPool '%v' - cert '%v'\n", caCertPool, cert)
 		}
 		tlsConfig = &tls.Config{InsecureSkipVerify: InsecureSkipVerify}
 
-		if cert != nil {
-			tlsConfig.Certificates = []tls.Certificate{*cert}
+		if useCert {
+			tlsConfig.Certificates = []tls.Certificate{cert}
 		}
 		if caCertPool != nil {
 			tlsConfig.RootCAs = caCertPool
@@ -1333,6 +1335,9 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 
 	for _, line := range headers {
 		_tmp := strings.Split(line, ":")
+		if len(_tmp) != 2 {
+			panic("[ERROR] headers is a list of string representing headers using : as separator. Eg. Content-Type: text/html\n")
+		}
 		req.Header.Set(_tmp[0], strings.TrimSpace(_tmp[1]))
 	}
 	resp, err := client.Do(req)
