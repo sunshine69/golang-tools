@@ -2976,7 +2976,7 @@ func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []str
 }
 
 // Function to recursively convert any to JSON-compatible types
-func convertInterface(value any) any {
+func ConvertInterface(value any) any {
 	switch v := value.(type) {
 	case map[any]any:
 		return convertMap(v)
@@ -3011,7 +3011,7 @@ func convertMap(m map[any]any) map[string]any {
 			// Here, we simply skip the key-value pair
 			continue
 		}
-		newMap[strKey] = convertInterface(value)
+		newMap[strKey] = ConvertInterface(value)
 	}
 	return newMap
 }
@@ -3020,19 +3020,17 @@ func convertMap(m map[any]any) map[string]any {
 func convertSlice(s []any) []any {
 	newSlice := make([]any, len(s))
 	for i, value := range s {
-		newSlice[i] = convertInterface(value)
+		newSlice[i] = ConvertInterface(value)
 	}
 	return newSlice
 }
 
 // Custom JSON marshalling function
 func CustomJsonMarshal(v any) ([]byte, error) {
-	converted := convertInterface(v)
-	return json.Marshal(converted)
+	return json.Marshal(ConvertInterface(v))
 }
 func CustomJsonMarshalIndent(v any, indent int) ([]byte, error) {
-	converted := convertInterface(v)
-	return json.MarshalIndent(converted, "", strings.Repeat(" ", indent))
+	return json.MarshalIndent(ConvertInterface(v), "", strings.Repeat(" ", indent))
 }
 
 // CreateDirTree take the directory structure from the source and create it in the target.

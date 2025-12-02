@@ -15,8 +15,8 @@ import (
 //
 // This is usefull as tar can not get input data from stdin due to its specs
 // The only other options is to use cpio format but go implementation of it seems to be buggy
-// CompEncOptions holds configuration for cpio archive creation
 
+// CompEncOptions holds configuration for cpio archive creation
 type CompEncOptions struct {
 	UseCompression    bool
 	CompressionLevel  int
