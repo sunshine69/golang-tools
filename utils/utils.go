@@ -310,21 +310,17 @@ func Encrypt[T string | []byte](data, password T, cfg *EncryptionConfig) (T, err
 	if cfg == nil {
 		cfg = DefaultEncryptionConfig()
 	}
-	var raw []byte
+	var raw, passb []byte
 	var err error
 	switch v := any(data).(type) {
 	case string:
 		raw = []byte(string(v))
-	case []byte:
-		raw = []byte(v)
-	}
-	var passb []byte
-	switch v := any(password).(type) {
-	case string:
 		passb = []byte(string(v))
 	case []byte:
+		raw = []byte(v)
 		passb = []byte(v)
 	}
+
 	if len(raw) == 0 || len(passb) == 0 {
 		return *new(T), errors.New("text and password must not be empty")
 	}
