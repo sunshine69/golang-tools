@@ -1768,7 +1768,7 @@ func Must[T any](res T, err error) T {
 		} else {
 			msg = err.Error()
 		}
-		panic(msg)
+		panic(msg + "\n")
 	}
 	return res
 }
