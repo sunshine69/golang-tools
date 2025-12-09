@@ -1079,7 +1079,8 @@ func RunSystemCommand(cmd string, verbose bool) (output string) {
 	if verbose {
 		log.Printf("[INFO] command: %s\n", cmd)
 	}
-	command := exec.Command("bash", "-c", cmd)
+	shellCmd := Getenv("SHELL", "bash")
+	command := exec.Command(shellCmd, "-c", cmd)
 
 	combinedOutput, err := command.CombinedOutput()
 	if err != nil {
@@ -1094,7 +1095,8 @@ func RunSystemCommand(cmd string, verbose bool) (output string) {
 // On windows you need to install bash or mingw64 shell
 // The only differrence with RunSystemCommand is that it returns an error if error happened and it wont panic
 func RunSystemCommandV2(cmd string, verbose bool) (output string, err error) {
-	command := exec.Command("bash", "-c", cmd)
+	shellCmd := Getenv("SHELL", "bash")
+	command := exec.Command(shellCmd, "-c", cmd)
 	return RunSystemCommandV3(command, verbose)
 }
 
