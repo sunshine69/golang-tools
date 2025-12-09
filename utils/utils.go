@@ -1103,17 +1103,14 @@ func RunSystemCommandV2(cmd string, verbose bool) (output string, err error) {
 // RunSystemCommandV3. Unlike the other two, this one you craft the exec.Cmd object and pass it to this function
 // This allows you to customize the exec.Cmd object before calling this function, eg, passing more env vars into it
 // like command.Env = append(os.Environ(), "MYVAR=MYVAL"). You might not need bash to run for example but run directly
+// In case of error, the output is a json string with field Stdout and Stderr populated.
 func RunSystemCommandV3(command *exec.Cmd, verbose bool) (output string, err error) {
 	if verbose {
 		log.Printf("[INFO] command: %s\n", MaskCredential(command.String()))
 	}
-	combinedOutput, err1 := command.CombinedOutput()
+	_, err1 := command.CombinedOutput()
 	if err1 != nil {
-		if verbose {
-			return fmt.Sprintf("[ERROR] error command: '%s' - %s\n    %s\n", MaskCredential(command.String()), MaskCredential(err1.Error()), MaskCredential(string(combinedOutput))), err1
-		} else {
-			return "[ERROR] turn on verbose to display full", err1
-		}
+		return fmt.Sprintf(`{"Stdout": "%q", "Stderr": "%q", "Command": "%q"}`, command.Stdout, command.Stderr, MaskCredential(command.String())), err1
 	}
 	output = fmt.Sprintf("%s", command.Stdout)
 	output = strings.TrimSuffix(output, "\n")
