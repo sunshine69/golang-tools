@@ -1105,16 +1105,27 @@ func RunSystemCommandV2(cmd string, verbose bool) (output string, err error) {
 // like command.Env = append(os.Environ(), "MYVAR=MYVAL"). You might not need bash to run for example but run directly
 // In case of error, the output is a json string with field Stdout and Stderr populated.
 func RunSystemCommandV3(command *exec.Cmd, verbose bool) (output string, err error) {
+	var outBuf, errBuf bytes.Buffer
+	command.Stdout = &outBuf
+	command.Stderr = &errBuf
+
 	if verbose {
 		log.Printf("[INFO] command: %s\n", MaskCredential(command.String()))
 	}
-	_, err1 := command.CombinedOutput()
-	if err1 != nil {
-		return fmt.Sprintf(`{"Stdout": "%q", "Stderr": "%q", "Command": "%q"}`, command.Stdout, command.Stderr, MaskCredential(command.String())), err1
+
+	err = command.Run()
+	stdout := strings.TrimSuffix(outBuf.String(), "\n")
+
+	if err != nil {
+		// Return both stdout and stderr on error
+		o := map[string]any{
+			"Stdout": stdout,
+			"Stderr": strings.TrimSuffix(errBuf.String(), "\n"),
+			"Cmd":    MaskCredential(command.String()),
+		}
+		return JsonDump(o, ""), fmt.Errorf("command failed: %w", err)
 	}
-	output = fmt.Sprintf("%s", command.Stdout)
-	output = strings.TrimSuffix(output, "\n")
-	return output, nil
+	return stdout, nil
 }
 
 func Getenv(key, fallback string) string {

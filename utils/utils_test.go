@@ -238,3 +238,12 @@ func TestGoFindExec(t *testing.T) {
 		return nil
 	})
 }
+
+func TestRunSystemCmd(t *testing.T) {
+	println(RunSystemCommand(`ls `, true))
+	o, e := RunSystemCommandV2(`ls /something`, true)
+	println(o)
+	if e != nil {
+		println(e.Error())
+	}
+}
