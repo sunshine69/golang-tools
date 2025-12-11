@@ -1072,6 +1072,14 @@ func Basename(fileName, ext string) string {
 	return fileName[:len(fileName)-len(ext)]
 }
 
+// The output of the function RunSystemCommandXXX when there is error. Without error it just return the raw command output from the shell
+// This allows the caller to fine parse the error and deal with it
+type SystemCommandOuput struct {
+	Stdout string `json:"Stdout"`
+	Stderr string `json:"Stderr"`
+	Cmd    string `json:"Cmd"`
+}
+
 // RunSystemCommand run the command 'cmd'. It will use 'bash -c <the-command>' thus requires bash installed
 // On windows you need to install bash or mingw64 shell
 // If command exec get error it will panic!
@@ -1094,6 +1102,8 @@ func RunSystemCommand(cmd string, verbose bool) (output string) {
 // RunSystemCommandV2 run the command 'cmd'. It will use 'bash -c <the-command>' thus requires bash installed
 // On windows you need to install bash or mingw64 shell
 // The only differrence with RunSystemCommand is that it returns an error if error happened and it wont panic
+// When no error, it return output as the command stdout.
+// When error happened, it return a json string with field { "Stdout": stdout, "Stderr": stderr, "Cmd": <the command u ran> },
 func RunSystemCommandV2(cmd string, verbose bool) (output string, err error) {
 	shellCmd := Getenv("SHELL", "bash")
 	command := exec.Command(shellCmd, "-c", cmd)
@@ -1118,10 +1128,10 @@ func RunSystemCommandV3(command *exec.Cmd, verbose bool) (output string, err err
 
 	if err != nil {
 		// Return both stdout and stderr on error
-		o := map[string]any{
-			"Stdout": stdout,
-			"Stderr": strings.TrimSuffix(errBuf.String(), "\n"),
-			"Cmd":    MaskCredential(command.String()),
+		o := SystemCommandOuput{
+			Stdout: stdout,
+			Stderr: strings.TrimSuffix(errBuf.String(), "\n"),
+			Cmd:    MaskCredential(command.String()),
 		}
 		return JsonDump(o, ""), fmt.Errorf("command failed: %w", err)
 	}

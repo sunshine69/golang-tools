@@ -32,3 +32,4 @@ utils/utils_test.go
 *.zst
 *.dec
 *.enc 
+.vscode/**
