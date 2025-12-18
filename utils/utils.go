@@ -3100,19 +3100,22 @@ func GetFirstValue[T, T1 any](x T, y T1) T {
 	return x
 }
 
-func Grep(input string, pattern string, onlyMatch bool, invert bool) error {
-	re, err := regexp.Compile(pattern)
-	if err != nil {
-		return err
+// Grep a pattern in a text
+func Grep[T string | *regexp.Regexp](input string, pattern T, outputMatchOnly bool, inverse bool) error {
+	var re *regexp.Regexp
+	switch any(pattern).(type) {
+	case string:
+		re = regexp.MustCompile(any(pattern).(string))
+	case *regexp.Regexp:
+		re = any(pattern).(*regexp.Regexp)
 	}
-
 	lines := strings.Split(input, "\n")
 
 	for _, line := range lines {
 		matched := re.MatchString(line)
 
 		// -v : inverse match (print non-matching lines)
-		if invert {
+		if inverse {
 			if !matched {
 				fmt.Println(line)
 			}
@@ -3124,7 +3127,7 @@ func Grep(input string, pattern string, onlyMatch bool, invert bool) error {
 			continue
 		}
 
-		if onlyMatch {
+		if outputMatchOnly {
 			// Print matches (or capture groups)
 			matches := re.FindAllStringSubmatch(line, -1)
 			for _, m := range matches {
