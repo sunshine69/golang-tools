@@ -251,4 +251,5 @@ func TestRunSystemCmd(t *testing.T) {
 func TestGrep(t *testing.T) {
 	o, found := Grep(`kubeconfig_filename: {{ work_dir }}/files/shared-kubeconfig.yaml`, `kubeconfig_filename: .*\/([^\/]+)`, true, false)
 	fmt.Printf("%v - %v\n", o, found)
+	FileGrep(".", "ReadFile", "", false, false)
 }

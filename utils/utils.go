@@ -3101,7 +3101,7 @@ func GetFirstValue[T, T1 any](x T, y T1) T {
 }
 
 // Grep a pattern in a text
-func Grep[T string | *regexp.Regexp](input string, pattern T, outputMatchOnly bool, inverse bool) (out string, matchedFound bool) {
+func Grep[T string | *regexp.Regexp](input string, pattern T, outputMatchOnly bool, inverse bool) (out []string, matchedFound bool) {
 	var re *regexp.Regexp
 	switch any(pattern).(type) {
 	case string:
@@ -3146,5 +3146,51 @@ func Grep[T string | *regexp.Regexp](input string, pattern T, outputMatchOnly bo
 			}
 		}
 	}
-	return strings.Join(oputputlines, "\n"), matchedFound
+	return oputputlines, matchedFound
+}
+
+func FileGrep(filePaths, patternStr, excludePtnStr string, outputMatchOnly, inverse bool) {
+	var excludePtn *regexp.Regexp
+	if excludePtnStr != "" {
+		excludePtn = regexp.MustCompile(excludePtnStr)
+	}
+	pattern := regexp.MustCompile(patternStr)
+
+	filepath.Walk(filePaths, func(fpath string, info fs.FileInfo, err error) error {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			return nil
+		}
+		fname := info.Name()
+		if info.IsDir() && (excludePtn != nil && excludePtn.MatchString(fname)) {
+			return filepath.SkipDir
+		}
+
+		if !info.IsDir() {
+			fmode := info.Mode()
+			if !(fmode.IsRegular()) {
+				return nil
+			}
+			if Must(IsBinaryFileSimple(fpath)) {
+				return filepath.SkipDir
+			}
+			textb, err := os.ReadFile(fpath)
+			if err != nil {
+				return nil
+			}
+			matchedLines, found := Grep(string(textb), pattern, outputMatchOnly, inverse)
+			if found {
+				if !outputMatchOnly {
+					for _, l := range matchedLines {
+						fmt.Fprintf(os.Stdout, "%s:%s\n", fpath, l)
+					}
+				} else {
+					for _, l := range matchedLines {
+						fmt.Fprintf(os.Stdout, "%s\n", l)
+					}
+				}
+			}
+		}
+		return nil
+	})
 }
