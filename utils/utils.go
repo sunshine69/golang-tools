@@ -3099,3 +3099,51 @@ func IsNamedPipe(path string) (bool, fs.FileInfo) {
 func GetFirstValue[T, T1 any](x T, y T1) T {
 	return x
 }
+
+func Grep(input string, pattern string, onlyMatch bool, invert bool) error {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return err
+	}
+
+	lines := strings.Split(input, "\n")
+
+	for _, line := range lines {
+		matched := re.MatchString(line)
+
+		// -v : inverse match (print non-matching lines)
+		if invert {
+			if !matched {
+				fmt.Println(line)
+			}
+			continue
+		}
+
+		// Normal grep behavior
+		if !matched {
+			continue
+		}
+
+		if onlyMatch {
+			// Print matches (or capture groups)
+			matches := re.FindAllStringSubmatch(line, -1)
+			for _, m := range matches {
+				if len(m) > 1 {
+					fmt.Println(strings.Join(m[1:], " "))
+				} else {
+					fmt.Println(m[0])
+				}
+			}
+		} else {
+			// Print whole line OR capture(s)
+			m := re.FindStringSubmatch(line)
+			if len(m) > 1 {
+				fmt.Println(strings.Join(m[1:], " "))
+			} else {
+				fmt.Println(line)
+			}
+		}
+	}
+
+	return nil
+}

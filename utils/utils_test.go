@@ -247,3 +247,7 @@ func TestRunSystemCmd(t *testing.T) {
 		println(e.Error())
 	}
 }
+
+func TestGrep(t *testing.T) {
+	Grep(`kubeconfig_filename: {{ work_dir }}/files/shared-kubeconfig.yaml`, `kubeconfig_filename: .*\/([^\/]+)`, true, false)
+}
