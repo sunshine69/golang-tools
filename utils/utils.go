@@ -2398,20 +2398,13 @@ func LineInFile(filename string, opt *LineInfileOpt) (err error, changed bool) {
 			}
 		}
 		// fmt.Printf("DEBUG d2 %s\n", JsonDump(d2, "  "))
-		switch opt.State {
-		case "print", "printline":
+		if opt.State == "print" {
 			o := map[string]any{
 				"file":          filename,
 				"matched_lines": d2,
 			}
-			if opt.State == "print" {
-				fmt.Fprintf(os.Stdout, "%s\n", JsonDump(o, "  "))
-			} else {
-				for _, _line := range o["matched_lines"].(map[int]any) {
-					fmt.Fprintf(os.Stdout, "%s\n", _line.(string))
-				}
-			}
-		default:
+			fmt.Fprintf(os.Stdout, "%s\n", JsonDump(o, "  "))
+		} else {
 			for _, v := range d2 { // then remove by val here.
 				d = RemoveItemByVal(d, v)
 			}
