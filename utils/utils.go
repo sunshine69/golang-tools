@@ -3101,7 +3101,7 @@ func GetFirstValue[T, T1 any](x T, y T1) T {
 }
 
 // Grep a pattern in a text
-func Grep[T string | *regexp.Regexp](input string, pattern T, outputMatchOnly bool, inverse bool) error {
+func Grep[T string | *regexp.Regexp](input string, pattern T, outputMatchOnly bool, inverse bool) (out string, matchedFound bool) {
 	var re *regexp.Regexp
 	switch any(pattern).(type) {
 	case string:
@@ -3110,43 +3110,41 @@ func Grep[T string | *regexp.Regexp](input string, pattern T, outputMatchOnly bo
 		re = any(pattern).(*regexp.Regexp)
 	}
 	lines := strings.Split(input, "\n")
-
+	oputputlines := []string{}
 	for _, line := range lines {
 		matched := re.MatchString(line)
-
 		// -v : inverse match (print non-matching lines)
 		if inverse {
 			if !matched {
-				fmt.Println(line)
+				oputputlines = append(oputputlines, line)
+				matchedFound = true
 			}
 			continue
 		}
-
 		// Normal grep behavior
 		if !matched {
 			continue
 		}
-
+		matchedFound = true
 		if outputMatchOnly {
 			// Print matches (or capture groups)
 			matches := re.FindAllStringSubmatch(line, -1)
 			for _, m := range matches {
 				if len(m) > 1 {
-					fmt.Println(strings.Join(m[1:], " "))
+					oputputlines = append(oputputlines, strings.Join(m[1:], " "))
 				} else {
-					fmt.Println(m[0])
+					oputputlines = append(oputputlines, m[0])
 				}
 			}
 		} else {
 			// Print whole line OR capture(s)
 			m := re.FindStringSubmatch(line)
 			if len(m) > 1 {
-				fmt.Println(strings.Join(m[1:], " "))
+				oputputlines = append(oputputlines, strings.Join(m[1:], " "))
 			} else {
-				fmt.Println(line)
+				oputputlines = append(oputputlines, line)
 			}
 		}
 	}
-
-	return nil
+	return strings.Join(oputputlines, "\n"), matchedFound
 }
