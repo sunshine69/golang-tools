@@ -1677,7 +1677,7 @@ func ReadPropertiesFile(filename string) (AppConfigProperties, error) {
 }
 
 // MapLookup search a key in a map and return the value if found, otherwise return the default_val
-func MapLookup(m map[string]any, key string, default_val any) any {
+func MapLookup[T any](m map[string]T, key string, default_val T) T {
 	if v, ok := m[key]; ok {
 		return v
 	} else {
