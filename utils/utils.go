@@ -1879,6 +1879,25 @@ func indent(spaces int, v string) string {
 	pad := strings.Repeat(" ", spaces)
 	return pad + strings.Replace(v, "\n", "\n"+pad, -1)
 }
+
+func tmpl_b64enc(v any) string {
+	switch _v := v.(type) {
+	case string:
+		return base64.StdEncoding.EncodeToString([]byte(_v))
+	case []byte:
+		return base64.StdEncoding.EncodeToString(_v)
+	}
+	return ""
+}
+
+func tmpl_b64dec(v string) []byte {
+	if o, err := base64.StdEncoding.DecodeString(v); err != nil {
+		return []byte("[ERROR] " + err.Error())
+	} else {
+		return []byte(o)
+	}
+}
+
 func FormatSizeInByte(size int64) string {
 	const (
 		KB = 1024
@@ -1898,6 +1917,8 @@ func FormatSizeInByte(size int64) string {
 
 // Common func for go text template
 var GoTextTemplateFuncMap = template.FuncMap{
+	"b64enc":        tmpl_b64enc,
+	"b64dec":        tmpl_b64dec,
 	"format_size":   FormatSizeInByte,
 	"inc":           tmpl_inc,
 	"add":           tmpl_add,
@@ -1933,6 +1954,8 @@ var GoTextTemplateFuncMap = template.FuncMap{
 
 // Common usefull go html template funcs
 var GoTemplateFuncMap = htmltemplate.FuncMap{
+	"b64enc": tmpl_b64enc,
+	"b64dec": tmpl_b64dec,
 	// The name "inc" is what the function will be called in the template text.
 	"format_size": FormatSizeInByte,
 	"inc":         tmpl_inc,
