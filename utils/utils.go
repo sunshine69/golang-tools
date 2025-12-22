@@ -2992,9 +2992,28 @@ func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []str
 
 	block, start_line_no, end_line_no, datalines, _matchedPattern := ExtractTextBlockContains(filename, upper_bound_pattern, lower_bound_pattern, marker, start_line)
 	if block == "" {
-		fmt.Fprintf(os.Stderr, "block not found - upper: %v | lower: %v | marker: %v\n", upper_bound_pattern, lower_bound_pattern, marker)
+		fmt.Fprintf(os.Stderr, "block not found - upper: %v | lower: %v | marker: %v. Will add the block at teh end of file\n", upper_bound_pattern, lower_bound_pattern, marker)
+		olddataB := Must(os.ReadFile(filename))
+		if backup {
+			CheckErr(os.WriteFile(filename+".bak", olddataB, fstat.Mode()), "BlockInFile Write backup file")
+		}
+		newBlock := GoTemplateString(`{{ range $line := .startlines }}
+{{- $line }}
+{{- end }}
+{{ $.oldblock }}
+{{- range $line := .endlines }}
+{{ $line }}
+{{ end }}
+`, map[string]any{
+			"startlines": upper_bound_pattern,
+			"oldblock":   replText,
+			"endlines":   lower_bound_pattern,
+		})
+		olddataB = append(olddataB, []byte(newBlock)...)
+		CheckErr(os.WriteFile(filename, olddataB, fstat.Mode()), "BlockInFile Write new file")
 		return "", 0, 0, matchedPattern
 	}
+
 	matchedPattern = _matchedPattern
 
 	var upPartLines, downPartLines []string
