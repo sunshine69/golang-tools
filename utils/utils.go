@@ -927,7 +927,8 @@ func FileExists(name string) (bool, error) {
 	return false, err
 }
 
-// This is short version of FileExists - meant to be use in Ternery like Ternary(FileExistsV2(path) == nil, "something", "somethingelse")
+// This is short version of FileExists - Return stat error so user can use it more. If nil then it exists otherwise
+// It is meant to be use in Ternary like Ternary(FileExistsV2(path) == nil, "something", "somethingelse")
 func FileExistsV2(name string) error {
 	_, err := os.Stat(name)
 	return err
@@ -2998,7 +2999,7 @@ func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []str
 			CheckErr(os.WriteFile(filename+".bak", olddataB, fstat.Mode()), "BlockInFile Write backup file")
 		}
 		newBlock := GoTemplateString(`{{ range $line := .startlines }}
-{{- $line }}
+{{ $line }}
 {{- end }}
 {{ $.oldblock }}
 {{- range $line := .endlines }}
