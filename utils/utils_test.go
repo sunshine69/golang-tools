@@ -5,9 +5,14 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // func TestUnzip(t *testing.T) {
@@ -252,4 +257,37 @@ func TestGrep(t *testing.T) {
 	o, found := Grep(`kubeconfig_filename: {{ work_dir }}/files/shared-kubeconfig.yaml`, `kubeconfig_filename: .*\/([^\/]+)`, true, false)
 	fmt.Printf("%v - %v\n", o, found)
 	FileGrep(".", "ReadFile", "", false, false)
+}
+
+func TestUseStdinForRunSystemCmd(t *testing.T) {
+	fifo := "/tmp/test-fifo"
+	destDir := "/home/stevek/tmp/1"
+	os.RemoveAll(fifo)
+	unix.Mkfifo(fifo, uint32(0666))
+	// start reader first
+	// var stdin io.WriteCloser
+	go func() {
+		cmd := exec.Command("tar", "xf", "-", "--zstd", "-C", destDir)
+		fd, err := os.OpenFile(fifo, os.O_RDONLY, 0600)
+		CheckErr(err, "")
+		cmd.Stdin = fd
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		// stdin = Must(cmd.StdinPipe())
+		o, err := RunSystemCommandV3(cmd, true)
+		CheckErr(err, "Error "+o)
+		println(o)
+	}()
+	// Give reader time to start (important for FIFO)
+	time.Sleep(500 * time.Millisecond)
+
+	CreateTarball([]string{"go.mod", "go.sum", "/home/stevek/tmp/goplay"}, fifo, NewTarOptions().WithStripTopLevelDir(true).EnableCompression(true))
+
+	// 4. Wait and verify
+	time.Sleep(2 * time.Second)
+
+	filepath.Walk(destDir, func(path string, info os.FileInfo, err error) error {
+		fmt.Println("extracted:", path)
+		return nil
+	})
 }

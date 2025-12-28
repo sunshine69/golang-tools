@@ -7,6 +7,7 @@ import (
 	"archive/tar"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -14,6 +15,16 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"golang.org/x/sys/unix"
 )
+
+func IsFIFO(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false, err
+	}
+
+	// Check if the ModeNamedPipe bit is set
+	return info.Mode()&os.ModeNamedPipe != 0, nil
+}
 
 // TarOptions contains configuration for the tar creation
 type TarOptions struct {
@@ -62,6 +73,7 @@ func (zo *TarOptions) WithStripTopLevelDir(s bool) *TarOptions {
 
 // CreateTarball accepts either a string or []string (same as your original) and
 // now handles unix special files (block/char devices, fifos, sockets) when creating the tar.
+// If outputPath is - then write to stdout.
 func CreateTarball(sources interface{}, outputPath string, options *TarOptions) error {
 	if outputPath == "" {
 		return fmt.Errorf("output path cannot be empty")
@@ -99,9 +111,15 @@ func CreateTarball(sources interface{}, outputPath string, options *TarOptions) 
 	case "-":
 		outputFile = os.Stdout
 	default:
-		outputFile, err = os.Create(outputPath)
-		if err != nil {
-			return fmt.Errorf("failed to create output file: %w", err)
+		if Must(IsFIFO(outputPath)) {
+			fifo, err := os.OpenFile(outputPath, os.O_WRONLY, os.ModeNamedPipe)
+			if err != nil {
+				log.Fatal("Error opening FIFO:", err)
+			}
+			// defer fifo.Close()
+			outputFile = fifo
+		} else {
+			outputFile = Must(os.Create(outputPath))
 		}
 		defer outputFile.Close()
 	}
@@ -314,6 +332,7 @@ func CreateTarball(sources interface{}, outputPath string, options *TarOptions) 
 
 // ExtractTarball extracts a tarball with optional decompression and decryption.
 // It now handles FIFOs and device nodes (if running as root). Sockets are skipped.
+// If tarballPath is - then read from stdin
 func ExtractTarball(tarballPath, extractDir string, options *TarOptions) error {
 	var file io.ReadCloser
 	var err error

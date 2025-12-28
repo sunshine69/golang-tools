@@ -3,7 +3,7 @@ module github.com/sunshine69/golang-tools/utils
 go 1.24.0
 
 require (
-	github.com/cavaliergopher/cpio v1.0.1
+	github.com/google/uuid v1.6.0
 	github.com/json-iterator/go v1.1.12
 	golang.org/x/crypto v0.46.0
 	golang.org/x/net v0.48.0
