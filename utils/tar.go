@@ -7,7 +7,6 @@ import (
 	"archive/tar"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -43,7 +42,7 @@ func NewTarOptions() *TarOptions {
 		Encrypt:          false,
 		EncryptMode:      EncryptModeCTR,
 		Password:         "",
-		StripTopLevelDir: false,
+		StripTopLevelDir: true,
 	}
 }
 func (zo *TarOptions) WithCompressionLevel(level int) *TarOptions {
@@ -117,18 +116,20 @@ func CreateTarball(sources interface{}, outputPath any, options *TarOptions) err
 			if ok, _ := IsFIFO(v); ok {
 				fifo, err := os.OpenFile(v, os.O_WRONLY, os.ModeNamedPipe)
 				if err != nil {
-					log.Fatal("Error opening FIFO:", err)
+					return fmt.Errorf("Error opening FIFO: %s", err)
 				}
 				// defer fifo.Close()
 				outputFile = fifo
 			} else {
 				outputFile = Must(os.Create(v))
 			}
-			defer outputFile.Close()
 		}
 	case io.WriteCloser:
 		outputFile = v
+	default:
+		return fmt.Errorf("Output must be a file path or a io.WriteCloser")
 	}
+	defer outputFile.Close()
 
 	var writer io.Writer = outputFile
 
@@ -339,20 +340,25 @@ func CreateTarball(sources interface{}, outputPath any, options *TarOptions) err
 // ExtractTarball extracts a tarball with optional decompression and decryption.
 // It now handles FIFOs and device nodes (if running as root). Sockets are skipped.
 // If tarballPath is - then read from stdin
-func ExtractTarball(tarballPath, extractDir string, options *TarOptions) error {
+func ExtractTarball(tarballPath any, extractDir string, options *TarOptions) error {
 	var file io.ReadCloser
 	var err error
-	switch tarballPath {
-	case "-":
-		file = os.Stdin
-	default:
-		// Open the tarball file
-		file, err = os.Open(tarballPath)
-		if err != nil {
-			return fmt.Errorf("failed to open tarball: %w", err)
+	switch v := tarballPath.(type) {
+	case string:
+		switch v {
+		case "-":
+			file = os.Stdin
+		default:
+			// Open the tarball file
+			file, err = os.Open(v)
+			if err != nil {
+				return fmt.Errorf("failed to open tarball: %w", err)
+			}
 		}
-		defer file.Close()
+	case io.ReadCloser:
+		file = v
 	}
+	defer file.Close()
 	var reader io.Reader = file
 
 	// Add decryption layer if needed

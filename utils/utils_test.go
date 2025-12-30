@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // func TestUnzip(t *testing.T) {
@@ -259,8 +261,10 @@ func TestGrep(t *testing.T) {
 }
 
 func TestUseStdinForRunSystemCmd(t *testing.T) {
+	destDir := Must(os.Getwd()) + "/" + uuid.New().String() + "test-tar"
+	CheckErr(os.MkdirAll(destDir, 0o755), "")
+	defer os.RemoveAll(destDir)
 	// fifo := "/tmp/test-fifo"
-	destDir := "/home/stevek/tmp/1"
 	// os.RemoveAll(fifo)
 	// unix.Mkfifo(fifo, uint32(0666))
 	// start reader first
@@ -279,9 +283,8 @@ func TestUseStdinForRunSystemCmd(t *testing.T) {
 	}()
 	// Give reader time to start (important for FIFO)
 	time.Sleep(500 * time.Millisecond)
-
-	CreateTarball([]string{"go.mod", "go.sum", "/home/stevek/tmp/goplay"}, fifo, NewTarOptions().WithStripTopLevelDir(true).EnableCompression(true))
-
+	tarOpts := NewTarOptions().WithStripTopLevelDir(true).EnableCompression(true)
+	CreateTarball([]string{"go.mod", "go.sum", "/home/stevek/tmp/goplay"}, fifo, tarOpts)
 	// 4. Wait and verify
 	time.Sleep(2 * time.Second)
 
@@ -289,4 +292,17 @@ func TestUseStdinForRunSystemCmd(t *testing.T) {
 		fmt.Println("extracted:", path)
 		return nil
 	})
+
+	if FileExistsV2(destDir+"/go.mod") != nil {
+		t.Fatal("Can not find file go.mod in the dest dir: " + destDir + "/go.mod")
+	}
+
+	// Use dot . if we only want the dir content, but not the dir itself in sources
+	CreateTarball("/home/stevek/tmp/1/.", destDir+"/test-create-tar.tar.zst", nil)
+
+	CheckErr(os.MkdirAll(destDir+"/new-extract", 0o755), "")
+	CheckErr(ExtractTarball(destDir+"/test-create-tar.tar.zst", destDir+"/new-extract", tarOpts), "")
+	if FileExistsV2(destDir+"/new-extract/go.mod") != nil {
+		t.Fatal("Can not find file go.mod in the dest dir new-extract")
+	}
 }
