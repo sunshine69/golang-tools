@@ -74,7 +74,8 @@ func (zo *TarOptions) WithStripTopLevelDir(s bool) *TarOptions {
 // CreateTarball accepts either a string or []string (same as your original) and
 // now handles unix special files (block/char devices, fifos, sockets) when creating the tar.
 // If outputPath is - then write to stdout.
-func CreateTarball(sources interface{}, outputPath string, options *TarOptions) error {
+// Can not use generic type in outputPath as go does not allow union type string|io.WriteCloser
+func CreateTarball(sources interface{}, outputPath any, options *TarOptions) error {
 	if outputPath == "" {
 		return fmt.Errorf("output path cannot be empty")
 	}
@@ -107,21 +108,26 @@ func CreateTarball(sources interface{}, outputPath string, options *TarOptions) 
 	// Prepare output
 	var outputFile io.WriteCloser
 	var err error
-	switch outputPath {
-	case "-":
-		outputFile = os.Stdout
-	default:
-		if Must(IsFIFO(outputPath)) {
-			fifo, err := os.OpenFile(outputPath, os.O_WRONLY, os.ModeNamedPipe)
-			if err != nil {
-				log.Fatal("Error opening FIFO:", err)
+	switch v := outputPath.(type) {
+	case string:
+		switch v {
+		case "-":
+			outputFile = os.Stdout
+		default:
+			if ok, _ := IsFIFO(v); ok {
+				fifo, err := os.OpenFile(v, os.O_WRONLY, os.ModeNamedPipe)
+				if err != nil {
+					log.Fatal("Error opening FIFO:", err)
+				}
+				// defer fifo.Close()
+				outputFile = fifo
+			} else {
+				outputFile = Must(os.Create(v))
 			}
-			// defer fifo.Close()
-			outputFile = fifo
-		} else {
-			outputFile = Must(os.Create(outputPath))
+			defer outputFile.Close()
 		}
-		defer outputFile.Close()
+	case io.WriteCloser:
+		outputFile = v
 	}
 
 	var writer io.Writer = outputFile

@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/base64"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -11,8 +12,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"golang.org/x/sys/unix"
 )
 
 // func TestUnzip(t *testing.T) {
@@ -260,20 +259,20 @@ func TestGrep(t *testing.T) {
 }
 
 func TestUseStdinForRunSystemCmd(t *testing.T) {
-	fifo := "/tmp/test-fifo"
+	// fifo := "/tmp/test-fifo"
 	destDir := "/home/stevek/tmp/1"
-	os.RemoveAll(fifo)
-	unix.Mkfifo(fifo, uint32(0666))
+	// os.RemoveAll(fifo)
+	// unix.Mkfifo(fifo, uint32(0666))
 	// start reader first
-	// var stdin io.WriteCloser
+	var fifo io.WriteCloser
 	go func() {
 		cmd := exec.Command("tar", "xf", "-", "--zstd", "-C", destDir)
-		fd, err := os.OpenFile(fifo, os.O_RDONLY, 0600)
-		CheckErr(err, "")
-		cmd.Stdin = fd
+		// fd, err := os.OpenFile(fifo, os.O_RDONLY, 0600)
+		// CheckErr(err, "")
+		// cmd.Stdin = fd
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		// stdin = Must(cmd.StdinPipe())
+		fifo = Must(cmd.StdinPipe())
 		o, err := RunSystemCommandV3(cmd, true)
 		CheckErr(err, "Error "+o)
 		println(o)
