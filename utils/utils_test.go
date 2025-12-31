@@ -274,15 +274,15 @@ func TestUseStdinForRunSystemCmd(t *testing.T) {
 		// fd, err := os.OpenFile(fifo, os.O_RDONLY, 0600)
 		// CheckErr(err, "")
 		// cmd.Stdin = fd
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		// cmd.Stdout = os.Stdout
+		// cmd.Stderr = os.Stderr
 		fifo = Must(cmd.StdinPipe())
 		o, err := RunSystemCommandV3(cmd, true)
 		CheckErr(err, "Error "+o)
 		println(o)
 	}()
 	// Give reader time to start (important for FIFO)
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	tarOpts := NewTarOptions().WithStripTopLevelDir(true).EnableCompression(true)
 	CreateTarball([]string{"go.mod", "go.sum", "/home/stevek/tmp/goplay"}, fifo, tarOpts)
 	// 4. Wait and verify
@@ -305,4 +305,30 @@ func TestUseStdinForRunSystemCmd(t *testing.T) {
 	if FileExistsV2(destDir+"/new-extract/go.mod") != nil {
 		t.Fatal("Can not find file go.mod in the dest dir new-extract")
 	}
+}
+
+func TestSshExec(t *testing.T) {
+	se := NewSshExec(&SshExec{
+		SshExecHost: "localhost",
+		SshKeyFile:  "/home/stevek/.ssh/id_rsa-home",
+		SshUser:     "stevek",
+	})
+	o := Must(se.CopyFile("", "go.sum", "go.mod"))
+	defer os.RemoveAll(o)
+	if FileExistsV2(o+"/go.sum") != nil {
+		t.Fatal("Copy failed")
+	}
+	o1 := Must(se.CopyDir("", "go.mod", "go.sum", "/home/stevek/tmp/goplay"))
+	defer os.RemoveAll(o1)
+	time.Sleep(1 * time.Second)
+	if FileExistsV2(o1+"/go.sum") != nil {
+		t.Fatal("Copy dir failed. Path: " + o1)
+	}
+	println(o1)
+	o2 := Must(se.Exec(`ls /home
+	echo "Running remotely multiple command"
+	`))
+	println(o2)
+	o3 := Must(se.Exec(`ls /home/`))
+	println(o3)
 }
