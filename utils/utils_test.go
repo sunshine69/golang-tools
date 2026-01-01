@@ -332,3 +332,34 @@ func TestSshExec(t *testing.T) {
 	o3 := Must(se.Exec(`ls /home/`))
 	println(o3)
 }
+
+func TestSshExecGomod(t *testing.T) {
+	se := NewSshExec(&SshExec{
+		SshExecHost: "localhost",
+		SshKeyFile:  "/home/stevek/.ssh/id_rsa-home",
+		SshUser:     "stevek",
+	})
+	o, err := se.ExecGoMod(`/home/stevek/src/automation-go`, "pass-strength", "/home/stevek/src/golang-tools")
+	if err != nil {
+		t.Fatalf("[ERROR] %s - Output: %s", err.Error(), o)
+	}
+	println(o)
+}
+
+func TestConfigOverride(t *testing.T) {
+	type MyCfg struct {
+		SshExec
+		MySrcDirs []string
+	}
+	myCfg := MyCfg{
+		SshExec: *NewSshExec(&SshExec{
+			SshExecHost: "localhost",
+			SshKeyFile:  "/home/stevek/.ssh/id_rsa-home",
+			SshUser:     "stevek",
+		}),
+		MySrcDirs: []string{"/home/stevek/tmp/goplay"},
+	}
+	o := Must(myCfg.CopyDir("", myCfg.MySrcDirs...))
+	println(o)
+
+}

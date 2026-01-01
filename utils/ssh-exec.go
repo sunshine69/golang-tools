@@ -18,12 +18,20 @@ type SshExec struct {
 	SshCommonOpts string
 	SshKnownHost  string
 	SshUser       string
+	GoModDir      string
+	CgoEnabled    string
+	GoProxy       string
+	HttpHeaders   []string
 }
 
 func NewSshExec(s *SshExec) *SshExec {
 	if s.SshCommonOpts == "" {
 		s.SshCommonOpts = "-o IdentitiesOnly=yes -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 	}
+	if s.GoModDir == "" {
+		s.GoModDir = "plays"
+	}
+	s.CgoEnabled = Ternary(s.CgoEnabled == "", "1", s.CgoEnabled)
 	return s
 }
 
@@ -134,18 +142,116 @@ func (s *SshExec) Exec(commands string) (out string, err error) {
 }
 
 // Exec a gomod at the remote hostname. resourceUrl is the Url to fetch the go source code project.
-// If it start with ssh:// then assume it is git url.
-// If started with git+https:// then assume it is git with http (the git+ will be stripped).
-// If started with http(s) then it will make a GET to that url to download.
-// The last filename should be a tar ball and no root the directory
+// It will fetch resourceUrl if required locally and compile it, then copy the cli to remote
+// end exec it with args
 //
-// The directory structure should be a valid go mod dir (it has go.mod and go.sum) with multiple directory representing each go cli and
-// supplied as gomodName
+// resourceUrl ->
+// If it start with wget+ then assume it is download url. We strip off the 'wget+' to get the url
+// The last filename should be a tar ball and no root directory (that is the go.mod is at the root dir). We will download the file, extract it to a temp dir and chdir into it before build.
+//
+// # If it is normal directory path then it will use it directly for compile the cli
+//
+// All other case will be assumed as a git resource Url, See man git-clone for more. It will
+// be passed to git clone command as is.
+//
+// The directory structure should be a valid go mod dir (it has go.mod and go.sum)
+// a dir named 'plays' with multiple directories representing each go cli and
+// that dir name is supplied as gomodName. The `plays` dir can be changed if you set
+// the the option GoModDir
 // The args will be parsed to the execution
 //
 // It will fetch the resource, compile it and copy to remote to exec. Currently only Linux remote hosts supported
+//
 // Return command output and error
-func ExecGoMod(hostname, resourceUrl, gomodName string, args ...string) (out string, err error) {
+func (s *SshExec) ExecGoMod(resourceUrl, gomodName, remoteWorkDir string, args ...string) (out string, err error) {
+	binary_name := s.GoModDir + "-" + gomodName
+	tempDir, err := os.MkdirTemp("", "")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(tempDir)
 
-	return "TODO", nil
+	srcDir := ""
+	outputCliPath := binary_name
+
+	cwd := Must(os.Getwd())
+	defer os.Chdir(cwd)
+	// Process srcDir
+	switch {
+	case FileExistsV2(resourceUrl) == nil:
+		srcDir = resourceUrl
+
+	case strings.HasPrefix(resourceUrl, "wget+"):
+		if err := os.Chdir(tempDir); err != nil {
+			return "", err
+		}
+		savedFileName := "/tmp/" + uuid.NewString() + ".tgz"
+		defer os.RemoveAll(savedFileName)
+		if o, err := Curl("GET", strings.TrimPrefix(resourceUrl, "wget+"), "", savedFileName, s.HttpHeaders, nil); err != nil {
+			return o, fmt.Errorf("[ERROR] download file - %s - Output: %s", err.Error(), o)
+		}
+		if o, err := RunSystemCommandV2(GoTemplateString(`mkdir -p '{{.work_dir}}/gomod_source'
+tar xf '{{.saved_file_name}}' -C '{{.work_dir}}/gomod_source'
+if [ "$?" != "0" ]; then
+  tar xf '{{.saved_file_name}}' --zstd -C '{{.work_dir}}/gomod_source'
+fi
+		`, map[string]any{"saved_file_name": savedFileName, "work_dir": tempDir}), true); err != nil {
+			return "", fmt.Errorf("[ERROR] %s - %s", err.Error(), o)
+		}
+		srcDir = tempDir + "/gomod_source"
+
+	default: // git clone ops
+		if err := os.Chdir(tempDir); err != nil {
+			return "", err
+		}
+		if o, err := RunSystemCommandV2(GoTemplateString(`cd '{{.work_dir}}'
+git clone --depth=1 --single-branch --no-tags {{.git_checkout_url}} gomod_source'
+		`, map[string]any{"git_checkout_url": resourceUrl, "work_dir": tempDir}), true); err != nil {
+			return "", fmt.Errorf("[ERROR] %s - %s", err.Error(), o)
+		}
+		srcDir = tempDir + "/gomod_source"
+	}
+
+	if err := (os.Chdir(srcDir)); err != nil {
+		return "", fmt.Errorf("Chdir to %s", srcDir)
+	}
+	if out, err = RunSystemCommandV2(GoTemplateString(`set -e
+cd {{.srcDir}}
+
+export CGO_ENABLED={{.cgo_enabled}}
+
+if [ '{{.go_proxy}}' != '' ]; then
+  export GOPROXY="{{.go_proxy}}"
+fi
+
+go generate ./...
+go build -buildvcs=false -trimpath -ldflags="-X main.version=$APP_VERSION -extldflags=-static -w -s" --tags "osusergo,netgo" -o {{.binary_name}} {{.gomod_dir}}/{{.gomod_name}}/*.go
+		`, map[string]any{
+		"srcDir":      srcDir,
+		"gomod_name":  gomodName,
+		"gomod_dir":   s.GoModDir,
+		"binary_name": binary_name,
+		"cgo_enabled": s.CgoEnabled,
+		"go_proxy":    s.GoProxy,
+	}), true); err != nil {
+		return out, fmt.Errorf("[ERROR] %s", err.Error())
+	}
+	outputCliPath = srcDir + "/" + binary_name
+
+	remotePath, err := s.CopyFile("", outputCliPath)
+	if err != nil {
+		return "", err
+	}
+	out, err = s.Exec(GoTemplateString(`set -e
+if [ '{{.remote_work_dir}}' != '' ]; then
+  cd {{.remote_work_dir}}
+fi
+
+{{.remote_bin_path}} {{ range $arg := .args }}{{$arg}} {{end}}
+	`, map[string]any{"remote_bin_path": remotePath + "/" + binary_name, "args": args, "remote_work_dir": remoteWorkDir}))
+	if err != nil {
+		return out, fmt.Errorf("[ERROR] Exec %s. Output: %s", err.Error(), out)
+	}
+
+	return out, nil
 }
