@@ -23,19 +23,16 @@ type CompEncOptions struct {
 	Encrypt           bool
 	Password          string
 	EncryptMode       EncryptMode // "GCM" or "CTR"
-	StripTopLevelDir  bool
 	OverwriteExisting bool
 }
 
 // NewCompEncOptions returns default options for cpio creation
 func NewCompEncOptions() *CompEncOptions {
 	return &CompEncOptions{
-		UseCompression:   true,
-		CompressionLevel: 3,
-		Encrypt:          false,
-		StripTopLevelDir: false,
-		EncryptMode:      EncryptModeCTR,
-
+		UseCompression:    true,
+		CompressionLevel:  3,
+		Encrypt:           true,
+		EncryptMode:       EncryptModeCTR,
 		OverwriteExisting: false,
 		Password:          "",
 	}
@@ -61,22 +58,18 @@ func (zo *CompEncOptions) WithEncryptMode(m EncryptMode) *CompEncOptions {
 	zo.EncryptMode = m
 	return zo
 }
-func (zo *CompEncOptions) WithStripTopLevelDir(s bool) *CompEncOptions {
-	zo.StripTopLevelDir = s
-	return zo
-}
 
 func (zo *CompEncOptions) WithOverwriteExisting(s bool) *CompEncOptions {
 	zo.OverwriteExisting = s
 	return zo
 }
 
-// CreateCompEncArchive creates a cpio archive with streaming support for stdin/FIFOs
-// Accepts either a string or []string for sources
-// If source is "-" or a FIFO, reads from stdin/fifo and uses CPIO_FILENAME env var for the name
-func CreateCompEncArchive(source string, outputPath string, options *CompEncOptions) error {
-	if outputPath == "" {
-		return fmt.Errorf("output path cannot be empty")
+// CreateCompEncArchive creates an archive with streaming support for stdin/FIFOs
+// Accepts either a string or io.ReadCloser for sources
+// If source is "-" or a FIFO file, reads from stdin/fifo
+func CreateCompEncArchive(source, outputPath any, options *CompEncOptions) error {
+	if outputPath == nil {
+		return fmt.Errorf("output path cannot be nil")
 	}
 
 	if options == nil {
@@ -122,16 +115,25 @@ func CreateCompEncArchive(source string, outputPath string, options *CompEncOpti
 		writer = zw
 	}
 
-	source = filepath.Clean(source)
+	// source = filepath.Clean(source)
 
 	var reader io.Reader
-	// Special handling for stdin ("-")
-	if source == "-" {
-		reader = os.Stdin
-	} else {
-		f := MustOpenFile(source)
-		defer f.Close()
-		reader = f
+	switch v := source.(type) {
+	case string:
+		switch v {
+		case "-":
+			reader = os.Stdin
+		default:
+			source1 := filepath.Clean(v)
+			f := MustOpenFile(source1)
+			defer f.Close()
+			reader = f
+			defer f.Close()
+		}
+	case io.Reader:
+		reader = v
+	default:
+		return fmt.Errorf("[ERROR] source must be string or io.Reader")
 	}
 
 	written, err := io.Copy(writer, reader)
@@ -146,7 +148,7 @@ func CreateCompEncArchive(source string, outputPath string, options *CompEncOpti
 
 // ExtractCompEncArchive extracts a cpio archive with support for compression and encryption
 // If inputPath is "-", reads from stdin
-func ExtractCompEncArchive(inputPath, outputPath string, options *CompEncOptions) error {
+func ExtractCompEncArchive(inputPath, outputPath any, options *CompEncOptions) error {
 	if options == nil {
 		options = NewCompEncOptions()
 	}
@@ -154,16 +156,23 @@ func ExtractCompEncArchive(inputPath, outputPath string, options *CompEncOptions
 	// Prepare input
 	var inputFile io.ReadCloser
 	var err error
-	switch inputPath {
-	case "-":
-		inputFile = os.Stdin
-	default:
-		inputFile, err = os.Open(inputPath)
-		if err != nil {
-			return fmt.Errorf("failed to open input file: %w", err)
+	switch v := inputPath.(type) {
+	case string:
+		switch v {
+		case "-":
+			inputFile = os.Stdin
+		default:
+			inputFile, err = os.Open(v)
+			if err != nil {
+				return fmt.Errorf("failed to open input file: %w", err)
+			}
 		}
-		defer inputFile.Close()
+	case io.ReadCloser:
+		inputFile = v
+	default:
+		return fmt.Errorf("[ERROR] source must be string or io.ReadCloser")
 	}
+	defer inputFile.Close()
 
 	var reader io.Reader = inputFile
 
@@ -208,25 +217,32 @@ func ExtractCompEncArchive(inputPath, outputPath string, options *CompEncOptions
 }
 
 // remember to close
-func processOutputFile(outputPath string, overwrite bool) (outputFile io.WriteCloser, err error) {
-	switch {
-	case outputPath == "-":
-		outputFile = os.Stdout
-	default:
+func processOutputFile(outputPath any, overwrite bool) (outputFile io.WriteCloser, err error) {
+	switch v := outputPath.(type) {
+	case string:
 		switch {
-		case GetFirstValue(IsNamedPipe(outputPath)):
-			outputFile, err = os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE, 0666)
-			if err != nil {
-				return nil, err
-			}
-		case Exists(outputPath) && !overwrite:
-			panic("[ERROR] Output file exists\n")
+		case v == "-":
+			outputFile = os.Stdout
 		default:
-			outputFile, err = os.Create(outputPath)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create output file: %w", err)
+			switch {
+			case GetFirstValue(IsNamedPipe(v)):
+				outputFile, err = os.OpenFile(v, os.O_WRONLY|os.O_CREATE, 0666)
+				if err != nil {
+					return nil, err
+				}
+			case Exists(v) && !overwrite:
+				panic("[ERROR] Output file exists\n")
+			default:
+				outputFile, err = os.Create(v)
+				if err != nil {
+					return nil, fmt.Errorf("failed to create output file: %w", err)
+				}
 			}
 		}
+	case io.WriteCloser:
+		outputFile = v
+	default:
+		return nil, fmt.Errorf("[ERROR] source must be string or io.WriteCloser")
 	}
 	return
 }

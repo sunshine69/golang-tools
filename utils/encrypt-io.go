@@ -498,22 +498,30 @@ func (s *StreamDecryptReader) Close() error {
 
 // Utility functions
 // DecryptFile will decrypt file. Assume it is encrypted using EncryptFile func. They uses CTR mode suitable for large files
-func DecryptFile(inFile, outFile string, password string, encMode EncryptMode) error {
+func DecryptFile(inFile, outFile any, password string, encMode EncryptMode) error {
 	if encMode == "" {
 		encMode = EncryptModeCTR
 	}
 	var inputF io.ReadCloser
 	var err error
-	switch inFile {
-	case "-":
-		inputF = os.Stdin
-	default:
-		inputF, err = os.Open(inFile)
-		if err != nil {
-			return err
+	switch v := inFile.(type) {
+	case string:
+		switch v {
+		case "-":
+			inputF = os.Stdin
+		default:
+			inputF, err = os.Open(v)
+			if err != nil {
+				return err
+			}
 		}
-		defer inputF.Close()
+	case io.ReadCloser:
+		inputF = v
+	default:
+		return fmt.Errorf("[ERROR] input must be a string or an io.ReadCloser")
 	}
+	defer inputF.Close()
+
 	var r io.Reader
 	switch encMode {
 	case EncryptModeCTR:
@@ -531,35 +539,52 @@ func DecryptFile(inFile, outFile string, password string, encMode EncryptMode) e
 	}
 
 	var inf io.WriteCloser
-	switch outFile {
-	case "-":
-		inf = os.Stdout
-	default:
-		inf, err = os.Create(outFile)
-		if err != nil {
-			return err
+	switch v := outFile.(type) {
+	case string:
+		switch v {
+		case "-":
+			inf = os.Stdout
+		default:
+			inf, err = os.Create(v)
+			if err != nil {
+				return err
+			}
+
 		}
-		defer inf.Close()
+	case io.WriteCloser:
+		inf = v
+	default:
+		return fmt.Errorf("[ERROR] output must be a string or an io.WriteCloser")
 	}
+	defer inf.Close()
+
 	_, err = io.Copy(inf, r)
 	return err
 }
 
-// EncryptFile will encrypt file. Extract using DecryptFile func. They uses CTR mode suitable for large files
-func EncryptFile(inFile, outFile, password string, encMode EncryptMode) error {
+// EncryptFile will encrypt file or an io.ReadCloser. Extract using DecryptFile func. They uses CTR mode suitable for large files
+// Output can be a file path or io.Writer
+func EncryptFile(inFile, outFile any, password string, encMode EncryptMode) error {
 	if encMode == "" {
 		encMode = EncryptModeCTR
 	}
 	var outFH io.Writer
 	var err error
-	switch outFile {
-	case "-":
-		outFH = os.Stdout
-	default:
-		outFH, err = os.Create(outFile)
-		if err != nil {
-			return err
+	switch v := outFile.(type) {
+	case string:
+		switch v {
+		case "-":
+			outFH = os.Stdout
+		default:
+			outFH, err = os.Create(v)
+			if err != nil {
+				return err
+			}
 		}
+	case io.Writer:
+		outFH = v
+	default:
+		return fmt.Errorf("[ERROR] output must be a string or an io.Writer")
 	}
 
 	var encWriter io.WriteCloser
@@ -579,15 +604,24 @@ func EncryptFile(inFile, outFile, password string, encMode EncryptMode) error {
 	}
 
 	var infile io.ReadCloser
-	switch inFile {
-	case "-":
-		infile = os.Stdin
-	default:
-		infile, err = os.Open(inFile)
-		if err != nil {
-			return err
+	switch v := inFile.(type) {
+	case string:
+		switch v {
+		case "-":
+			infile = os.Stdin
+		default:
+			infile, err = os.Open(v)
+			if err != nil {
+				return err
+			}
 		}
+	case io.ReadCloser:
+		infile = v
+	default:
+		return fmt.Errorf("[ERROR] input must be a string or an io.ReadCloser")
 	}
+	defer infile.Close()
+
 	_, err = io.Copy(encWriter, infile)
 	return err
 }

@@ -6,6 +6,9 @@ import (
 	"io"
 	"os"
 	"testing"
+	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 func TestStreamEncryptIo(t *testing.T) {
@@ -58,4 +61,23 @@ func TestAESCTR(t *testing.T) {
 		os.Exit(2)
 	}
 	fmt.Println("OK — roundtrip succeeded, plaintext:", string(decrypted))
+}
+
+func TestCompEnc(t *testing.T) {
+	compEncOpt := NewCompEncOptions().WithPassword("1qa2ws").WithOverwriteExisting(true)
+	CheckErr(CreateCompEncArchive("go.sum", "go.sum.zst.enc", compEncOpt), "")
+	CheckErr(ExtractCompEncArchive("go.sum.zst.enc", "go.sum.dec", compEncOpt), "")
+	// Test fifo
+	fifo := "/tmp/test-fifo"
+	os.RemoveAll(fifo)
+	CheckErr(unix.Mkfifo(fifo, uint32(0600)), "")
+	defer os.RemoveAll(fifo)
+	go func() {
+		CreateCompEncArchive(fifo, "go.sum.zst.enc", compEncOpt)
+	}()
+	time.Sleep(200 * time.Millisecond)
+	o := Must(RunSystemCommandV2(`cat go.sum > `+fifo, true))
+	println(o)
+	CheckErr(ExtractCompEncArchive("go.sum.zst.enc", "go.sum.dec", compEncOpt), "")
+
 }

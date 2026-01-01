@@ -118,7 +118,6 @@ func CreateTarball(sources interface{}, outputPath any, options *TarOptions) err
 				if err != nil {
 					return fmt.Errorf("Error opening FIFO: %s", err)
 				}
-				// defer fifo.Close()
 				outputFile = fifo
 			} else {
 				outputFile = Must(os.Create(v))
