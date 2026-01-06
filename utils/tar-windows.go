@@ -14,6 +14,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
+// This has less tested
 // TarOptions contains configuration for the tar creation
 type TarOptions struct {
 	UseCompression   bool
@@ -31,7 +32,7 @@ func NewTarOptions() *TarOptions {
 		Encrypt:          false,
 		EncryptMode:      EncryptModeCTR,
 		Password:         "",
-		StripTopLevelDir: false,
+		StripTopLevelDir: true,
 	}
 }
 func (zo *TarOptions) WithCompressionLevel(level int) *TarOptions {
@@ -59,13 +60,8 @@ func (zo *TarOptions) WithStripTopLevelDir(s bool) *TarOptions {
 	return zo
 }
 
-func CreateTarball(sources interface{}, outputPath string, options *TarOptions) error {
-	// Validate output path
-	if outputPath == "" {
-		return fmt.Errorf("output path cannot be empty")
-	}
-
-	// Normalize input into a slice of file paths
+func CreateTarball(sources interface{}, outputPath any, options *TarOptions) error {
+	// Normalize to slice
 	var fileList []string
 	switch v := sources.(type) {
 	case string:
@@ -93,16 +89,20 @@ func CreateTarball(sources interface{}, outputPath string, options *TarOptions) 
 	// Create output file or use stdout
 	var outputFile io.WriteCloser
 	var err error
-	switch outputPath {
-	case "-":
-		outputFile = os.Stdout
-	default:
-		outputFile, err = os.Create(outputPath)
-		if err != nil {
-			return fmt.Errorf("failed to create output file: %w", err)
+	switch v := outputPath.(type) {
+	case string:
+		switch v {
+		case "-":
+			outputFile = os.Stdout
+		default:
+			outputFile = Must(os.Create(v))
 		}
-		defer outputFile.Close()
+	case io.WriteCloser:
+		outputFile = v
+	default:
+		return fmt.Errorf("Output must be a file path or a io.WriteCloser")
 	}
+	defer outputFile.Close()
 
 	var writer io.Writer = outputFile
 
@@ -271,20 +271,27 @@ func CreateTarball(sources interface{}, outputPath string, options *TarOptions) 
 }
 
 // ExtractTarball extracts a tarball with optional decompression and decryption
-func ExtractTarball(tarballPath, extractDir string, options *TarOptions) error {
+func ExtractTarball(tarballPath any, extractDir string, options *TarOptions) error {
 	var file io.ReadCloser
 	var err error
-	switch tarballPath {
-	case "-":
-		file = os.Stdin
-	default:
-		// Open the tarball file
-		file, err = os.Open(tarballPath)
-		if err != nil {
-			return fmt.Errorf("failed to open tarball: %w", err)
+	switch v := tarballPath.(type) {
+	case string:
+		switch v {
+		case "-":
+			file = os.Stdin
+		default:
+			file, err = os.Open(v)
+			if err != nil {
+				return fmt.Errorf("failed to open tarball: %w", err)
+			}
 		}
-		defer file.Close()
+	case io.ReadCloser:
+		file = v
+	default:
+		return fmt.Errorf("source path to extract must be a string or a io.ReadCloser")
 	}
+	defer file.Close()
+
 	var reader io.Reader = file
 
 	// Add decryption layer if needed
