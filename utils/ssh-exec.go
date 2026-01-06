@@ -26,6 +26,7 @@ type SshExec struct {
 
 func NewSshExec(s *SshExec) *SshExec {
 	if s.SshCommonOpts == "" {
+		// Allow RSA key to be in so old system works
 		s.SshCommonOpts = "-o IdentitiesOnly=yes -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 	}
 	if s.GoModDir == "" {
