@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 	// "github.com/melbahja/goph"
 )
 
+// The controller hosts can be linux/nix or windows with git bash installed. The remote hosts should be only nix OS with sshd running
+// In theory remote hosts with git bash and sshd server installed should be ok
 type SshExec struct {
 	SshExecHost   string
 	SshKeyFile    string
@@ -121,9 +124,10 @@ func (s *SshExec) Exec(commands string) (out string, err error) {
 	if len(commandList) > 1 {
 		tempF := Must(os.MkdirTemp("", ""))
 		defer os.RemoveAll(tempF)
-		CheckErr(os.WriteFile(tempF+"/remote-exec-cmd.sh", []byte(commands), 0o750), "Write remote-exec-cmd.sh")
-		remotePath = Must(s.CopyFile("", tempF+"/remote-exec-cmd.sh"))
-		command = remotePath + "/remote-exec-cmd.sh"
+		tempScript := filepath.Join(tempF, "remote-exec-cmd.sh")
+		CheckErr(os.WriteFile(tempScript, []byte(commands), 0o750), "Write remote-exec-cmd.sh")
+		remotePath = Must(s.CopyFile("", tempScript))
+		command = remotePath + "/remote-exec-cmd.sh" // Explicit set it to Nix as we wont support remote host is windows
 	} else {
 		command = commandList[0]
 	}
@@ -186,7 +190,7 @@ func (s *SshExec) ExecGoMod(resourceUrl, gomodName, remoteWorkDir string, args .
 		if err := os.Chdir(tempDir); err != nil {
 			return "", err
 		}
-		savedFileName := "/tmp/" + uuid.NewString() + ".tgz"
+		savedFileName := filepath.Join(tempDir, "tmp", uuid.NewString()+".tgz")
 		defer os.RemoveAll(savedFileName)
 		if o, err := Curl("GET", strings.TrimPrefix(resourceUrl, "wget+"), "", savedFileName, s.HttpHeaders, nil); err != nil {
 			return o, fmt.Errorf("[ERROR] download file - %s - Output: %s", err.Error(), o)
@@ -196,10 +200,10 @@ tar xf '{{.saved_file_name}}' -C '{{.work_dir}}/gomod_source'
 if [ "$?" != "0" ]; then
   tar xf '{{.saved_file_name}}' --zstd -C '{{.work_dir}}/gomod_source'
 fi
-		`, map[string]any{"saved_file_name": savedFileName, "work_dir": tempDir}), true); err != nil {
+		`, map[string]any{"saved_file_name": filepath.ToSlash(savedFileName), "work_dir": tempDir}), true); err != nil {
 			return "", fmt.Errorf("[ERROR] %s - %s", err.Error(), o)
 		}
-		srcDir = tempDir + "/gomod_source"
+		srcDir = filepath.Join(tempDir, "gomod_source")
 
 	default: // git clone ops
 		if err := os.Chdir(tempDir); err != nil {
@@ -210,14 +214,14 @@ git clone --depth=1 --single-branch --no-tags {{.git_checkout_url}} gomod_source
 		`, map[string]any{"git_checkout_url": resourceUrl, "work_dir": tempDir}), true); err != nil {
 			return "", fmt.Errorf("[ERROR] %s - %s", err.Error(), o)
 		}
-		srcDir = tempDir + "/gomod_source"
+		srcDir = filepath.Join(tempDir, "gomod_source")
 	}
 
 	if err := (os.Chdir(srcDir)); err != nil {
 		return "", fmt.Errorf("Chdir to %s", srcDir)
 	}
 	if out, err = RunSystemCommandV2(GoTemplateString(`set -e
-cd {{.srcDir}}
+cd '{{.srcDir}}'
 
 export CGO_ENABLED={{.cgo_enabled}}
 
@@ -237,7 +241,7 @@ go build -buildvcs=false -trimpath -ldflags="-X main.version=$APP_VERSION -extld
 	}), true); err != nil {
 		return out, fmt.Errorf("[ERROR] %s", err.Error())
 	}
-	outputCliPath = srcDir + "/" + binary_name
+	outputCliPath = filepath.Join(srcDir, binary_name)
 
 	remotePath, err := s.CopyFile("", outputCliPath)
 	if err != nil {
