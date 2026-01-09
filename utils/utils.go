@@ -2994,20 +2994,34 @@ func LineInLines(datalines []string, search_pattern string, replace string) (out
 // if not care about marker pass a empty slice []string{}.
 //
 // To be sure of accuracy all of pattern must be uniquely identified. Recommend to use full line matching (use anchor ^ and $). The lowerbound if in the pattern there is string EOF then even the lowerbound not found but we hit EOF it will still return match for the block. See example in the test function
-func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []string, marker []string, replText string, keepBoundaryLines bool, backup bool, start_line int) (oldBlock string, start, end int, matchedPattern [][]string) {
+
+// extraArg is optional but currently only accept one map[string]any. The key would be a extra feature to control the behaviour
+// As of now  key:
+// insertIfNotFound => bool | controll if we do insert block if no block found. Default is true
+func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []string, marker []string, replText string, keepBoundaryLines bool, backup bool, start_line int, extraArgs ...map[string]any) (oldBlock string, start, end int, matchedPattern [][]string) {
 	fstat, err := os.Stat(filename)
 	if errors.Is(err, fs.ErrNotExist) {
 		panic("[ERROR]BlockInFile File " + filename + " doesn't exist\n")
 	}
 
-	block, start_line_no, end_line_no, datalines, _matchedPattern := ExtractTextBlockContains(filename, upper_bound_pattern, lower_bound_pattern, marker, start_line)
-	if block == "" {
-		fmt.Fprintf(os.Stderr, "block not found - upper: %v | lower: %v | marker: %v. Will add the block at teh end of file\n", upper_bound_pattern, lower_bound_pattern, marker)
-		olddataB := Must(os.ReadFile(filename))
-		if backup {
-			CheckErr(os.WriteFile(filename+".bak", olddataB, fstat.Mode()), "BlockInFile Write backup file")
+	insertIfNotFound := true
+	if len(extraArgs) > 0 { //
+		if val, ok := extraArgs[0]["insertIfNotFound"]; ok {
+			insertIfNotFound = val.(bool)
 		}
-		newBlock := GoTemplateString(`{{ range $line := .startlines }}
+	}
+
+	block, start_line_no, end_line_no, datalines, _matchedPattern := ExtractTextBlockContains(filename, upper_bound_pattern, lower_bound_pattern, marker, start_line)
+	switch block {
+	case "":
+		if insertIfNotFound {
+			fmt.Fprintf(os.Stderr, "block not found - upper: %v | lower: %v | marker: %v. Will add the block at teh end of file\n", upper_bound_pattern, lower_bound_pattern, marker)
+			olddataB := Must(os.ReadFile(filename))
+			if backup {
+				CheckErr(os.WriteFile(filename+".bak", olddataB, fstat.Mode()), "BlockInFile Write backup file")
+			}
+
+			newBlock := GoTemplateString(`{{ range $line := .startlines }}
 {{ $line }}
 {{- end }}
 {{ $.oldblock }}
@@ -3015,13 +3029,20 @@ func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []str
 {{ $line }}
 {{ end }}
 `, map[string]any{
-			"startlines": upper_bound_pattern,
-			"oldblock":   replText,
-			"endlines":   lower_bound_pattern,
-		})
-		olddataB = append(olddataB, []byte(newBlock)...)
-		CheckErr(os.WriteFile(filename, olddataB, fstat.Mode()), "BlockInFile Write new file")
-		return "", 0, 0, matchedPattern
+				"startlines": upper_bound_pattern,
+				"oldblock":   replText,
+				"endlines":   lower_bound_pattern,
+			})
+
+			olddataB = append(olddataB, []byte(newBlock)...)
+			CheckErr(os.WriteFile(filename, olddataB, fstat.Mode()), "BlockInFile Write new file")
+			return "", 0, 0, matchedPattern
+		} else {
+			fmt.Fprintf(os.Stderr, "block not found and insertIfNotFound set to false, skipping\n")
+			return "", 0, 0, matchedPattern
+		}
+	default:
+		fmt.Fprintf(os.Stderr, "block found. start_line_no: %d - end_line_no: %d\n", start_line_no, end_line_no)
 	}
 
 	matchedPattern = _matchedPattern

@@ -197,11 +197,31 @@ func TestBlockInFile(t *testing.T) {
 	3839626436656531340a366132613834396238326531636133356463303231393538313665393466
 	3562`
 	seek := 0
+	insert := true
 	for {
-		o, start, end, matchedPattern := BlockInFile("../tests/input.yaml", []string{`^adfs_pass\: .*$`}, []string{`^[\s]*([^\d]*|\n|EOF)$`}, []string{`^[\s]+\$ANSIBLE_VAULT.*$`}, sourceBlock, true, false, seek)
-		// if o == "" {
-		break
-		// }
+		if seek > 0 {
+			insert = false
+		}
+		o, start, end, matchedPattern := BlockInFile("../tests/input.yaml", []string{`^adfs_pass\: .*$`}, []string{`^[\s]*([^\d]*|\n|EOF)$`}, []string{`^[\s]+\$ANSIBLE_VAULT.*$`}, sourceBlock, true, false, seek, map[string]any{"insertIfNotFound": insert})
+		if o == "" {
+			break
+		}
+		println(o)
+		seek = end
+		println(start, end, JsonDump(matchedPattern, ""))
+	}
+	sourceBlock = `line 1
+	line 2`
+	seek = 0
+	insert = true
+	for {
+		if seek > 0 {
+			insert = false
+		}
+		o, start, end, matchedPattern := BlockInFile("../tests/input.yaml", []string{`#new lines block added`}, []string{`#new lines block end`}, []string{}, sourceBlock, true, false, seek, map[string]any{"insertIfNotFound": insert})
+		if o == "" {
+			break
+		}
 		println(o)
 		seek = end
 		println(start, end, JsonDump(matchedPattern, ""))
