@@ -118,8 +118,9 @@ func TestSplitTextByPattern(t *testing.T) {
 func TestLineinfile(t *testing.T) {
 	err, changed := LineInFile("../tests/test.yaml", NewLineInfileOpt(&LineInfileOpt{
 		// Regexp:     `v1.0.1(.*)`,
-		Search_string: "This is new line",
-		Line:          "This is new line to be replaced at line 4",
+		Search_string: "This is new line insert at end ",
+		Line:          "This is new line insert at end ",
+		Insertafter:   "EOF",
 		// ReplaceAll: true,
 	}))
 	CheckErr(err, "Error")
@@ -198,9 +199,9 @@ func TestBlockInFile(t *testing.T) {
 	seek := 0
 	for {
 		o, start, end, matchedPattern := BlockInFile("../tests/input.yaml", []string{`^adfs_pass\: .*$`}, []string{`^[\s]*([^\d]*|\n|EOF)$`}, []string{`^[\s]+\$ANSIBLE_VAULT.*$`}, sourceBlock, true, false, seek)
-		if o == "" {
-			break
-		}
+		// if o == "" {
+		break
+		// }
 		println(o)
 		seek = end
 		println(start, end, JsonDump(matchedPattern, ""))

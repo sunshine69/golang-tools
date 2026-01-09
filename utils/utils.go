@@ -2461,10 +2461,19 @@ func LineInFile(filename string, opt *LineInfileOpt) (err error, changed bool) {
 		if len(index_list) == 0 { // Did not find any search string. Will look insertafter  and before
 			search_string_found = false
 			ptnstring := opt.Insertafter
-			if ptnstring == "" {
+
+			if ptnstring == "" && opt.Insertbefore != "" {
 				ptnstring = opt.Insertbefore
 			}
-			if ptnstring != "" {
+
+			switch ptnstring {
+			case "BOF":
+				index_list = append(index_list, 0)
+			case "EOF":
+				index_list = append(index_list, len(datalines)-1)
+			case "":
+				return returnFunc(nil, false)
+			default:
 				ptn := regexp.MustCompile(ptnstring)
 				for idx, lineb := range datalines {
 					if ptn.Match(lineb) {
