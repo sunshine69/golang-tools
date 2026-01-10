@@ -169,7 +169,7 @@ func (s *SshExec) Exec(commands string) (out string, err error) {
 //
 // Return command output and error
 func (s *SshExec) ExecGoMod(resourceUrl, gomodName, remoteWorkDir string, args ...string) (out string, err error) {
-	binary_name := s.GoModDir + "-" + gomodName
+	binary_name := s.GoModDir + "-" + gomodName + ".exe"
 	tempDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return "", err
@@ -229,6 +229,7 @@ if [ '{{.go_proxy}}' != '' ]; then
   export GOPROXY="{{.go_proxy}}"
 fi
 
+export GOOS='{{ .goos }}'
 go generate ./...
 go build -buildvcs=false -trimpath -ldflags="-X main.version=$APP_VERSION -extldflags=-static -w -s" --tags "osusergo,netgo" -o {{.binary_name}} {{.gomod_dir}}/{{.gomod_name}}/*.go
 		`, map[string]any{
@@ -238,6 +239,7 @@ go build -buildvcs=false -trimpath -ldflags="-X main.version=$APP_VERSION -extld
 		"binary_name": binary_name,
 		"cgo_enabled": s.CgoEnabled,
 		"go_proxy":    s.GoProxy,
+		"goos":        Getenv("GOOS", "linux"),
 	}), true); err != nil {
 		return out, fmt.Errorf("[ERROR] %s", err.Error())
 	}
