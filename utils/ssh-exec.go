@@ -53,7 +53,7 @@ func (s *SshExec) CopyFile(remotePath string, srcPaths ...string) (out string, e
 		remotePath = fmt.Sprintf("/tmp/devops-tool-ssh-copyfile-%s", uuid.New().String())
 	}
 	out, err = RunSystemCommandV2(GoTemplateString(`
-	export SCP_CMD='scp -p -i {{.ssh_key_file}} {{.ssh_common_opts}}'
+	SCP_CMD='scp -p -i {{.ssh_key_file}} {{.ssh_common_opts}}'
 	ssh -i {{.ssh_key_file}} {{ .ssh_common_opts }} {{ .ssh_user }}@{{ .ssh_host }} mkdir -p {{ .remote_path }}
 	{{ range $file := .srcPaths }}
 	$SCP_CMD {{ $file }} {{ $.ssh_user }}@{{ $.ssh_host }}:{{ $.remote_path }}/{{ $file | basename }}
@@ -117,6 +117,27 @@ func (s *SshExec) CopyDir(remotePath string, srcPaths ...string) (out string, er
 	}
 
 	return remotePath, nil
+}
+
+// Fetch (Download) from remote to local. If remote is a file doesnload the file. If a dir, download the whole dir.
+// The dest dir is local dir and its contents are remote dir (if remote is a dir) or all remotes files/dir
+// if any of the remote is a file. The path will be stripped, that is only filename, or dirname will be downloaded
+// into dest dir
+func (s *SshExec) Fetch(dest string, remoteSrc ...string) (out string, err error) {
+	cmd := GoTemplateString(`set -e
+	mkdir '{{.dest}}'
+	SCP_CMD='scp -p -i {{.ssh_key_file}} {{.ssh_common_opts}} -r'
+	{{ range $item := .remoteSrc }}
+	$SCP_CMD '{{.remote_host}}:/{{$item}}' {{.dest}}/{{$item|basename}}
+	{{ end }}
+	`, map[string]any{
+		"dest":            dest,
+		"ssh_key_file":    s.SshKeyFile,
+		"ssh_common_opts": s.SshCommonOpts,
+		"remoteSrc":       remoteSrc,
+		"remote_host":     s.SshExecHost,
+	})
+	return RunSystemCommandV2(cmd, true)
 }
 
 // Exec a command on remote host hostname via ssh. Multiline command supported
