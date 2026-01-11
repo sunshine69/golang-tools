@@ -16,15 +16,17 @@ import (
 // The controller hosts can be linux/nix or windows with git bash installed. The remote hosts should be only nix OS with sshd running
 // In theory remote hosts with git bash and sshd server installed should be ok
 type SshExec struct {
+	// Remote host name to exec the gomod or command
 	SshExecHost   string
 	SshKeyFile    string
 	SshCommonOpts string
 	SshKnownHost  string
 	SshUser       string
-	GoModDir      string
-	CgoEnabled    string
-	GoProxy       string
-	HttpHeaders   []string
+	// Directory name which contains the package main and compilable into a exec file to exec on remote. See ExecGoMod func for more
+	GoModDir    string
+	CgoEnabled  string
+	GoProxy     string
+	HttpHeaders []string
 }
 
 func NewSshExec(s *SshExec) *SshExec {
@@ -33,7 +35,7 @@ func NewSshExec(s *SshExec) *SshExec {
 		s.SshCommonOpts = "-o IdentitiesOnly=yes -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 	}
 	if s.GoModDir == "" {
-		s.GoModDir = "plays"
+		s.GoModDir = "mods"
 	}
 	s.CgoEnabled = Ternary(s.CgoEnabled == "", "1", s.CgoEnabled)
 	return s
@@ -160,8 +162,8 @@ func (s *SshExec) Exec(commands string) (out string, err error) {
 // be passed to git clone command as is.
 //
 // The directory structure should be a valid go mod dir (it has go.mod and go.sum)
-// a dir named 'plays' with multiple directories representing each go cli and
-// that dir name is supplied as gomodName. The `plays` dir can be changed if you set
+// a dir named 'mods' with multiple directories representing each go cli and
+// that dir name is supplied as gomodName. The `mods` dir can be changed if you set
 // the the option GoModDir
 // The args will be parsed to the execution
 //
@@ -261,4 +263,18 @@ fi
 	}
 
 	return out, nil
+}
+
+// Take local go template file, template it and copy to remote hosts
+func (s *SshExec) GoTemplate(src, dest string, data map[string]any, mode os.FileMode) (err error) {
+	if s.SshExecHost == "localhost" || s.SshExecHost == "127.0.0.1" {
+		GoTemplateFile(src, dest, data, mode)
+		return nil
+	}
+	tempDir := Must(os.MkdirTemp("", ""))
+	defer os.RemoveAll(tempDir)
+	tempFile := tempDir + "/" + uuid.NewString()
+	GoTemplateFile(src, tempFile, data, mode)
+	Must(s.CopyFile(dest, tempFile))
+	return nil
 }
