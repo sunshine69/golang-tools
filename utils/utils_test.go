@@ -339,7 +339,7 @@ func TestSshExec(t *testing.T) {
 	if FileExistsV2(o+"/go.sum") != nil {
 		t.Fatal("Copy failed")
 	}
-	o1 := Must(se.CopyDir("", "go.mod", "go.sum", "/home/stevek/tmp/goplay"))
+	o1 := Must(se.CopyDir("", "go.mod", "go.sum", "/home/stevek/tmp/go-pipe"))
 	defer os.RemoveAll(o1)
 	time.Sleep(1 * time.Second)
 	if FileExistsV2(o1+"/go.sum") != nil {
@@ -378,9 +378,14 @@ func TestConfigOverride(t *testing.T) {
 			SshKeyFile:  "/home/stevek/.ssh/id_rsa-home",
 			SshUser:     "stevek",
 		}),
-		MySrcDirs: []string{"/home/stevek/tmp/goplay"},
+		MySrcDirs: []string{"/home/stevek/tmp/go-pipe"},
 	}
 	o := Must(myCfg.CopyDir("", myCfg.MySrcDirs...))
 	println(o)
 
+}
+
+func ExampleSha256SumFile() {
+	fmt.Println(Sha256SumFile("tar.go"))
+	// Output: 57a486ec3bfd0d0414cfbe29bc8297887326d0cf625cebb313382335c1bbcf64
 }

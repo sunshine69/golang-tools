@@ -16,12 +16,17 @@ import (
 // The controller hosts can be linux/nix or windows with git bash installed. The remote hosts should be only nix OS with sshd running
 // In theory remote hosts with git bash and sshd server installed should be ok
 type SshExec struct {
+	// Auto generated per each spawn
+	SessionDir string
 	// Remote host name to exec the gomod or command
 	SshExecHost   string
 	SshKeyFile    string
 	SshCommonOpts string
 	SshKnownHost  string
 	SshUser       string
+	// This will be auto generated and re-use per each NewSshExec instantiation
+	SshConfigFilePath    string
+	SshConfigFileContent string
 	// Directory name which contains the package main and compilable into a exec file to exec on remote. See ExecGoMod func for more
 	GoModDir    string
 	CgoEnabled  string
@@ -30,15 +35,37 @@ type SshExec struct {
 }
 
 func NewSshExec(s *SshExec) *SshExec {
+	if s.SessionDir == "" {
+		s.SessionDir = Must(os.MkdirTemp("", "devops-tool-ssh"))
+	}
+	if s.SshConfigFileContent == "" {
+		s.SshConfigFileContent = GoTemplateString(`Host *
+  ControlMaster auto
+  ControlPath {{.sessionDir}}/%r@%h-%p
+  ControlPersist 1h
+`, map[string]any{
+			"sessionDir": s.SessionDir,
+		})
+	}
+	if s.SshConfigFilePath == "" {
+		s.SshConfigFilePath = filepath.Join(s.SessionDir, "ssh-config")
+		os.WriteFile(s.SshConfigFilePath, []byte(s.SshConfigFileContent), 0o600)
+	}
 	if s.SshCommonOpts == "" {
 		// Allow RSA key to be in so old system works
-		s.SshCommonOpts = "-o IdentitiesOnly=yes -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+		s.SshCommonOpts = fmt.Sprintf("-F '%s' -o IdentitiesOnly=yes -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null", s.SshConfigFilePath)
 	}
 	if s.GoModDir == "" {
 		s.GoModDir = "mods"
 	}
 	s.CgoEnabled = Ternary(s.CgoEnabled == "", "1", s.CgoEnabled)
+
 	return s
+}
+
+// Clean up the object
+func (s *SshExec) Close() {
+	os.RemoveAll(s.SessionDir)
 }
 
 // Copy file(s) to remote. Filename will be retained. remotePath is a directory and be created if not exists
@@ -166,6 +193,45 @@ func (s *SshExec) Exec(commands string) (out string, err error) {
 		"ssh_user":        s.SshUser,
 		"remote_path":     remotePath,
 	}), true)
+	return
+}
+
+// Copy a local or a binary from a url to remoteWorkDir, and exec that bin in remoteWorkDir with execArgs
+// if exebin started with http(s):// then download it locally first before copy to remote
+// If remoteWorkDir is empty string, it will created as temporary and clean up later on
+// If remoteWorkDir is preset then the binary in there be checked - if it exists and same sha256 with local, no copy will be
+// done
+func (s *SshExec) CopyAndExec(exebin, remoteWorkDir string, keepAndReuseExec bool, execArgs ...string) (out string, err error) {
+	if remoteWorkDir == "" {
+		if keepAndReuseExec {
+			panic("[ERROR] can not set keepAndReuseExec when remoteWorkDir is not provided")
+		}
+		remoteWorkDir = uuid.NewString()
+		defer s.Exec("rm -rf " + remoteWorkDir)
+	}
+	tempDir := Must(os.MkdirTemp("", ""))
+	defer os.RemoveAll(tempDir)
+	execName := filepath.Base(exebin)
+	localExecPath := exebin
+
+	if strings.HasPrefix(exebin, "http") {
+		localExecPath = filepath.Join(tempDir, execName)
+		Curl("GET", exebin, "", localExecPath, []string{}, nil)
+	}
+
+	remoteExecPath := filepath.Join(remoteWorkDir, execName)
+
+	if keepAndReuseExec {
+		o, err1 := s.Exec(`sha256sum -b ` + remoteExecPath)
+		if err1 != nil || strings.Fields(o)[0] != Sha256SumFile(localExecPath) { // does not exists or sha256 sum not matched
+			Must(s.CopyFile(remoteWorkDir, localExecPath))
+		}
+	} else {
+		Must(s.CopyFile(remoteWorkDir, localExecPath))
+	}
+
+	out, err = s.Exec(remoteExecPath)
+	s.Exec(`rm -f ` + remoteExecPath)
 	return
 }
 

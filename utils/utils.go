@@ -230,6 +230,19 @@ func Sha512Sum(in string) string {
 	return fmt.Sprintf("%x", sum)
 }
 
+func Sha256SumFile(filePath string) string {
+	// Open the file
+	f := Must(os.Open(filePath))
+	defer f.Close()
+	h := sha256.New()
+	// Use io.Copy to write the file content to the hash object.
+	// The hash object implements the io.Writer interface.
+	if _, err := io.Copy(h, f); err != nil {
+		log.Fatalf("Failed to copy file data to hash: %v", err)
+	}
+	return fmt.Sprintf("%x\n", h.Sum(nil))
+}
+
 const (
 	EncryptVersion1 = byte(1) // scrypt version, good enough
 	EncryptVersion2 = byte(2) // argon2id, only recent go version supports it, this is default
