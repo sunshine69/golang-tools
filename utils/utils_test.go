@@ -281,6 +281,15 @@ func TestGrep(t *testing.T) {
 	// FileGrep(".", "ReadFile", "", false, false)
 }
 
+func TestGrepStream(t *testing.T) {
+	data := `something in line1
+	multiline to
+	last line not matchg anything`
+	inputReader := strings.NewReader(data)
+	GrepStream(io.NopCloser(inputReader), `(something|multi)`, false, false, "", "")
+
+}
+
 func TestUseStdinForRunSystemCmd(t *testing.T) {
 	destDir := Must(os.Getwd()) + "/" + uuid.New().String() + "test-tar"
 	CheckErr(os.MkdirAll(destDir, 0o755), "")

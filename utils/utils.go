@@ -2305,8 +2305,15 @@ func ReplaceAllFuncN(re *regexp.Regexp, src []byte, repl func([]int, [][]byte) [
 // standard lib regex replace func. This only save u some small typing.
 //
 // the 'repl' can contain capture using $1 or $2 for first group etc..
-func ReplacePattern(input []byte, pattern string, repl string, count int) ([]byte, int) {
-	re := regexp.MustCompile(pattern)
+func ReplacePattern[T string | *regexp.Regexp](input []byte, pattern T, repl string, count int) ([]byte, int) {
+	var re *regexp.Regexp
+	switch v := any(pattern).(type) {
+	case string:
+		re = regexp.MustCompile(v)
+	case *regexp.Regexp:
+		re = v
+	}
+
 	replaceFunc := func(matchIndex []int, submatches [][]byte) []byte {
 		expandedRepl := []byte(repl)
 		for i, submatch := range submatches {
@@ -2321,7 +2328,7 @@ func ReplacePattern(input []byte, pattern string, repl string, count int) ([]byt
 }
 
 // Same as ReplacePattern but do regex search and replace in a file
-func SearchReplaceFile(filename, ptn, repl string, count int, backup bool) int {
+func SearchReplaceFile[T string | *regexp.Regexp](filename string, ptn T, repl string, count int, backup bool) int {
 	finfo := Must(os.Stat(filename))
 	fmode := finfo.Mode()
 	if !(fmode.IsRegular()) {
@@ -2337,7 +2344,7 @@ func SearchReplaceFile(filename, ptn, repl string, count int, backup bool) int {
 }
 
 // Same as ReplacePattern but operates on string rather than []byte
-func SearchReplaceString(instring, ptn, repl string, count int) string {
+func SearchReplaceString[T string | *regexp.Regexp](instring string, ptn T, repl string, count int) string {
 	o, _ := ReplacePattern([]byte(instring), ptn, repl, count)
 	return string(o)
 }
@@ -3231,6 +3238,67 @@ func Grep[T string | *regexp.Regexp](input string, pattern T, outputMatchOnly bo
 		}
 	}
 	return oputputlines, matchedFound
+}
+
+// Grep a pattern in a stream of text. Just print meatches oout as they go. Suitable for large file or stdin
+// If input size > 1MB use this.
+// If replace is not empty then it does the replacement by line. Capture in the form $N will be replaced as well.
+func GrepStream[T string | *regexp.Regexp](input io.ReadCloser, pattern T, outputMatchOnly bool, inverse bool, outputPrefix, replace string) (matchedFound bool) {
+	defer input.Close()
+
+	var re *regexp.Regexp
+	switch v := any(pattern).(type) {
+	case string:
+		re = regexp.MustCompile(v)
+	case *regexp.Regexp:
+		re = v
+	}
+	scanner := bufio.NewScanner(input)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		matched := re.MatchString(line)
+		// -v : inverse match (print non-matching lines)
+		if inverse {
+			if !matched {
+				fmt.Fprintln(os.Stdout, outputPrefix+line)
+				matchedFound = true
+			}
+			continue
+		}
+		// Normal grep behavior
+		if !matched {
+			if replace != "" { // replace mode, not match we print out as is
+				fmt.Fprintln(os.Stdout, line)
+			}
+			continue
+		}
+		matchedFound = true
+		if replace != "" {
+			fmt.Fprintln(os.Stdout, SearchReplaceString(line, re, replace, -1))
+			continue
+		}
+		matches := re.FindStringSubmatch(line)
+		if outputMatchOnly {
+			// Print matches (or capture groups)
+			// println(JsonDump(matches, ""))
+			if len(matches) > 1 {
+				fmt.Fprintln(os.Stdout, outputPrefix+strings.Join(matches[1:], " "))
+			} else {
+				fmt.Fprintln(os.Stdout, outputPrefix+line)
+			}
+		} else {
+			// Print whole line OR capture(s)
+			if len(matches) > 0 {
+				fmt.Fprintln(os.Stdout, outputPrefix+line)
+			}
+		}
+	}
+	// Check for any errors that occurred during scanning.
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "scanner error: %s", err.Error())
+	}
+	return
 }
 
 func FileGrep(filePaths, patternStr, excludePtnStr string, outputMatchOnly, inverse bool) {
