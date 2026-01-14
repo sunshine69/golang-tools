@@ -3189,11 +3189,11 @@ func GetFirstValue[T, T1 any](x T, y T1) T {
 // Grep a pattern in a text
 func Grep[T string | *regexp.Regexp](input string, pattern T, outputMatchOnly bool, inverse bool) (out []string, matchedFound bool) {
 	var re *regexp.Regexp
-	switch any(pattern).(type) {
+	switch v := any(pattern).(type) {
 	case string:
-		re = regexp.MustCompile(any(pattern).(string))
+		re = regexp.MustCompile(v)
 	case *regexp.Regexp:
-		re = any(pattern).(*regexp.Regexp)
+		re = v
 	}
 	lines := strings.Split(input, "\n")
 	oputputlines := []string{}
@@ -3214,20 +3214,18 @@ func Grep[T string | *regexp.Regexp](input string, pattern T, outputMatchOnly bo
 		matchedFound = true
 		if outputMatchOnly {
 			// Print matches (or capture groups)
-			matches := re.FindAllStringSubmatch(line, -1)
-			for _, m := range matches {
-				if len(m) > 1 {
-					oputputlines = append(oputputlines, strings.Join(m[1:], " "))
-				} else {
-					oputputlines = append(oputputlines, m[0])
-				}
+			matches := re.FindStringSubmatch(line)
+			// println(JsonDump(matches, ""))
+			if len(matches) > 1 {
+				oputputlines = append(oputputlines, strings.Join(matches[1:], " "))
+			} else {
+				oputputlines = append(oputputlines, line)
 			}
+
 		} else {
 			// Print whole line OR capture(s)
 			m := re.FindStringSubmatch(line)
-			if len(m) > 1 {
-				oputputlines = append(oputputlines, strings.Join(m[1:], " "))
-			} else {
+			if len(m) > 0 {
 				oputputlines = append(oputputlines, line)
 			}
 		}
