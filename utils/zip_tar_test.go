@@ -37,7 +37,7 @@ func TestZip(t *testing.T) {
 func TestTar(t *testing.T) {
 	os.RemoveAll("output.tar.zst")
 	os.RemoveAll("extracted")
-	to := NewTarOptions().WithCompressionLevel(3).WithEncrypt(false).WithPassword(`1qa2ws`)
+	to := NewTarOptions().WithCompressionLevel(3).WithEncrypt(true).WithPassword(`1qa2ws`)
 	err := CreateTarball(`../gitlab`, "output.tar.zst", to)
 	if err != nil {
 		fmt.Printf("Error creating tarball: %v\n", err)

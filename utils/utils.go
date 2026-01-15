@@ -403,7 +403,7 @@ func Decrypt[T string | []byte](data, password T, cfg *EncryptionConfig) (T, err
 	}
 
 	if len(raw) < 1+cfg.SaltSize+12+16 {
-		return *new(T), errors.New("decryption failed")
+		return *new(T), errors.New("decryption failed - size < 1+cfg.SaltSize+12+16 ")
 	}
 
 	version := raw[0]
@@ -415,23 +415,23 @@ func Decrypt[T string | []byte](data, password T, cfg *EncryptionConfig) (T, err
 
 	key, err := deriveKey(passb, salt, *cfg)
 	if err != nil {
-		return *new(T), errors.New("decryption failed")
+		return *new(T), errors.New("decryption failed - can not deriveKey - " + err.Error())
 	}
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return *new(T), errors.New("decryption failed")
+		return *new(T), errors.New("decryption failed - NewCipher - " + err.Error())
 	}
 
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return *new(T), errors.New("decryption failed")
+		return *new(T), errors.New("decryption failed - NewGCM - " + err.Error())
 	}
 
 	nonceSize := gcm.NonceSize()
 	offset := 1 + cfg.SaltSize
 	if len(raw) < offset+nonceSize {
-		return *new(T), errors.New("decryption failed")
+		return *new(T), errors.New("decryption failed - nonceSize")
 	}
 
 	nonce := raw[offset : offset+nonceSize]
@@ -439,7 +439,7 @@ func Decrypt[T string | []byte](data, password T, cfg *EncryptionConfig) (T, err
 
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return *new(T), errors.New("decryption failed")
+		return *new(T), errors.New("decryption failed - gcm.Open " + err.Error())
 	}
 	if cfg.OutputFmt == "string" {
 		return T(string(plaintext)), nil

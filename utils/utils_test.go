@@ -254,7 +254,7 @@ func TestGoTemplate(t *testing.T) {
 
 func TestMigrateOldEncrypt(t *testing.T) {
 	key := os.Getenv("KEY")
-	oldcontent_enc := ``
+	oldcontent_enc := `qwqwqdwqdqwd`
 	old_content := Must(Decrypt_v0(oldcontent_enc, key))
 	println(Encrypt(old_content, key, nil))
 }
