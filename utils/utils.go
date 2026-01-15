@@ -244,8 +244,8 @@ func Sha256SumFile(filePath string) string {
 }
 
 const (
-	EncryptVersion1 = byte(1) // scrypt version, good enough
-	EncryptVersion2 = byte(2) // argon2id, only recent go version supports it, this is default
+	EncryptVersion1 = byte(1) // argon2id, only recent go version supports it, this is default
+	EncryptVersion2 = byte(2) // scrypt version, good enough
 )
 
 type KDFType string
@@ -319,7 +319,7 @@ func deriveKey(password, salt []byte, cfg EncryptionConfig) ([]byte, error) {
 
 // Encrypt encrypts text using password-derived key with versioning. Depending on EncryptionConfig field OutputFmt; if string then
 // return base64 encoded of the encrypted otherwise return raw []byte
-func Encrypt[T string | []byte](data, password T, cfg *EncryptionConfig) (T, error) {
+func Encrypt[T string | []byte, T2 string | []byte](data T, password T2, cfg *EncryptionConfig) (T, error) {
 	if cfg == nil {
 		cfg = DefaultEncryptionConfig()
 	}
@@ -327,11 +327,16 @@ func Encrypt[T string | []byte](data, password T, cfg *EncryptionConfig) (T, err
 	var err error
 	switch v := any(data).(type) {
 	case string:
-		raw = []byte(string(v))
-		passb = []byte(string(v))
-	case []byte:
 		raw = []byte(v)
+	case []byte:
+		raw = v
+	}
+
+	switch v := any(password).(type) {
+	case string:
 		passb = []byte(v)
+	case []byte:
+		passb = v
 	}
 
 	if len(raw) == 0 || len(passb) == 0 {

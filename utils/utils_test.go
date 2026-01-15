@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"encoding/base64"
 	"fmt"
 	"io"
 	"log"
@@ -34,19 +33,22 @@ func TestEmail(t *testing.T) {
 }
 
 func TestEncrypt(t *testing.T) {
-	p := Must(GenerateRandomBytes(35)) // Use bytes is fine and better if we dont case about printability
-	p1 := Must(base64.StdEncoding.DecodeString(p))
+	p1 := Must(GenerateRandomBytes(35)) // Use bytes is fine and better if we dont case about printability
+	// p1 := Must(base64.StdEncoding.EncodeToString(p))
 	// println(string(p1))
 	inputstr := "this is text"
-	cfg := Must(NewEncConfigForVersion(EncryptVersion2))
-	println(JsonDump(cfg, ""))
-	// cfg.KDF = KDFScrypt // u can even change it
-	o := Must(Encrypt(inputstr, string(p1), cfg))
-	println("Encrypted: ", o)
-	o1 := Must(Decrypt(o, string(p1), cfg))
-	println("Decrypt result: ", o1)
-	if o1 != inputstr {
-		panic("[ERROR] decrypted not same as input\n")
+	for _, encVer := range []byte{EncryptVersion1, EncryptVersion2} {
+		cfg := Must(NewEncConfigForVersion(encVer))
+		// cfg := DefaultEncryptionConfig()
+		println(JsonDump(cfg, ""))
+		// cfg.KDF = KDFScrypt // u can even change it
+		o := Must(Encrypt(inputstr, p1, cfg))
+		println("Encrypted: ", o)
+		o1 := Must(Decrypt(o, p1, cfg))
+		println("Decrypt result: ", o1)
+		if o1 != inputstr {
+			panic("[ERROR] decrypted not same as input\n")
+		}
 	}
 }
 
