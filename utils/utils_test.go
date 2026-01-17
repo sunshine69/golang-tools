@@ -3,11 +3,13 @@ package utils
 import (
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -261,9 +263,32 @@ func TestMigrateOldEncrypt(t *testing.T) {
 	println(Encrypt(old_content, key, nil))
 }
 
-func TestGoFindExec(t *testing.T) {
-	GoFindExec([]string{"file://."}, []string{`.*\.zip`}, func(myfile string) error {
-		println(myfile)
+func TestGoFindExec(t *testing.T) { // Example of fine tune the action to use GoFindExec one
+	count := 0                     // Hold count
+	fileList := map[int64]string{} // Hold the unix time and point to file name
+
+	GoFindExec([]string{"file://."}, []string{`.*\.go`}, func(myfile string, stat fs.FileInfo) error {
+		if stat.ModTime().Before(time.Now().AddDate(0, 0, -30)) {
+			count++                                  // Store count
+			fileList[stat.ModTime().Unix()] = myfile // Stored file list
+		}
+		return nil
+	}) // Now we can use the fileList to do externally
+	println("[INFO] count files ", count)
+
+	filemodTimeList := MapKeysToSlice(fileList) // These sort the mod time in order ascending
+	slices.SortFunc(filemodTimeList, func(a, b int64) int {
+		return int(a - b)
+	})
+	for _, i := range filemodTimeList { // Now u can do anything with file name in i; you may keep a minimum if files, etc
+		println(fileList[i], time.Unix(i, 0).Format(TimeISO8601LayOut))
+	}
+
+	// Simpler usage -
+	GoFindExec([]string{"file://."}, []string{`.*\.go`}, func(myfile string, stat fs.FileInfo) error {
+		if stat.ModTime().Before(time.Now().AddDate(0, 0, -30)) { // condition
+			println(myfile) // action
+		}
 		return nil
 	})
 }

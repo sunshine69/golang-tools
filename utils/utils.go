@@ -530,7 +530,7 @@ func MakePassword(length int) string {
 //		println(myfilepath)
 //	 return nil
 //	})
-func GoFindExec(directories []string, path_pattern []string, callback func(filename string) error) error {
+func GoFindExec(directories []string, path_pattern []string, callback func(filename string, info fs.FileInfo) error) error {
 	pathPtn := []*regexp.Regexp{}
 	for _, p := range path_pattern {
 		pathPtn = append(pathPtn, regexp.MustCompile(p))
@@ -554,11 +554,11 @@ func GoFindExec(directories []string, path_pattern []string, callback func(filen
 				return nil
 			}
 			fname := info.Name()
-
+			// println("[DEBUG] ", fpath)
 			if (filetype == "d" && info.IsDir()) || (filetype == "f" && !info.IsDir()) {
 				for _, p := range pathPtn {
 					if found := p.MatchString(fname); found {
-						if err := callback(fpath); err != nil {
+						if err := callback(fpath, info); err != nil {
 							return err
 						}
 						break
@@ -2149,8 +2149,8 @@ func SliceMap[T, V any](ts []T, fn func(T) *V) []V {
 }
 
 // Similar to the python dict.keys()
-func MapKeysToSlice[T any](m map[string]T) []string {
-	keys := make([]string, 0, len(m)) // Preallocate slice with the map's size
+func MapKeysToSlice[K comparable, T any](m map[K]T) []K {
+	keys := make([]K, 0, len(m)) // Preallocate slice with the map's size
 	for key := range m {
 		keys = append(keys, key)
 	}
@@ -2372,6 +2372,8 @@ type LineInfileOpt struct {
 	State string
 	// Backup the file or not. Default is false
 	Backup bool
+	// Keep backup files after number of days -
+	KeepBackupDays int
 	// Action for all pattern if set to true, otherwise only one line. Default is false
 	ReplaceAll bool
 }
@@ -2379,6 +2381,7 @@ type LineInfileOpt struct {
 func NewLineInfileOpt(opt *LineInfileOpt) *LineInfileOpt {
 	if opt.State == "" {
 		opt.State = "present"
+		opt.KeepBackupDays = 90
 	}
 	return opt
 }
@@ -2387,9 +2390,13 @@ func NewLineInfileOpt(opt *LineInfileOpt) *LineInfileOpt {
 // No option backref, the default behaviour is yes.
 func LineInFile(filename string, opt *LineInfileOpt) (err error, changed bool) {
 	var returnFunc = func(err error, changed bool) (error, bool) {
-		if !changed || !opt.Backup {
-			os.Remove(filename + ".bak")
-		}
+		// Clean up backup files after 90 days default
+		GoFindExec([]string{"file://" + filepath.Dir(filename)}, []string{filename + `\.backup\-[\d]{4,4}[^\s]+`}, func(filename string, st fs.FileInfo) error {
+			if st.ModTime().Before(time.Now().AddDate(0, 0, -opt.KeepBackupDays)) {
+				return os.Remove(filename)
+			}
+			return nil
+		})
 		return err, changed
 	}
 	if opt.State == "" {
@@ -2418,7 +2425,7 @@ func LineInFile(filename string, opt *LineInfileOpt) (err error, changed bool) {
 	}
 
 	if opt.Backup && opt.State != "print" {
-		os.WriteFile(filename+".bak", data, fmode)
+		os.WriteFile(filename+".backup-"+time.Now().Format(TimeISO8601LayOut), data, fmode)
 	}
 	changed = false
 	optLineB := []byte(opt.Line)
