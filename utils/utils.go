@@ -2383,6 +2383,9 @@ func NewLineInfileOpt(opt *LineInfileOpt) *LineInfileOpt {
 		opt.State = "present"
 		opt.KeepBackupDays = 90
 	}
+	if opt.Insertbefore == "" {
+		opt.Insertbefore = "EOF"
+	}
 	return opt
 }
 

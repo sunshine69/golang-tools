@@ -13,4 +13,9 @@ func TestCheckCertExpiry(t *testing.T) {
 
 func TestGenerateKeyPair(t *testing.T) {
 	GenerateX509Keypair(&rsa.PrivateKey{}, map[string]any{})
+	// Validate openssl can parse them
+	// openssl req -noout -text -verify -in server.csr
+	// openssl pkey -noout -pubin -text -in server.crt
+	// openssl rsa -noout -text -in server.key
+
 }
