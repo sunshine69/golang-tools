@@ -3370,3 +3370,19 @@ func StringMapToAnyMap(m map[string]string) map[string]any {
 	}
 	return result
 }
+
+// MapContainsKeys is quick way to do set contains using map
+// If main map has keys set which contains all key sets of sub map then return true otherwise
+func MapContainsKeys[K comparable, V1, V2 any](main map[K]V1, sub map[K]V2) bool {
+	for k := range sub {
+		if _, ok := main[k]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// SliceContainsItem return true if main slice contains all items in sub slice
+func SliceContainsItems[K comparable](main []K, sub []K) bool {
+	return MapContainsKeys(SliceToMap(main), SliceToMap(sub))
+}
