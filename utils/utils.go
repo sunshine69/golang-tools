@@ -2137,7 +2137,7 @@ func ReflectStruct(astruct any, tagPtn string) StructInfo {
 
 // Take a slice and a function return new slice with the value is the result of the function called for each item
 // Similar to list walk in python
-func SliceMap[T, V any](ts []T, fn func(T) *V) []V {
+func SliceWalk[T, V any](ts []T, fn func(T) *V) []V {
 	result := []V{}
 	for _, t := range ts {
 		_v := fn(t)
@@ -2147,6 +2147,7 @@ func SliceMap[T, V any](ts []T, fn func(T) *V) []V {
 	}
 	return result
 }
+func SliceMap[T, V any](ts []T, fn func(T) *V) []V { return SliceWalk(ts, fn) }
 
 // Similar to the python dict.keys()
 func MapKeysToSlice[K comparable, T any](m map[K]T) []K {
