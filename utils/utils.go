@@ -2203,6 +2203,16 @@ func SliceToMap[T comparable](slice []T) map[T]any {
 	return set
 }
 
+// SliceToMap2 convert example [][]string => map[string]string - the first in the list is the key, second is the value
+// to be fast, no index check
+func SliceToMap2[T comparable](slice [][]T) map[T]T {
+	set := make(map[T]T)
+	for _, s1 := range slice {
+		set[s1[0]] = s1[1]
+	}
+	return set
+}
+
 func AssertInt64ValueForMap(input map[string]any) map[string]any {
 	for k, v := range input {
 		if v, ok := v.(float64); ok {
