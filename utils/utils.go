@@ -1847,8 +1847,24 @@ func tmpl_replace(old, new, data string) string {
 	o := strings.ReplaceAll(data, old, new)
 	return o
 }
+func tmpl_regex_search(regex string, s string) bool {
+	match, _ := regexp.MatchString(regex, s)
+	return match
+}
+func tmpl_regex_replace(regex string, repl string, s string) string {
+	r := regexp.MustCompile(regex)
+	return r.ReplaceAllString(s, repl)
+}
 func tmpl_contains(subStr, data string) bool {
 	return strings.Contains(data, subStr)
+}
+func tmpl_slice_contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }
 func tmpl_int_range(start, end int) []int {
 	n := end - start
@@ -1894,7 +1910,7 @@ func tmpl_tojson(v any) string {
 	}
 	return string(data)
 }
-func indent(spaces int, v string) string {
+func tmpl_indent(spaces int, v string) string {
 	pad := strings.Repeat(" ", spaces)
 	return pad + strings.Replace(v, "\n", "\n"+pad, -1)
 }
@@ -1917,6 +1933,10 @@ func tmpl_b64dec(v string) []byte {
 	}
 }
 
+func tmpl_nindent(spaces int, v string) string {
+	return "\n" + tmpl_indent(spaces, v)
+}
+
 func FormatSizeInByte(size int64) string {
 	const (
 		KB = 1024
@@ -1936,39 +1956,32 @@ func FormatSizeInByte(size int64) string {
 
 // Common func for go text template
 var GoTextTemplateFuncMap = template.FuncMap{
-	"b64enc":        tmpl_b64enc,
-	"b64dec":        tmpl_b64dec,
-	"format_size":   FormatSizeInByte,
-	"inc":           tmpl_inc,
-	"add":           tmpl_add,
-	"title":         tmpl_title,
-	"lower":         tmpl_lower,
-	"upper":         tmpl_upper,
-	"time_fmt":      tmpl_time_fmt,
-	"now":           tmpl_now,
-	"join":          tmpl_join,
-	"truncatechars": tmpl_truncatechars,
-	"cycle":         tmpl_cycle,
-	"replace":       tmpl_replace,
-	"contains":      tmpl_contains,
-	"int_range":     tmpl_int_range,
-	"basename":      tmpl_basename,
-	"dirname":       tmpl_dirname,
-	"to_yaml":       tmpl_toyaml,
-	"to_nice_yaml":  tmpl_to_niceyaml,
-	"to_json":       tmpl_tojson,
-	"indent":        indent,
-	"nindent": func(spaces int, v string) string {
-		return "\n" + indent(spaces, v)
-	},
-	"regex_search": func(regex string, s string) bool {
-		match, _ := regexp.MatchString(regex, s)
-		return match
-	},
-	"regex_replace": func(regex string, repl string, s string) string {
-		r := regexp.MustCompile(regex)
-		return r.ReplaceAllString(s, repl)
-	},
+	"b64enc":         tmpl_b64enc,
+	"b64dec":         tmpl_b64dec,
+	"format_size":    FormatSizeInByte,
+	"inc":            tmpl_inc,
+	"add":            tmpl_add,
+	"title":          tmpl_title,
+	"lower":          tmpl_lower,
+	"upper":          tmpl_upper,
+	"time_fmt":       tmpl_time_fmt,
+	"now":            tmpl_now,
+	"join":           tmpl_join,
+	"truncatechars":  tmpl_truncatechars,
+	"cycle":          tmpl_cycle,
+	"replace":        tmpl_replace,
+	"contains":       tmpl_contains,
+	"slice_contains": tmpl_slice_contains,
+	"int_range":      tmpl_int_range,
+	"basename":       tmpl_basename,
+	"dirname":        tmpl_dirname,
+	"to_yaml":        tmpl_toyaml,
+	"to_nice_yaml":   tmpl_to_niceyaml,
+	"to_json":        tmpl_tojson,
+	"indent":         tmpl_indent,
+	"nindent":        tmpl_nindent,
+	"regex_search":   tmpl_regex_search,
+	"regex_replace":  tmpl_regex_replace,
 }
 
 // Common usefull go html template funcs
@@ -1984,6 +1997,7 @@ var GoTemplateFuncMap = htmltemplate.FuncMap{
 	"upper":       tmpl_upper,
 	"time_fmt":    tmpl_time_fmt,
 	"now":         tmpl_now,
+	"join":        tmpl_join,
 	"raw_html": func(html string) htmltemplate.HTML {
 		return htmltemplate.HTML(html)
 	},
@@ -1996,7 +2010,6 @@ var GoTemplateFuncMap = htmltemplate.FuncMap{
 	"end_if_ie": func() htmltemplate.HTML {
 		return htmltemplate.HTML("<![endif]-->")
 	},
-	"join": tmpl_join,
 	"truncatechars": func(length int, in string) htmltemplate.HTML {
 		return htmltemplate.HTML(ChunkString(in, length)[0])
 	},
@@ -2008,20 +2021,18 @@ var GoTemplateFuncMap = htmltemplate.FuncMap{
 		o := strings.ReplaceAll(data, old, new)
 		return htmltemplate.HTML(o)
 	},
-	"contains": func(data, subStr string) bool {
-		return strings.Contains(data, subStr)
-	},
-	"int_range": tmpl_int_range,
-	"basename":  tmpl_basename,
-	"dirname":   tmpl_dirname,
-	"regex_search": func(regex string, s string) bool {
-		match, _ := regexp.MatchString(regex, s)
-		return match
-	},
-	"regex_replace": func(regex string, repl string, s string) string {
-		r := regexp.MustCompile(regex)
-		return r.ReplaceAllString(s, repl)
-	},
+	"contains":       tmpl_contains,
+	"slice_contains": tmpl_slice_contains,
+	"int_range":      tmpl_int_range,
+	"basename":       tmpl_basename,
+	"dirname":        tmpl_dirname,
+	"regex_search":   tmpl_regex_search,
+	"regex_replace":  tmpl_regex_replace,
+	"to_yaml":        tmpl_toyaml,
+	"to_nice_yaml":   tmpl_to_niceyaml,
+	"to_json":        tmpl_tojson,
+	"indent":         tmpl_indent,
+	"nindent":        tmpl_nindent,
 }
 
 // This func use text/template to avoid un-expected html escaping.
