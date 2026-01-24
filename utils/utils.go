@@ -2149,7 +2149,7 @@ func ReflectStruct(astruct any, tagPtn string) StructInfo {
 // Take a slice and a function return new slice with the value is the result of the function called for each item
 // Similar to list walk in python
 func SliceWalk[T, V any](ts []T, fn func(T) *V) []V {
-	result := []V{}
+	var result []V = make([]V, len(ts))
 	for _, t := range ts {
 		_v := fn(t)
 		if _v != nil {
@@ -2171,15 +2171,16 @@ func MapKeysToSlice[K comparable, T any](m map[K]T) []K {
 
 // Function to convert any => list string
 func ConvertListIfaceToListStr(in any) []string {
-	o := []string{}
-	for _, v := range in.([]any) {
+	_l := in.([]any)
+	var o []string = make([]string, len(_l))
+	for _, v := range _l {
 		o = append(o, v.(string))
 	}
 	return o
 }
 
 func InterfaceToStringList(in []any) []string {
-	o := []string{}
+	var o []string = make([]string, len(in))
 	for _, v := range in {
 		o = append(o, v.(string))
 	}
@@ -2196,7 +2197,7 @@ func InterfaceToStringMap(in map[string]any) map[string]string {
 
 // SliceToMap convert a slice of any comparable into a map which can set the value later on
 func SliceToMap[T comparable](slice []T) map[T]any {
-	set := make(map[T]any)
+	set := make(map[T]any, len(slice))
 	for _, element := range slice {
 		set[element] = nil
 	}
@@ -2206,7 +2207,7 @@ func SliceToMap[T comparable](slice []T) map[T]any {
 // SliceToMap2 convert example [][]string => map[string]string - the first in the list is the key, second is the value
 // to be fast, no index check
 func SliceToMap2[T comparable](slice [][]T) map[T]T {
-	set := make(map[T]T)
+	set := make(map[T]T, len(slice))
 	for _, s1 := range slice {
 		set[s1[0]] = s1[1]
 	}
