@@ -2172,7 +2172,7 @@ func MapKeysToSlice[K comparable, T any](m map[K]T) []K {
 // Function to convert any => list string
 func ConvertListIfaceToListStr(in any) []string {
 	_l := in.([]any)
-	var o []string = make([]string, len(_l))
+	var o []string = make([]string, 0, len(_l))
 	for _, v := range _l {
 		o = append(o, v.(string))
 	}
@@ -2180,7 +2180,7 @@ func ConvertListIfaceToListStr(in any) []string {
 }
 
 func InterfaceToStringList(in []any) []string {
-	var o []string = make([]string, len(in))
+	var o []string = make([]string, 0, len(in))
 	for _, v := range in {
 		o = append(o, v.(string))
 	}
