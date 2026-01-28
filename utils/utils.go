@@ -3339,14 +3339,17 @@ func GrepStream[T string | *regexp.Regexp](input io.ReadCloser, pattern T, outpu
 	return
 }
 
-func FileGrep(filePaths, patternStr, excludePtnStr string, outputMatchOnly, inverse bool) {
+// Grep files in a dir. Used it when you know files are small enough like less than 100MB.
+// For large file to grep you have to use the GrepStream function
+func FileGrep(filePaths, patternStr, excludePtnStr string, outputMatchOnly, inverse bool) (foundMatch bool) {
 	var excludePtn *regexp.Regexp
+	var maxSize int64 = 100000000 // 100MB - only read max to that to grep
 	if excludePtnStr != "" {
 		excludePtn = regexp.MustCompile(excludePtnStr)
 	}
 	pattern := regexp.MustCompile(patternStr)
 
-	filepath.Walk(filePaths, func(fpath string, info fs.FileInfo, err error) error {
+	err := filepath.Walk(filePaths, func(fpath string, info fs.FileInfo, err error) error {
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err.Error())
 			return nil
@@ -3355,7 +3358,6 @@ func FileGrep(filePaths, patternStr, excludePtnStr string, outputMatchOnly, inve
 		if info.IsDir() && (excludePtn != nil && excludePtn.MatchString(fname)) {
 			return filepath.SkipDir
 		}
-
 		if !info.IsDir() {
 			fmode := info.Mode()
 			if !(fmode.IsRegular()) {
@@ -3364,12 +3366,31 @@ func FileGrep(filePaths, patternStr, excludePtnStr string, outputMatchOnly, inve
 			if Must(IsBinaryFileSimple(fpath)) {
 				return filepath.SkipDir
 			}
-			textb, err := os.ReadFile(fpath)
+
+			file, err := os.Open(fpath)
 			if err != nil {
 				return nil
 			}
+			defer file.Close()
+			var textb []byte
+			if info.Size() < maxSize {
+				textb, err = os.ReadFile(fpath)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "[ERROR] readfile - %s\n", err.Error())
+					return nil
+				}
+			} else {
+				textb = make([]byte, maxSize)
+				// ReadFull fills the buffer completely or returns an error
+				_, err := io.ReadFull(file, textb)
+				if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+					return nil
+				}
+			}
+
 			matchedLines, found := Grep(string(textb), pattern, outputMatchOnly, inverse)
 			if found {
+				foundMatch = true
 				if !outputMatchOnly {
 					for _, l := range matchedLines {
 						fmt.Fprintf(os.Stdout, "%s:%s\n", fpath, l)
@@ -3383,6 +3404,11 @@ func FileGrep(filePaths, patternStr, excludePtnStr string, outputMatchOnly, inve
 		}
 		return nil
 	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR] %s\n", err.Error())
+		return false
+	}
+	return
 }
 
 // StringMapToAnyMap converts map[string]string to map[string]any
