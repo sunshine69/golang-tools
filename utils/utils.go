@@ -2147,9 +2147,9 @@ func ReflectStruct(astruct any, tagPtn string) StructInfo {
 }
 
 // Take a slice and a function return new slice with the value is the result of the function called for each item
-// Similar to list walk in python
+// Similar to list walk in python. To exclude the result, return nil from your func
 func SliceWalk[T, V any](ts []T, fn func(T) *V) []V {
-	var result []V = make([]V, len(ts))
+	var result []V = make([]V, 0, len(ts))
 	for _, t := range ts {
 		_v := fn(t)
 		if _v != nil {
