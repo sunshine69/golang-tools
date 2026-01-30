@@ -3379,7 +3379,10 @@ func FileGrep(filePaths, patternStr, excludePtnStr string, outputMatchOnly, inve
 			if !(fmode.IsRegular()) {
 				return nil
 			}
-			if Must(IsBinaryFileSimple(fpath)) {
+			if test, err := IsBinaryFileSimple(fpath); test {
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "[ERROR] IsBinaryFileSimple %s\n", err.Error())
+				}
 				return filepath.SkipDir
 			}
 
