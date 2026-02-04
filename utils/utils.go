@@ -1937,6 +1937,10 @@ func tmpl_nindent(spaces int, v string) string {
 	return "\n" + tmpl_indent(spaces, v)
 }
 
+func tmpl_makeslice(args ...string) []string {
+	return args
+}
+
 func FormatSizeInByte(size int64) string {
 	const (
 		KB = 1024
@@ -1982,6 +1986,7 @@ var GoTextTemplateFuncMap = template.FuncMap{
 	"nindent":        tmpl_nindent,
 	"regex_search":   tmpl_regex_search,
 	"regex_replace":  tmpl_regex_replace,
+	"make_slice":     tmpl_makeslice,
 }
 
 // Common usefull go html template funcs
