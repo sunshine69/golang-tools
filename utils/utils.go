@@ -1941,6 +1941,18 @@ func tmpl_makeslice(args ...string) []string {
 	return args
 }
 
+func tmpl_cat(args ...any) string {
+	var sb strings.Builder
+	for _, arg := range args {
+		sb.WriteString(fmt.Sprint(arg))
+	}
+	return sb.String()
+}
+
+func tmpl_split(s, sep string) []string {
+	return strings.Split(s, sep)
+}
+
 func FormatSizeInByte(size int64) string {
 	const (
 		KB = 1024
@@ -1960,6 +1972,8 @@ func FormatSizeInByte(size int64) string {
 
 // Common func for go text template
 var GoTextTemplateFuncMap = template.FuncMap{
+	"split":          tmpl_split,
+	"cat":            tmpl_cat,
 	"b64enc":         tmpl_b64enc,
 	"b64dec":         tmpl_b64dec,
 	"format_size":    FormatSizeInByte,
