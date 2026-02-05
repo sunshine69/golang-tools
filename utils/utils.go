@@ -3469,7 +3469,18 @@ func MapContainsKeys[K comparable, V1, V2 any](main map[K]V1, sub map[K]V2) bool
 	return true
 }
 
-// SliceContainsItem return true if main slice contains all items in sub slice
+// SliceContainsItems return true if main slice contains all items in sub slice
 func SliceContainsItems[K comparable](main []K, sub []K) bool {
 	return MapContainsKeys(SliceToMap(main), SliceToMap(sub))
+}
+
+// SliceContainsAnyItem return true if main slice contains any items in sub slice
+func SliceContainsAnyItem[K comparable](main []K, sub []K) bool {
+	mainMap := SliceToMap(main)
+	for _, item := range sub {
+		if _, ok := mainMap[item]; ok {
+			return true
+		}
+	}
+	return false
 }
