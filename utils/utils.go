@@ -3171,16 +3171,29 @@ func ConvertInterface(value any) any {
 
 // SplitFirstLine return the first line from a text block. Line ending can be unix based or windows based.
 // The rest of the block is return also as the second output
-func SplitFirstLine(text string) (string, string) {
-	// Handle both \n and \r\n newlines
-	if idx := strings.IndexAny(text, "\r\n"); idx != -1 {
-		// Determine if the newline is \r\n or \n
-		if idx+1 < len(text) && text[idx] == '\r' && text[idx+1] == '\n' {
-			return text[:idx], text[idx+2:] // Skip \r\n
+func SplitFirstLine[T string | []byte](data T) (T, T) {
+	switch v := any(data).(type) {
+	case string:
+		text := v
+		// Handle both \n and \r\n newlines
+		if idx := strings.IndexAny(text, "\r\n"); idx != -1 {
+			// Determine if the newline is \r\n or \n
+			if idx+1 < len(text) && text[idx] == '\r' && text[idx+1] == '\n' {
+				return T(text[:idx]), T(text[idx+2:]) // Skip \r\n
+			}
+			return T(text[:idx]), T(text[idx+1:]) // Skip \n
 		}
-		return text[:idx], text[idx+1:] // Skip \n
+		return T(text), T("") // If no newline, return the whole text as the first line
+	case []byte:
+		if idx := bytes.IndexAny(v, "\r\n"); idx != -1 {
+			if idx+1 < len(v) && v[idx] == '\r' && v[idx+1] == '\n' {
+				return T(v[:idx]), T(v[idx+2:])
+			}
+			return T(v[:idx]), T(v[idx+1:])
+		}
+		return T(v), T([]byte{})
 	}
-	return text, "" // If no newline, return the whole text as the first line
+	return data, T([]byte{})
 }
 
 // Function to convert map[any]any to map[string]any
