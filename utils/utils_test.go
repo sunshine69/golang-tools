@@ -132,7 +132,8 @@ func TestLineinfile(t *testing.T) {
 }
 
 func TestPickLinesInFile(t *testing.T) {
-	fmt.Println(strings.Join(PickLinesInFile("../tests/test.yaml", 0, -2), "\n"))
+	fmt.Println(strings.Join(PickLinesInFile("../tests/input.yaml", 0, 2), "\n"))
+	fmt.Println(strings.Join(Must(PickLinesInFileV2("../tests/input.yaml", 0, 2)), "\n"))
 }
 
 func TestReadFileToLines(t *testing.T) {
@@ -157,6 +158,15 @@ func BenchmarkGoTemplateString(b *testing.B) { // go template is about 6 times f
 	for n := 0; n < b.N; n++ {
 		GoTemplateString(`<?php  var2 - {{.var2}} this is output {{ join "," .var1 }} - ?>`, map[string]any{"var1": []string{"a", "b", "c"}, "var2": "Value var2"})
 	}
+}
+
+func TestSplitFirstLine(t *testing.T) {
+	fLine, restLines := SplitFirstLine([]byte(`First line
+	Second line
+	Third
+	`))
+	println("FIRST", string(fLine))
+	println("REST", string(restLines))
 }
 
 func TestLinesInBlock(t *testing.T) {
