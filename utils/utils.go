@@ -2837,7 +2837,53 @@ func ReadFirstLineWithPrefix(filePath string, prefix []string) (firstLine string
 	}
 }
 
-// PickLinesInFile - Pick some lines from a line number with count. If count is -1 pick to the end, -2 then to the end - 1 etc..
+// PickLinesInFileV2 - Pick some lines from a line number with count. If count is negative like -1 pick to the end that
+// is last line, -2 then to the last 2 lines etc..
+//
+// # Line number started from 0
+//
+// Uses bufio.Scanner for memory efficiency with large files.
+func PickLinesInFileV2(filename string, line_no, count int) ([]string, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	if count < 0 {
+		return PickLinesInFile(filename, line_no, count), nil
+	}
+
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 0, 1024), 1<<20) // Increase buffer size for large files
+
+	var datalines []string
+	lineCount := 0
+
+	for scanner.Scan() {
+		if lineCount >= line_no {
+			// Found the starting line
+			if len(datalines) < count {
+				datalines = append(datalines, scanner.Text())
+			} else {
+				break
+			}
+
+		}
+		lineCount++
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	return datalines, nil
+}
+
+// PickLinesInFile - Pick some lines from a line number with count. If count is -1 pick to the end, -2 then to the end -
+// 1 etc...
+//
+// Line number started from 0
 func PickLinesInFile(filename string, line_no, count int) (lines []string) {
 	datab := Must(os.ReadFile(filename))
 
