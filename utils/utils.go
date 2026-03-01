@@ -2771,21 +2771,6 @@ func IsBinaryFileSimple(filePath string) (bool, error) {
 
 // CamelCaseToWords converts a camel case string into a list of words.
 func CamelCaseToWords(s string, stripEdges bool) []string {
-	// var words []string
-	// runes := []rune(s)
-	// start := 0
-
-	// for i := 1; i < len(runes); i++ {
-	// 	if unicode.IsUpper(runes[i]) {
-	// 		words = append(words, string(runes[start:i]))
-	// 		start = i
-	// 	}
-	// }
-
-	// // Add the last word
-	// words = append(words, string(runes[start:]))
-
-	// return words
 	if s == "" {
 		return []string{""}
 	}
@@ -2812,7 +2797,7 @@ func CamelCaseToWords(s string, stripEdges bool) []string {
 		prev := runes[i-1]
 
 		// 1️⃣ Split on '_' or '-'
-		if curr == '_' || curr == '-' {
+		if curr == '_' || curr == '-' || curr == '.' || curr == ' ' {
 			flush(i)
 			start = i + 1
 			continue

@@ -474,6 +474,16 @@ func TestCamelCaseToWords(t *testing.T) {
 			expected: []string{"XMLHTTP"},
 		},
 		{
+			name:     "Unserscore SPlit",
+			input:    "XML_HTTP",
+			expected: []string{"XML", "HTTP"},
+		},
+		{
+			name:     "Dash Split",
+			input:    "this-is-My-world",
+			expected: []string{"this", "is", "My", "world"},
+		},
+		{
 			name:     "Mixed case with numbers",
 			input:    "version2Example",
 			expected: []string{"version2", "Example"},
@@ -492,6 +502,16 @@ func TestCamelCaseToWords(t *testing.T) {
 			name:     "Complex camelCase with xtra unknown chars",
 			input:    "myXMLParserForJSONData;,",
 			expected: []string{"my", "XML", "Parser", "For", "JSON", "Data"},
+		},
+		{
+			name:     "Complex camelCase with dot",
+			input:    "*jwt.Token)",
+			expected: []string{"jwt", "Token"},
+		},
+		{
+			name:     "String with Space",
+			input:    "My Home Town",
+			expected: []string{"My", "Home", "Town"},
 		},
 	}
 
