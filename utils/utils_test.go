@@ -436,3 +436,79 @@ func ExampleSha256SumFile() {
 	fmt.Println(Sha256SumFile("tar.go"))
 	// Output: 57a486ec3bfd0d0414cfbe29bc8297887326d0cf625cebb313382335c1bbcf64
 }
+
+func TestCamelCaseToWords(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:     "Simple camelCase",
+			input:    "camelCase",
+			expected: []string{"camel", "Case"},
+		},
+		{
+			name:     "Multiple words",
+			input:    "helloWorldExample",
+			expected: []string{"hello", "World", "Example"},
+		},
+		{
+			name:     "Acronym at start",
+			input:    "XMLParser",
+			expected: []string{"XML", "Parser"},
+		},
+		{
+			name:     "Single word",
+			input:    "single",
+			expected: []string{"single"},
+		},
+		{
+			name:     "Empty string",
+			input:    "",
+			expected: []string{""},
+		},
+		{
+			name:     "All uppercase",
+			input:    "XMLHTTP",
+			expected: []string{"XMLHTTP"},
+		},
+		{
+			name:     "Mixed case with numbers",
+			input:    "version2Example",
+			expected: []string{"version2", "Example"},
+		},
+		{
+			name:     "Leading uppercase",
+			input:    "HTTPServer",
+			expected: []string{"HTTP", "Server"},
+		},
+		{
+			name:     "Complex camelCase",
+			input:    "myXMLParserForJSONData",
+			expected: []string{"my", "XML", "Parser", "For", "JSON", "Data"},
+		},
+		{
+			name:     "Complex camelCase with xtra unknown chars",
+			input:    "myXMLParserForJSONData;,",
+			expected: []string{"my", "XML", "Parser", "For", "JSON", "Data"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := CamelCaseToWords(tt.input, true)
+			println(JsonDump(result, ""))
+			if len(result) != len(tt.expected) {
+				t.Errorf("CamelCaseToWords(%q) length = %d, want %d", tt.input, len(result), len(tt.expected))
+				return
+			}
+
+			for i, expectedWord := range tt.expected {
+				if result[i] != expectedWord {
+					t.Errorf("CamelCaseToWords(%q)[%d] = %q, want %q", tt.input, i, result[i], expectedWord)
+				}
+			}
+		})
+	}
+}

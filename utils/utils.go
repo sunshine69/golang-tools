@@ -2770,22 +2770,98 @@ func IsBinaryFileSimple(filePath string) (bool, error) {
 }
 
 // CamelCaseToWords converts a camel case string into a list of words.
-func CamelCaseToWords(s string) []string {
-	var words []string
+func CamelCaseToWords(s string, stripEdges bool) []string {
+	// var words []string
+	// runes := []rune(s)
+	// start := 0
+
+	// for i := 1; i < len(runes); i++ {
+	// 	if unicode.IsUpper(runes[i]) {
+	// 		words = append(words, string(runes[start:i]))
+	// 		start = i
+	// 	}
+	// }
+
+	// // Add the last word
+	// words = append(words, string(runes[start:]))
+
+	// return words
+	if s == "" {
+		return []string{""}
+	}
+
 	runes := []rune(s)
+	var words []string
 	start := 0
 
+	flush := func(end int) {
+		if start >= end {
+			return
+		}
+		word := string(runes[start:end])
+		if stripEdges {
+			word = trimNonWordEdges(word)
+		}
+		if word != "" {
+			words = append(words, word)
+		}
+	}
+
 	for i := 1; i < len(runes); i++ {
-		if unicode.IsUpper(runes[i]) {
-			words = append(words, string(runes[start:i]))
+		curr := runes[i]
+		prev := runes[i-1]
+
+		// 1️⃣ Split on '_' or '-'
+		if curr == '_' || curr == '-' {
+			flush(i)
+			start = i + 1
+			continue
+		}
+
+		// 2️⃣ lower/digit -> UPPER
+		if unicode.IsUpper(curr) &&
+			(unicode.IsLower(prev) || unicode.IsDigit(prev)) {
+			flush(i)
+			start = i
+			continue
+		}
+
+		// 3️⃣ acronym boundary (XMLParser)
+		if unicode.IsUpper(curr) &&
+			unicode.IsUpper(prev) &&
+			i+1 < len(runes) &&
+			unicode.IsLower(runes[i+1]) {
+			flush(i)
 			start = i
 		}
 	}
 
-	// Add the last word
-	words = append(words, string(runes[start:]))
+	flush(len(runes))
+
+	if len(words) == 0 {
+		return []string{""}
+	}
 
 	return words
+}
+
+func trimNonWordEdges(s string) string {
+	runes := []rune(s)
+	start := 0
+	end := len(runes)
+
+	for start < end && !isWordChar(runes[start]) {
+		start++
+	}
+	for end > start && !isWordChar(runes[end-1]) {
+		end--
+	}
+
+	return string(runes[start:end])
+}
+
+func isWordChar(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
 // ReadFirstLine read the first line in a file. Optimized for performance thus we do not re-use PickLinesInFile
