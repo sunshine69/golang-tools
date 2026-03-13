@@ -1356,7 +1356,7 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 	if method == "POST" || method == "PUT" || method == "PATCH" {
 		if !strings.Contains(headers_dump, `CONTENT-TYPE`) {
 			var v any
-			if json.UnmarshalFromString(data, &v) == nil {
+			if json.Unmarshal([]byte(data), &v) == nil {
 				headers = append(headers, `Content-Type: application/json`)
 			} else {
 				headers = append(headers, `Content-Type: application/x-www-form-urlencoded`)
@@ -2437,7 +2437,7 @@ func NewLineInfileOpt(opt *LineInfileOpt) *LineInfileOpt {
 		opt.State = "present"
 		opt.KeepBackupDays = 90
 	}
-	if opt.Insertbefore == "" {
+	if opt.Insertbefore == "" && opt.Insertafter == "" {
 		opt.Insertbefore = "EOF"
 	}
 	return opt
