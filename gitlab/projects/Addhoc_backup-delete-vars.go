@@ -3,13 +3,16 @@ package main
 import (
 	"fmt"
 	"log"
+
+	retryablehttp "github.com/hashicorp/go-retryablehttp"
+	"github.com/xanzy/go-gitlab"
 	. "localhost.com/gitlab/model"
 	u "localhost.com/utils"
-	retryablehttp "github.com/hashicorp/go-retryablehttp"
+
 	// gu "localhost.com/gitlab/utils"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/xanzy/go-gitlab"
 )
+
 // Search all vars globally and if match the value then back it up in a way we can restore it later on if needed. Then delete it
 func Addhoc_backup_delete_vars_by_value(git *gitlab.Client, value string) {
 	sqlwhere := fmt.Sprintf(`namespace_kind = 'group' AND labels NOT LIKE '%%personal%%' AND is_active = 1 ORDER BY ts`)
@@ -23,12 +26,12 @@ func Addhoc_backup_delete_vars_by_value(git *gitlab.Client, value string) {
 		}
 		for _, pv := range pvars {
 			if pv.Value == value {
-				log.Printf("[DEBUG] Found var to be deleted. Project %s - %s\n",p.NameWithSpace, u.JsonDump(pv, "  "))
+				log.Printf("[DEBUG] Found var to be deleted. Project %s - %s\n", p.NameWithSpace, u.JsonDump(pv, "  "))
 				application := fmt.Sprintf(`{"key": "%s", "value": "%s", "pid": %d, "gid": %d}`, pv.Key, pv.Value, p.Pid, 0)
 				evtlog := EventLogNew(u.JsonDump(pv, "  "))
 				evtlog.Application = application
 				evtlog.Update()
-				_, err := git.ProjectVariables.RemoveVariable(p.Pid, pv.Key, RequestOptionFuncWithParam(map[string]string{"filter[environment_scope]":pv.EnvironmentScope}) )
+				_, err := git.ProjectVariables.RemoveVariable(p.Pid, pv.Key, RequestOptionFuncWithParam(map[string]string{"filter[environment_scope]": pv.EnvironmentScope}))
 				u.CheckErr(err, "Addhoc_backup_delete_vars_by_value RemoveVariable")
 			}
 		}

@@ -3,9 +3,10 @@ package main
 import (
 	"fmt"
 	"log"
+
+	"github.com/xanzy/go-gitlab"
 	. "localhost.com/gitlab/model"
 	u "localhost.com/utils"
-	"github.com/xanzy/go-gitlab"
 )
 
 // For all adhoc function that is not easy to throw into the test file etc.. This would be called from the cli (main.go)
@@ -20,7 +21,7 @@ func DeleteGroup(git *gitlab.Client) {
 	u.CheckErr(err, "DeleteGroup GetGroup")
 	log.Printf("YOU ARE GOING TO REMOVE THIS GROUP '%s'. Type YES to continue, otherwise I wont do it.\n", g.FullName)
 	var confirm string
-    fmt.Scanf("%s", &confirm)
+	fmt.Scanf("%s", &confirm)
 	// rd,_,err := os.Pipe(); t.Fatal(err)
 	// saved := os.Stdin
 	// os.Stdin = rd
@@ -31,9 +32,9 @@ func DeleteGroup(git *gitlab.Client) {
 	// }
 	// confirm := scanner.Text()
 	// os.Stdin = saved
-	if confirm == "YES"{
+	if confirm == "YES" {
 		fmt.Println("Your answer ", confirm)
-		res, err :=  git.Groups.DeleteGroup(g.ID, nil)
+		res, err := git.Groups.DeleteGroup(g.ID, nil)
 		u.CheckErr(err, "DeleteGroup")
 		log.Printf("[DEBUG] %s\n", u.JsonDump(res, "  "))
 	}
@@ -55,7 +56,7 @@ func CreateGroup(git *gitlab.Client) {
 	if u.CheckNonErrIfMatch(err, "has already been taken", "") != nil {
 		log.Printf("Hit error with 'has already been taken' error obj is: %v\n", err)
 		_gs, _, err := git.Groups.ListGroups(&gitlab.ListGroupsOptions{
-			Search:     &groupPath,
+			Search: &groupPath,
 		})
 		u.CheckErr(err, "TransferProject")
 		for _, _g := range _gs {
@@ -65,6 +66,8 @@ func CreateGroup(git *gitlab.Client) {
 			}
 		}
 	}
-	if err != nil { log.Printf("Hit error obj is: %v\n", err) }
+	if err != nil {
+		log.Printf("Hit error obj is: %v\n", err)
+	}
 	log.Printf("Output group: %s\n", u.JsonDump(lastNewGroup, "  "))
 }

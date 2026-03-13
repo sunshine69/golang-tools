@@ -5,9 +5,9 @@ import (
 	"log"
 	"strings"
 
+	u "github.com/sunshine69/golang-tools/utils"
 	"github.com/sunshine69/sqlstruct"
 	"github.com/xanzy/go-gitlab"
-	u "github.com/sunshine69/golang-tools/utils"
 )
 
 type Project struct {
@@ -252,7 +252,7 @@ func (p *Project) Delete(inputmap map[string]string) {
 	}
 }
 
-//Non standard function for the model, specific to project
+// Non standard function for the model, specific to project
 func (p *Project) UpdateNonSQLFields() {
 	pds := ProjectDomainGet(map[string]string{"where": fmt.Sprintf("project_id = %d ORDER BY ts DESC", p.Pid)})
 	if len(pds) > 0 {
@@ -265,12 +265,12 @@ func (p *Project) UpdateNonSQLFields() {
 }
 func (p *Project) GetDomainList(git *gitlab.Client) []*gitlab.Group {
 	paths := strings.Split(p.PathWithNamespace, "/")
-	paths = paths[:len(paths) -1] // Last one is the project name itself, not a group so remove it
+	paths = paths[:len(paths)-1] // Last one is the project name itself, not a group so remove it
 	o := []*gitlab.Group{}
 	parentID := 0 //First one is always a root group (without parent)
 	for _, path := range paths {
 		log.Printf("[DEBUG] Get info from Gitlabnamespace table for path: %s, parent_id: %d, project %s\n", path, parentID, u.JsonDump(p, "  "))
-		d := GitlabNamespaceGet(map[string]string{"where":fmt.Sprintf("path = '%s' AND parent_id = %d", path, parentID)})[0]
+		d := GitlabNamespaceGet(map[string]string{"where": fmt.Sprintf("path = '%s' AND parent_id = %d", path, parentID)})[0]
 		log.Printf("[DEBUG] pid:%d Found from table group ID %d, Name: %s\n", p.ID, d.GitlabNamespaceId, d.Name)
 		dg, _, err := git.Groups.GetGroup(d.GitlabNamespaceId, nil)
 		u.CheckErr(err, "Project GetDomainList GetGroup")

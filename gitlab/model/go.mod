@@ -1,30 +1,31 @@
 module github.com/sunshine69/golang-tools/gitlab/model
 
-go 1.17
+go 1.25.0
 
 // replace localhost.com/utils => ../../utils
 
 require (
-	github.com/mattn/go-sqlite3 v1.14.8
-	github.com/sunshine69/golang-tools/utils v0.0.0-20211013131004-c7ad428806b2
+	github.com/mattn/go-sqlite3 v1.14.34
+	github.com/sunshine69/golang-tools/utils v0.0.0-20260301065951-e948c2165581
 	github.com/sunshine69/sqlstruct v0.0.0-20210630145711-dae28ed37023
-	github.com/xanzy/go-gitlab v0.51.1
+	github.com/xanzy/go-gitlab v0.115.0
 )
 
 require (
-	github.com/golang/protobuf v1.2.0 // indirect
-	github.com/google/go-querystring v1.0.0 // indirect
-	github.com/hashicorp/go-cleanhttp v0.5.1 // indirect
-	github.com/hashicorp/go-retryablehttp v0.6.8 // indirect
-	github.com/hashicorp/logutils v1.0.0 // indirect
-	github.com/json-iterator/go v1.1.11 // indirect
+	github.com/google/go-querystring v1.2.0 // indirect
+	github.com/google/uuid v1.6.0 // indirect
+	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
+	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect
+	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/klauspost/compress v1.18.4 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.1 // indirect
-	github.com/sendgrid/rest v2.6.5+incompatible // indirect
-	github.com/sendgrid/sendgrid-go v3.10.2+incompatible // indirect
-	golang.org/x/net v0.0.0-20210903162142-ad29c8ab022f // indirect
-	golang.org/x/oauth2 v0.0.0-20181106182150-f42d05182288 // indirect
-	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
-	google.golang.org/appengine v1.3.0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
+	github.com/modern-go/reflect2 v1.0.2 // indirect
+	golang.org/x/crypto v0.49.0 // indirect
+	golang.org/x/net v0.52.0 // indirect
+	golang.org/x/oauth2 v0.36.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/text v0.35.0 // indirect
+	golang.org/x/time v0.15.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

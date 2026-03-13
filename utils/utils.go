@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -50,7 +51,6 @@ import (
 
 	"net/smtp"
 
-	jsoniter "github.com/json-iterator/go"
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/scrypt"
@@ -68,10 +68,6 @@ const (
 	LetterCharset         = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#%^()-,."
 	// remove \ as not json friendly, json seems to be fine. No quotes to make yaml happy
 	PasswordCharset = `ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{}|;:,.<>?/~`
-)
-
-var (
-	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
 // Custom error type section

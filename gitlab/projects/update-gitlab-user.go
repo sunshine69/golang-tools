@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
+	"log"
+
 	"github.com/xanzy/go-gitlab"
 	. "localhost.com/gitlab/model"
 	u "localhost.com/utils"
-	"log"
 )
 
 var GitlabAccesslevelLookup map[gitlab.AccessLevelValue]string = map[gitlab.AccessLevelValue]string{

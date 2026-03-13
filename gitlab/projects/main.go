@@ -25,7 +25,7 @@ func ParseConfig() {
 	if ConfigFile == "" {
 		log.Fatalf("Config file required. Run with -h for help")
 	}
-	AppConfig = u.ParseConfig(ConfigFile)
+	AppConfig, _ = u.ParseConfig(ConfigFile)
 	log.Printf("[DEBUG] AppConfig %s\n", u.JsonDump(AppConfig, "  "))
 	if SearchStr == "" && AppConfig["SearchStr"].(string) != "" {
 		SearchStr = AppConfig["SearchStr"].(string)

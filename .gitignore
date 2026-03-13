@@ -33,3 +33,4 @@ utils/utils_test.go
 *.dec
 *.enc 
 .vscode/**
+.aider*

@@ -3,12 +3,13 @@ package main
 import (
 	"log"
 	"strings"
-	u "localhost.com/utils"
-	. "localhost.com/gitlab/model"
+
 	"github.com/xanzy/go-gitlab"
+	. "localhost.com/gitlab/model"
+	u "localhost.com/utils"
 )
 
-//Scan the namespace table - for each name started with `Domain - ` - take that and get its members having `Team - `. Then update the table groupmember
+// Scan the namespace table - for each name started with `Domain - ` - take that and get its members having `Team - `. Then update the table groupmember
 // Goal is to know the Domain having the Team which is the new group we created for the project
 func UpdateGroupMember(git *gitlab.Client) {
 	nsWithDomainPrefix := GitlabNamespaceGet(map[string]string{"where": `name LIKE 'Domain - %'`})
@@ -34,8 +35,9 @@ func UpdateGroupMember(git *gitlab.Client) {
 		accessLevel := GitlabPermissionLookup["MaintainerPermissions"]
 		log.Printf("Allow user ID %d to be a maintainer of groupID %d required by the project transfer ops\n", adminUserId, aGroup.ID)
 		_, _, err = git.GroupMembers.AddGroupMember(aGroup.ID, &gitlab.AddGroupMemberOptions{
-			UserID: &adminUserId,
+			UserID:      &adminUserId,
 			AccessLevel: &accessLevel,
-		}); u.CheckNonErrIfMatch(err, "Member already exists", "UpdateGroupMember AddGroupMember")
+		})
+		u.CheckNonErrIfMatch(err, "Member already exists", "UpdateGroupMember AddGroupMember")
 	}
 }
