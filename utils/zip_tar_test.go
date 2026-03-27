@@ -26,11 +26,20 @@ func TestZip(t *testing.T) {
 	// os.MkdirAll("extracted", 0o755)
 	err = ExtractZipArchive(outputPath, "extracted", options)
 	if err != nil {
-		fmt.Printf("Error extracting ZIP archive: %v\n", err)
+		fmt.Printf("Error extracting ZIP archive from previous cmd: %v\n", err)
 		return
 	}
 
 	fmt.Println("ZIP archive extracted successfully!")
+
+	err = ExtractZipArchive("sonar-scanner-cli-8.0.1.6346-linux-x64.zip", "extracted", NewZipOptions())
+	// err = ExtractZipArchive("t.zip", "extracted", NewZipOptions())
+	if err != nil {
+		fmt.Printf("Extract from external zip - Error extracting ZIP archive: %v\n", err)
+		return
+	}
+
+	fmt.Println("External ZIP archive extracted successfully!")
 }
 
 // Example usage

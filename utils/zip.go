@@ -2,6 +2,7 @@ package utils
 
 import (
 	"archive/zip"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -401,6 +402,9 @@ func ExtractZipArchive(zipPath, extractDir string, options *ZipOptions) error {
 		// Create ZIP reader directly from file
 		zipReader, err = zip.NewReader(file, fileInfo.Size())
 		if err != nil {
+			if errors.Is(err, zip.ErrInsecurePath) {
+				return fmt.Errorf("failed to create ZIP reader - ErrInsecurePath: %w", err)
+			}
 			return fmt.Errorf("failed to create ZIP reader: %w", err)
 		}
 	}
