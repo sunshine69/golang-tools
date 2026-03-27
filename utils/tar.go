@@ -19,6 +19,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// tar works and well tested on linux. Without encryption it is compatible with the tar command
+
 // CompressionFormat selects the compression algorithm
 type CompressionFormat int
 

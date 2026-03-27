@@ -31,15 +31,25 @@ func TestZip(t *testing.T) {
 	}
 
 	fmt.Println("ZIP archive extracted successfully!")
-
-	err = ExtractZipArchive("sonar-scanner-cli-8.0.1.6346-linux-x64.zip", "extracted", NewZipOptions())
-	// err = ExtractZipArchive("t.zip", "extracted", NewZipOptions())
+	// zip add dir like ../gitlab which is bad. Need to change dir
+	Must(RunSystemCommandV2("( cd ../ ; zip -r utils/test.zip gitlab)", true))
+	err = ExtractZipArchive("test.zip", "extracted", NewZipOptions())
 	if err != nil {
 		fmt.Printf("Extract from external zip - Error extracting ZIP archive: %v\n", err)
 		return
 	}
-
+	os.RemoveAll("test.zip")
+	// // This fail. zip cmd use different encryption than us- we are better
+	// Must(RunSystemCommandV2("( cd ../ ; zip -r -e -P 1qa2ws utils/test.zip gitlab)", true))
+	// err = ExtractZipArchive("test.zip", "extracted", NewZipOptions().WithEncrypt(true).WithPassword("1qa2ws"))
+	// if err != nil {
+	// 	fmt.Printf("Extract from external zip - Error extracting ZIP archive: %v\n", err)
+	// 	return
+	// }
+	os.RemoveAll("test.zip")
+	os.RemoveAll("gitlab")
 	fmt.Println("External ZIP archive extracted successfully!")
+	t.Cleanup(func() { RunSystemCommandV2("rm -rf extracted extracted_encrypted", true) })
 }
 
 // Example usage
@@ -82,7 +92,7 @@ func TestTar(t *testing.T) {
 			return
 		}
 	}
-
+	t.Cleanup(func() { RunSystemCommandV2("rm -rf extracted extracted_encrypted multiple-sources", true) })
 }
 
 func TestZipComplex(t *testing.T) {
@@ -122,10 +132,14 @@ func TestZipComplex(t *testing.T) {
 		fmt.Printf("Error: %v\n", err)
 	}
 	CheckErr(ExtractZipArchive("encrypted.zip", "extracted_encrypted", encryptedOptions), "")
+	t.Cleanup(func() { RunSystemCommandV2("rm -rf extracted extracted_encrypted multiple-sources", true) })
 }
 
 func TestCpio(t *testing.T) {
 	opt := NewCompEncOptions().WithEncrypt(true).WithPassword("123").WithCompression(true).WithOverwriteExisting(true).WithEncryptMode(EncryptModeCTR)
 	CheckErr(CreateCompEncArchive("go.sum", "/tmp/test-cpio.compenc", opt), "")
 	CheckErr(ExtractCompEncArchive("/tmp/test-cpio.compenc", "-", opt), "")
+	t.Cleanup(func() {
+		RunSystemCommandV2("rm -rf extracted extracted_encrypted multiple-sources /tmp/test-cpio.compenc", true)
+	})
 }

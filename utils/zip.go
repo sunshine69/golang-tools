@@ -14,6 +14,12 @@ import (
 // Zip works and tested on linux and windows
 // Recommend to use tar.go with all encryption and streaming (thus you can pipe it) as it works better for file permissions and much smaller archive.
 
+// without encryption it create and extract  standard zip file, other zip tool can handle it fine. When unzip
+// we dont accept insecure zip file path thus if u run zip -r ../somedir this lib will fail to unzip
+
+// With encryption this lib use much better (GCM EAS block cipher) but not compatible with zip std. Hence output
+// is not compatible with all other zip standard in both unzip
+
 // ZipOptions contains configuration for ZIP creation
 type ZipOptions struct {
 	UseCompression   bool

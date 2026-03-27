@@ -12,6 +12,7 @@ func main() {
 	// Define flags
 	decomp := flag.Bool("x", false, "Extract mode")
 	comp := flag.Bool("c", true, "Compress mode")
+	level := flag.Int("l", 6, "Compression level")
 	pass := flag.String("p", "", "Zip password. Set to enable encryption")
 	output := flag.String("o", "", "Output file (for compress) or directory (for decompress)")
 	input := flag.String("i", "", "Input file or directory to compress, or zip file to decompress")
@@ -20,7 +21,7 @@ func main() {
 	if *decomp {
 		*comp = false
 	}
-	options := u.NewZipOptions()
+	options := u.NewZipOptions().WithCompressionLevel(*level)
 	if *pass != "" {
 		options.WithEncrypt(true).WithPassword(*pass)
 	}
