@@ -34,3 +34,9 @@ utils/utils_test.go
 *.enc 
 .vscode/**
 .aider*
+*.tar
+*.txz
+*.tar.xz
+*.tbz
+*.tgz
+*.tar.*

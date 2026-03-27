@@ -47,6 +47,7 @@ func TestTar(t *testing.T) {
 	os.RemoveAll("output.tar.zst")
 	os.RemoveAll("extracted")
 	to := NewTarOptions().WithCompressionLevel(3).WithEncrypt(true).WithPassword(`1qa2ws`)
+	println("Create tar ball with encryption")
 	err := CreateTarball(`../gitlab`, "output.tar.zst", to)
 	if err != nil {
 		fmt.Printf("Error creating tarball: %v\n", err)
@@ -56,7 +57,32 @@ func TestTar(t *testing.T) {
 	fmt.Println("Tarball created successfully!")
 	os.MkdirAll("extracted", 0o755)
 	CheckErr(ExtractTarball("output.tar.zst", "extracted", to), "")
-	fmt.Println("Tarball extracted successfully!")
+	fmt.Println("Tarball with encryption extracted successfully!")
+
+	os.RemoveAll("output.tar.zst")
+
+	for _, compFmt := range []CompressionFormat{CompressionGzip, CompressionXz, CompressionZstd} {
+		println("Create tar ball with no encryption")
+		to = NewTarOptions().WithCompressionLevel(3).WithFormat(compFmt)
+		err = CreateTarball(`../gitlab`, "output.tar.zst", to)
+		if err != nil {
+			fmt.Printf("Error creating tarball: %v\n", err)
+			return
+		}
+		// Note busybox tar will fail. On alpine install gnutar apk add --no-cache tar zstd
+		Must(RunSystemCommandV2("tar xf output.tar.zst -C extracted", true))
+	}
+
+	fileMap := map[string]string{"test.tgz": "czf", "test.tbz": "cjf", "test.tar.xz": "cJf"}
+	for k, v := range fileMap {
+		println("Test create and extracting file " + k)
+		Must(RunSystemCommandV2("tar "+v+" "+k+" ../gitlab", true))
+		if err := ExtractTarball(k, "extracted", nil); err != nil {
+			fmt.Printf("Error extrating external tarball %s: %v\n", k, err)
+			return
+		}
+	}
+
 }
 
 func TestZipComplex(t *testing.T) {

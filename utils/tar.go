@@ -5,6 +5,9 @@ package utils
 
 import (
 	"archive/tar"
+	"bytes"
+	"compress/bzip2"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"os"
@@ -12,7 +15,19 @@ import (
 	"syscall"
 
 	"github.com/klauspost/compress/zstd"
+	"github.com/ulikunitz/xz"
 	"golang.org/x/sys/unix"
+)
+
+// CompressionFormat selects the compression algorithm
+type CompressionFormat int
+
+const (
+	CompressionZstd  CompressionFormat = iota // default, existing behaviour
+	CompressionGzip                           // .tar.gz / .tgz
+	CompressionBzip2                          // .tar.bz2  (read-only; bzip2 stdlib has no writer)
+	CompressionXz                             // .tar.xz
+	CompressionNone                           // no compression
 )
 
 func IsFIFO(path string) (bool, error) {
@@ -20,25 +35,25 @@ func IsFIFO(path string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-
-	// Check if the ModeNamedPipe bit is set
 	return info.Mode()&os.ModeNamedPipe != 0, nil
 }
 
 // TarOptions contains configuration for the tar creation
 type TarOptions struct {
 	UseCompression   bool
+	Format           CompressionFormat // NEW: which algorithm to use
 	Encrypt          bool
 	EncryptMode      EncryptMode
 	Password         string
-	CompressionLevel int  // 1-22 for zstd, default is 3
-	StripTopLevelDir bool // New option: true = remove top-level folder from tar paths
+	CompressionLevel int // meaning depends on Format: zstd 1-22, gzip 1-9, xz 0-9
+	StripTopLevelDir bool
 }
 
 func NewTarOptions() *TarOptions {
 	return &TarOptions{
 		UseCompression:   true,
-		CompressionLevel: 3, // default is 3, mine use 15 and seems good - 19 too slow
+		Format:           CompressionZstd,
+		CompressionLevel: 3,
 		Encrypt:          false,
 		EncryptMode:      EncryptModeCTR,
 		Password:         "",
@@ -69,17 +84,185 @@ func (zo *TarOptions) WithStripTopLevelDir(s bool) *TarOptions {
 	zo.StripTopLevelDir = s
 	return zo
 }
+func (zo *TarOptions) WithFormat(f CompressionFormat) *TarOptions {
+	zo.Format = f
+	return zo
+}
+
+// detectFormat sniffs the first few bytes of a reader to determine the
+// compression format. It returns the format and an io.Reader that still
+// contains the sniffed bytes (via io.MultiReader).
+func detectFormat(r io.Reader) (CompressionFormat, io.Reader, error) {
+	magic := make([]byte, 6)
+	n, err := io.ReadFull(r, magic)
+	if err != nil && n == 0 {
+		return CompressionNone, r, fmt.Errorf("failed to read magic bytes: %w", err)
+	}
+	magic = magic[:n]
+
+	full := io.MultiReader(bytes.NewReader(magic), r)
+
+	switch {
+	case n >= 2 && magic[0] == 0x1f && magic[1] == 0x8b:
+		return CompressionGzip, full, nil
+	case n >= 3 && magic[0] == 'B' && magic[1] == 'Z' && magic[2] == 'h':
+		return CompressionBzip2, full, nil
+	case n >= 6 &&
+		magic[0] == 0xFD && magic[1] == '7' && magic[2] == 'z' &&
+		magic[3] == 'X' && magic[4] == 'Z' && magic[5] == 0x00:
+		return CompressionXz, full, nil
+	// zstd magic: 0xFD2FB528 little-endian
+	case n >= 4 && magic[0] == 0x28 && magic[1] == 0xB5 && magic[2] == 0x2F && magic[3] == 0xFD:
+		return CompressionZstd, full, nil
+	default:
+		return CompressionNone, full, nil
+	}
+}
+
+// bytesReader wraps a []byte as an io.Reader (avoids importing bytes just for this)
+type bytesReader []byte
+
+func (b *bytesReader) Read(p []byte) (int, error) {
+	if len(*b) == 0 {
+		return 0, io.EOF
+	}
+	n := copy(p, *b)
+	*b = (*b)[n:]
+	return n, nil
+}
+
+// wrapCompressionWriter wraps w with the requested compression algorithm.
+// Returns the new writer and a closer (call close when done writing).
+// For CompressionNone or when UseCompression==false it returns w unchanged.
+func wrapCompressionWriter(w io.Writer, options *TarOptions) (io.Writer, func() error, error) {
+	nop := func() error { return nil }
+	if !options.UseCompression || options.Format == CompressionNone {
+		return w, nop, nil
+	}
+	switch options.Format {
+	case CompressionZstd:
+		level := options.CompressionLevel
+		if level == 0 {
+			level = 3
+		}
+		zw, err := zstd.NewWriter(w, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)))
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create zstd writer: %w", err)
+		}
+		return zw, zw.Close, nil
+	case CompressionGzip:
+		level := options.CompressionLevel
+		if level == 0 {
+			level = gzip.DefaultCompression
+		}
+		gw, err := gzip.NewWriterLevel(w, level)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create gzip writer: %w", err)
+		}
+		return gw, gw.Close, nil
+	case CompressionBzip2:
+		// stdlib compress/bzip2 is read-only; reject early with a clear message.
+		return nil, nil, fmt.Errorf("bzip2 write is not supported by the Go standard library; use gzip or zstd for creation")
+	case CompressionXz:
+		level := options.CompressionLevel
+		cfg := xz.WriterConfig{}
+		if level > 0 {
+			cfg.DictCap = xzDictCapForLevel(level)
+		}
+		xw, err := cfg.NewWriter(w)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create xz writer: %w", err)
+		}
+		return xw, xw.Close, nil
+	default:
+		return w, nop, nil
+	}
+}
+
+// xzDictCapForLevel maps a 1-9 level to an xz dictionary capacity.
+// Higher dict = better ratio but more RAM.
+func xzDictCapForLevel(level int) int {
+	caps := []int{
+		1 << 16, // level 1  64 KiB
+		1 << 17, // level 2 128 KiB
+		1 << 18, // level 3 256 KiB
+		1 << 19, // level 4 512 KiB
+		1 << 20, // level 5   1 MiB
+		1 << 21, // level 6   2 MiB
+		1 << 22, // level 7   4 MiB
+		1 << 23, // level 8   8 MiB
+		1 << 24, // level 9  16 MiB
+	}
+	if level < 1 {
+		level = 1
+	}
+	if level > 9 {
+		level = 9
+	}
+	return caps[level-1]
+}
+
+// wrapDecompressionReader wraps r with a decompression layer based on options.
+// If options.Format == CompressionNone and options.UseCompression is true, it
+// auto-detects the format from the stream magic bytes.
+func wrapDecompressionReader(r io.Reader, options *TarOptions) (io.Reader, func() error, error) {
+	nop := func() error { return nil }
+	if options == nil || !options.UseCompression {
+		return r, nop, nil
+	}
+
+	format := options.Format
+
+	// Auto-detect when caller hasn't specified a concrete format.
+	// We treat CompressionZstd as "I set a specific format" to preserve
+	// backwards-compat; only auto-detect when the caller explicitly passes
+	// CompressionNone as the format but UseCompression==true (meaning
+	// "decompress but I don't know the format").
+	if format == CompressionNone {
+		detected, newR, err := detectFormat(r)
+		if err != nil {
+			return nil, nil, err
+		}
+		r = newR
+		format = detected
+	}
+
+	switch format {
+	case CompressionZstd:
+		zr, err := zstd.NewReader(r)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create zstd reader: %w", err)
+		}
+		return zr, func() error { zr.Close(); return nil }, nil
+	case CompressionGzip:
+		gr, err := gzip.NewReader(r)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create gzip reader: %w", err)
+		}
+		return gr, gr.Close, nil
+	case CompressionBzip2:
+		// bzip2 reader is synchronous and has no Close()
+		return bzip2.NewReader(r), nop, nil
+	case CompressionXz:
+		xr, err := xz.NewReader(r)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create xz reader: %w", err)
+		}
+		return xr, nop, nil
+	default:
+		// No recognised compression; pass through raw
+		return r, nop, nil
+	}
+}
 
 // CreateTarball accepts either a string or []string (same as your original) and
-// now handles unix special files (block/char devices, fifos, sockets) when creating the tar.
-// If outputPath is - then write to stdout.
-// Can not use generic type in outputPath as go does not allow union type string|io.WriteCloser
+// handles unix special files (block/char devices, fifos, sockets) when creating the tar.
+// If outputPath is "-" then write to stdout.
 func CreateTarball(sources interface{}, outputPath any, options *TarOptions) error {
 	if outputPath == "" {
 		return fmt.Errorf("output path cannot be empty")
 	}
 
-	// Normalize to slice
 	var fileList []string
 	switch v := sources.(type) {
 	case string:
@@ -93,7 +276,6 @@ func CreateTarball(sources interface{}, outputPath any, options *TarOptions) err
 		return fmt.Errorf("sources must be a string or []string")
 	}
 
-	// Verify each source exists (use Lstat so we don't follow symlinks here)
 	for _, f := range fileList {
 		if _, err := os.Lstat(f); os.IsNotExist(err) {
 			return fmt.Errorf("source path does not exist: %s", f)
@@ -116,7 +298,7 @@ func CreateTarball(sources interface{}, outputPath any, options *TarOptions) err
 			if ok, _ := IsFIFO(v); ok {
 				fifo, err := os.OpenFile(v, os.O_WRONLY, os.ModeNamedPipe)
 				if err != nil {
-					return fmt.Errorf("Error opening FIFO: %s", err)
+					return fmt.Errorf("error opening FIFO: %w", err)
 				}
 				outputFile = fifo
 			} else {
@@ -126,13 +308,13 @@ func CreateTarball(sources interface{}, outputPath any, options *TarOptions) err
 	case io.WriteCloser:
 		outputFile = v
 	default:
-		return fmt.Errorf("Output must be a file path or a io.WriteCloser")
+		return fmt.Errorf("output must be a file path or an io.WriteCloser")
 	}
 	defer outputFile.Close()
 
 	var writer io.Writer = outputFile
 
-	// Encryption
+	// Encryption (non-standard layer; only for archives produced by this library)
 	if options.Encrypt {
 		if options.Password == "" {
 			return fmt.Errorf("password is required for encryption")
@@ -148,7 +330,7 @@ func CreateTarball(sources interface{}, outputPath any, options *TarOptions) err
 		case EncryptModeCTR:
 			ew, err = NewStreamEncryptWriter(writer, options.Password)
 			if err != nil {
-				return fmt.Errorf("failed to create encryption writer - %v", err)
+				return fmt.Errorf("failed to create encryption writer: %w", err)
 			}
 			defer ew.Close()
 		}
@@ -156,27 +338,21 @@ func CreateTarball(sources interface{}, outputPath any, options *TarOptions) err
 	}
 
 	// Compression
-	if options.UseCompression {
-		// If CompressionLevel==0, zstd uses default; keep user's semantics
-		zw, err := zstd.NewWriter(writer, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(options.CompressionLevel)))
-		if err != nil {
-			return fmt.Errorf("failed to create zstd writer: %w", err)
-		}
-		defer zw.Close()
-		writer = zw
+	compWriter, compClose, err := wrapCompressionWriter(writer, options)
+	if err != nil {
+		return err
 	}
+	defer compClose()
+	writer = compWriter
 
-	// Tar writer
 	tw := tar.NewWriter(writer)
 	defer tw.Close()
 
-	// Track used paths to avoid collisions
 	usedNames := make(map[string]struct{})
 
 	for _, source := range fileList {
 		source = filepath.Clean(source)
 
-		// Use Lstat so symlink bit is preserved for the source itself
 		info, err := os.Lstat(source)
 		if err != nil {
 			return fmt.Errorf("failed to stat %s: %w", source, err)
@@ -200,20 +376,17 @@ func CreateTarball(sources interface{}, outputPath any, options *TarOptions) err
 				}
 
 				if relPath == "." {
-					return nil // skip root entry
+					return nil
 				}
 
-				// Collision prevention
 				tarPath := filepath.ToSlash(relPath)
 				if options.StripTopLevelDir && len(fileList) > 1 {
 					if _, exists := usedNames[tarPath]; exists {
-						// prefix with original baseDir to avoid collision
 						tarPath = filepath.ToSlash(filepath.Join(baseDir, relPath))
 					}
 				}
 				usedNames[tarPath] = struct{}{}
 
-				// readlink for symlink target if symlink
 				linkTarget := ""
 				if fi.Mode()&os.ModeSymlink != 0 {
 					linkTarget, err = os.Readlink(path)
@@ -228,21 +401,16 @@ func CreateTarball(sources interface{}, outputPath any, options *TarOptions) err
 				}
 				hdr.Name = tarPath
 
-				// Populate device major/minor and typeflag for special files
 				if st, ok := fi.Sys().(*syscall.Stat_t); ok {
-					// Only set dev fields for device nodes
 					rdev := uint64(st.Rdev)
-					// Major/minor helpers from unix package
 					hdr.Devmajor = int64(unix.Major(rdev))
 					hdr.Devminor = int64(unix.Minor(rdev))
 				}
 
-				// Adjust Typeflag for FIFOs, sockets, devices (tar.FileInfoHeader may set for some)
 				switch fi.Mode() & os.ModeType {
 				case os.ModeNamedPipe:
 					hdr.Typeflag = tar.TypeFifo
 				case os.ModeSocket:
-					// no official tar.Type for sockets in Go stdlib; use 's' (GNU extension)
 					hdr.Typeflag = byte('s')
 				case os.ModeDevice:
 					if fi.Mode()&os.ModeCharDevice != 0 {
@@ -256,7 +424,6 @@ func CreateTarball(sources interface{}, outputPath any, options *TarOptions) err
 					return fmt.Errorf("failed to write header: %w", err)
 				}
 
-				// For regular files, copy contents. For others (symlink, fifo, device, socket) do NOT copy content.
 				if fi.Mode().IsRegular() {
 					f, err := os.Open(path)
 					if err != nil {
@@ -273,14 +440,12 @@ func CreateTarball(sources interface{}, outputPath any, options *TarOptions) err
 				return err
 			}
 		} else {
-			// Single file (or special file)
 			name := filepath.Base(source)
 			if _, exists := usedNames[name]; exists {
 				name = filepath.Base(filepath.Dir(source)) + "_" + name
 			}
 			usedNames[name] = struct{}{}
 
-			// Use Lstat info for source
 			linkTarget := ""
 			if info.Mode()&os.ModeSymlink != 0 {
 				linkTarget, err = os.Readlink(source)
@@ -295,14 +460,12 @@ func CreateTarball(sources interface{}, outputPath any, options *TarOptions) err
 			}
 			hdr.Name = name
 
-			// device major/minor
 			if st, ok := info.Sys().(*syscall.Stat_t); ok {
 				rdev := uint64(st.Rdev)
 				hdr.Devmajor = int64(unix.Major(rdev))
 				hdr.Devminor = int64(unix.Minor(rdev))
 			}
 
-			// adjust typeflag for special files
 			switch info.Mode() & os.ModeType {
 			case os.ModeNamedPipe:
 				hdr.Typeflag = tar.TypeFifo
@@ -337,8 +500,9 @@ func CreateTarball(sources interface{}, outputPath any, options *TarOptions) err
 }
 
 // ExtractTarball extracts a tarball with optional decompression and decryption.
-// It now handles FIFOs and device nodes (if running as root). Sockets are skipped.
-// If tarballPath is - then read from stdin
+// Compression format is auto-detected from magic bytes when options.Format is
+// CompressionNone (or options is nil with UseCompression true).
+// If tarballPath is "-" then read from stdin.
 func ExtractTarball(tarballPath any, extractDir string, options *TarOptions) error {
 	var file io.ReadCloser
 	var err error
@@ -348,7 +512,6 @@ func ExtractTarball(tarballPath any, extractDir string, options *TarOptions) err
 		case "-":
 			file = os.Stdin
 		default:
-			// Open the tarball file
 			file, err = os.Open(v)
 			if err != nil {
 				return fmt.Errorf("failed to open tarball: %w", err)
@@ -356,45 +519,46 @@ func ExtractTarball(tarballPath any, extractDir string, options *TarOptions) err
 		}
 	case io.ReadCloser:
 		file = v
+	default:
+		return fmt.Errorf("tarballPath must be a file path string or io.ReadCloser")
 	}
 	defer file.Close()
+
 	var reader io.Reader = file
 
-	// Add decryption layer if needed
+	// Decryption layer (non-standard; only for archives produced by this library)
 	if options != nil && options.Encrypt {
 		if options.Password == "" {
 			return fmt.Errorf("password is required for decryption")
 		}
-		var decryptedReader io.Reader
 		switch options.EncryptMode {
 		case EncryptModeGCM:
-			decryptedReader, err = CreateDecryptionReader(file, options.Password)
+			reader, err = CreateDecryptionReader(file, options.Password)
 			if err != nil {
 				return fmt.Errorf("failed to create decryption reader GCM: %w", err)
 			}
 		case EncryptModeCTR:
-			decryptedReader, err = NewStreamDecryptReader(file, options.Password)
+			reader, err = NewStreamDecryptReader(file, options.Password)
 			if err != nil {
 				return fmt.Errorf("failed to create decryption reader CTR: %w", err)
 			}
 		}
-		reader = decryptedReader
 	}
 
-	// Add decompression layer if needed
-	if options != nil && options.UseCompression {
-		zstdReader, err := zstd.NewReader(reader)
-		if err != nil {
-			return fmt.Errorf("failed to create zstd reader: %w", err)
-		}
-		defer zstdReader.Close()
-		reader = zstdReader
+	// Decompression layer — auto-detects format when Format==CompressionNone
+	if options == nil {
+		// default: auto-detect compression
+		options = &TarOptions{UseCompression: true, Format: CompressionNone}
 	}
+	decompReader, decompClose, err := wrapDecompressionReader(reader, options)
+	if err != nil {
+		return err
+	}
+	defer decompClose()
+	reader = decompReader
 
-	// Create tar reader
 	tarReader := tar.NewReader(reader)
 
-	// Extract files
 	for {
 		header, err := tarReader.Next()
 		if err == io.EOF {
@@ -404,7 +568,6 @@ func ExtractTarball(tarballPath any, extractDir string, options *TarOptions) err
 			return fmt.Errorf("failed to read tar header: %w", err)
 		}
 
-		// Prevent path traversal: clean and join
 		targetPath := filepath.Join(extractDir, filepath.Clean(header.Name))
 
 		switch header.Typeflag {
@@ -414,7 +577,6 @@ func ExtractTarball(tarballPath any, extractDir string, options *TarOptions) err
 			}
 
 		case tar.TypeSymlink:
-			// Ensure parent exists
 			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 				return fmt.Errorf("failed to create parent directories for symlink %s: %w", targetPath, err)
 			}
@@ -423,21 +585,16 @@ func ExtractTarball(tarballPath any, extractDir string, options *TarOptions) err
 			}
 
 		case tar.TypeFifo:
-			// create parent
 			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 				return fmt.Errorf("failed to create parent directories for fifo %s: %w", targetPath, err)
 			}
-			// create FIFO
 			if err := unix.Mkfifo(targetPath, uint32(header.Mode)); err != nil {
 				return fmt.Errorf("failed to create fifo %s: %w", targetPath, err)
 			}
 
 		case tar.TypeChar, tar.TypeBlock:
-			// device nodes — need root to create
 			if os.Geteuid() != 0 {
 				fmt.Fprintf(os.Stderr, "[WARN] skipping device %s (need root to create device nodes)\n", targetPath)
-				// consume data if any (there shouldn't be)
-				// no data copy for devices
 				continue
 			}
 			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
@@ -455,12 +612,11 @@ func ExtractTarball(tarballPath any, extractDir string, options *TarOptions) err
 				return fmt.Errorf("failed to mknod device %s: %w", targetPath, err)
 			}
 
-		case byte('s'): // socket recorded (GNU extension) — cannot recreate socket; skip
+		case byte('s'):
 			fmt.Fprintf(os.Stderr, "[INFO] skipping socket %s (sockets are transient and cannot be restored)\n", targetPath)
 			continue
 
 		case tar.TypeReg:
-			// Regular file
 			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 				return fmt.Errorf("failed to create parent directories for %s: %w", targetPath, err)
 			}
@@ -475,7 +631,6 @@ func ExtractTarball(tarballPath any, extractDir string, options *TarOptions) err
 			outFile.Close()
 
 		default:
-			// fallback: try to handle as file
 			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 				return fmt.Errorf("failed to create parent directories for %s: %w", targetPath, err)
 			}
@@ -490,11 +645,9 @@ func ExtractTarball(tarballPath any, extractDir string, options *TarOptions) err
 			outFile.Close()
 		}
 
-		// after extraction set mode/time where applicable (symlinks don't take Chmod)
 		switch header.Typeflag {
 		case tar.TypeDir, tar.TypeReg:
-			if err := os.Chmod(targetPath, os.FileMode(header.Mode)); err != nil && header.Typeflag != tar.TypeSymlink {
-				// ignore chmod errors on some filesystems or under non-root; warn
+			if err := os.Chmod(targetPath, os.FileMode(header.Mode)); err != nil {
 				fmt.Fprintf(os.Stderr, "[WARN] failed to chmod %s: %v\n", targetPath, err)
 			}
 		}
