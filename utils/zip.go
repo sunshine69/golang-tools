@@ -422,7 +422,7 @@ func ExtractZipArchive(zipPath, extractDir string, options *ZipOptions) error {
 
 		// Ensure path is within extract directory (security check)
 		if !strings.HasPrefix(path, filepath.Clean(extractDir)+string(os.PathSeparator)) {
-			return fmt.Errorf("invalid file path: %s", zipFile.Name)
+			return fmt.Errorf("invalid file path: %s. Note you can not extract to current dir .; you need to extract to a new dir. The dir if not exist, will be created", zipFile.Name)
 		}
 
 		// Check if it's a directory (ends with / or is marked as directory)

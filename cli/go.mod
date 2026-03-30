@@ -4,7 +4,7 @@ replace github.com/sunshine69/golang-tools/utils => ../utils
 
 go 1.25.0
 
-require github.com/sunshine69/golang-tools/utils v0.0.0-20251106231913-9bfe131e28a6
+require github.com/sunshine69/golang-tools/utils v0.0.0-20260327233056-8313473ea1cb
 
 require (
 	github.com/google/uuid v1.6.0 // indirect
