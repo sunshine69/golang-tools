@@ -403,11 +403,11 @@ func TestSshExec(t *testing.T) {
 
 func TestSshExecGomod(t *testing.T) {
 	se := NewSshExec(&SshExec{
-		SshExecHost: "localhost",
+		SshExecHost: "192.168.200.180",
 		SshKeyFile:  "/home/stevek/.ssh/id_rsa-home",
 		SshUser:     "stevek",
 	})
-	o, err := se.ExecGoMod(`/home/stevek/src/automation-go`, "pass-strength", "/home/stevek/src/golang-tools")
+	o, err := se.ExecGoMod(`/home/stevek/src/automation-go`, "plays/pass-strength", "/home/stevek/src/golang-tools", "123qwe")
 	if err != nil {
 		t.Fatalf("[ERROR] %s - Output: %s", err.Error(), o)
 	}

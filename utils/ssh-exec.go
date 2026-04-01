@@ -55,9 +55,6 @@ func NewSshExec(s *SshExec) *SshExec {
 		// Allow RSA key to be in so old system works
 		s.SshCommonOpts = fmt.Sprintf("-F '%s' -o IdentitiesOnly=yes -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null", s.SshConfigFilePath)
 	}
-	if s.GoModDir == "" {
-		s.GoModDir = "mods"
-	}
 	s.CgoEnabled = Ternary(s.CgoEnabled == "", "1", s.CgoEnabled)
 
 	return s
@@ -249,16 +246,15 @@ func (s *SshExec) CopyAndExec(exebin, remoteWorkDir string, keepAndReuseExec boo
 // be passed to git clone command as is.
 //
 // The directory structure should be a valid go mod dir (it has go.mod and go.sum)
-// a dir named 'mods' with multiple directories representing each go cli and
-// that dir name is supplied as gomodName. The `mods` dir can be changed if you set
-// the the option GoModDir
+// a list of dirs named <gomodName> with a main.go compilable to a binary. If this is empty the the root dir will be used. The binary name is the go
+// mod name when you run go mod init <name>
+// the option GoModDir is the directory path leading to the go.mod and go.sum file, default empty, that is we use the root dir
 // The args will be parsed to the execution
 //
 // It will fetch the resource, compile it and copy to remote to exec. Currently only Linux remote hosts supported
 //
 // Return command output and error
 func (s *SshExec) ExecGoMod(resourceUrl, gomodName, remoteWorkDir string, args ...string) (out string, err error) {
-	binary_name := s.GoModDir + "-" + gomodName + ".exe"
 	tempDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return "", err
@@ -266,9 +262,12 @@ func (s *SshExec) ExecGoMod(resourceUrl, gomodName, remoteWorkDir string, args .
 	defer os.RemoveAll(tempDir)
 
 	srcDir := ""
-	outputCliPath := binary_name
+	// outputCliPath := binary_name
 
-	cwd := Must(os.Getwd())
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
 	defer os.Chdir(cwd)
 	// Process srcDir
 	switch {
@@ -319,31 +318,44 @@ if [ '{{.go_proxy}}' != '' ]; then
 fi
 
 export GOOS='{{ .goos }}'
+if [ '{{.gomod_dir}}' != '' ]; then cd {{.gomod_dir}}; fi
+
 go generate ./...
-go build -buildvcs=false -trimpath -ldflags="-X main.version=$APP_VERSION -extldflags=-static -w -s" --tags "osusergo,netgo" -o {{.binary_name}} {{.gomod_dir}}/{{.gomod_name}}/*.go
+if [ '{{.gomod_name}}' != '' ]; then
+	BINARY_NAME='{{.gomod_name|basename}}.exe'
+	go build -buildvcs=false -trimpath -ldflags="-X main.version=$APP_VERSION -extldflags=-static -w -s" --tags "osusergo,netgo" -o "${BINARY_NAME}" {{.gomod_name}}/*.go
+else
+	BINARY_NAME=$(basename $(go list -m)).exe
+	go build -buildvcs=false -trimpath -ldflags="-X main.version=$APP_VERSION -extldflags=-static -w -s" --tags "osusergo,netgo" -o "${BINARY_NAME}" .
+fi
+echo -n "${BINARY_NAME}" > {{.srcDir}}/binary-name.txt
 		`, map[string]any{
 		"srcDir":      srcDir,
 		"gomod_name":  gomodName,
 		"gomod_dir":   s.GoModDir,
-		"binary_name": binary_name,
 		"cgo_enabled": s.CgoEnabled,
 		"go_proxy":    s.GoProxy,
 		"goos":        Getenv("GOOS", "linux"),
 	}), true); err != nil {
 		return out, fmt.Errorf("[ERROR] %s", err.Error())
 	}
-	outputCliPath = filepath.Join(srcDir, binary_name)
+	binary_name_b, err := os.ReadFile(filepath.Join(srcDir, "binary-name.txt"))
+	binary_name := string(binary_name_b)
+	if err != nil {
+		return "Can not get binary name", err
+	}
+	outputCliPath := filepath.Join(srcDir, binary_name)
 
 	remotePath, err := s.CopyFile("", outputCliPath)
 	if err != nil {
 		return "", err
 	}
 	out, err = s.Exec(GoTemplateString(`set -e
-if [ '{{.remote_work_dir}}' != '' ]; then
-  cd {{.remote_work_dir}}
-fi
+		if [ '{{.remote_work_dir}}' != '' ]; then
+		cd {{.remote_work_dir}}
+		fi
 
-{{.remote_bin_path}} {{ range $arg := .args }}{{$arg}} {{end}}
+		{{.remote_bin_path}} {{ range $arg := .args }}{{$arg}} {{end}}
 	`, map[string]any{"remote_bin_path": remotePath + "/" + binary_name, "args": args, "remote_work_dir": remoteWorkDir}))
 	if err != nil {
 		return out, fmt.Errorf("[ERROR] Exec %s. Output: %s", err.Error(), out)
