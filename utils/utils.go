@@ -1266,9 +1266,10 @@ func Assert(cond bool, msg string, fatal bool) bool {
 // curl -F "name=value" -F "name1=value1"
 // If the value has @ it will be interpreted as fileField - like -F "maven2.asset2=@/absolute/path/to/the/local/file/product-1.0.0.jar;type=application/java-archive"
 //
-// extraOpts for now accept "user", "password" (curl option -u ) ; more curl opts can be added later on
+// extraOpts map key for now accept "user", "password" (curl option -u ) ; more curl opts can be added later on
 // Example Curl(..., "user", "username:password") which enable Bacics Auth
 //
+// extraOpts - "requestContentType", "multipart/form-data" - Override requestCOntentType. Suitable for buggy server (java)
 // Note the error return will not be nil if server returncode is not 2XX - it will have the first status code in it string so by checking err you can see the server response code.
 //
 // Example to use cutom client is to make session aware using cookie jar
@@ -1280,7 +1281,12 @@ func Assert(cond bool, msg string, fatal bool) bool {
 //		  Jar:     jar,
 //		  Timeout: time.Duration(_timeout) * time.Second,
 //	 }
-func Curl(method, url, data, savefilename string, headers []string, custom_client *http.Client, formFields map[string]string, extraOpts ...string) (string, error) {
+func Curl(method, url, data, savefilename string, headers []string, custom_client *http.Client, formFields map[string]string, extraOpts ...map[string]string) (string, error) {
+	var extraOptsParsed map[string]string
+	if len(extraOpts) > 0 {
+		extraOptsParsed = extraOpts[0]
+	}
+
 	CURL_DEBUG := Getenv("CURL_DEBUG", "no")
 	ca_cert_file := Getenv("CA_CERT_FILE", "")
 	ssl_key_file := Getenv("SSL_KEY_FILE", "")
@@ -1358,6 +1364,9 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 	var req *http.Request
 	// Process multipart
 	if len(formFields) > 0 {
+		if CURL_DEBUG == "yes" {
+			log.Printf("[DEBUG] adding multipart form fields - formFields: %v\n", formFields)
+		}
 		body := &bytes.Buffer{}
 		writer := multipart.NewWriter(body)
 		// 2. Add text fields (the -F key=value parts)
@@ -1375,7 +1384,11 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 		}
 		writer.Close()
 		req, err = http.NewRequest(method, url, body)
-		req.Header.Set("Content-Type", writer.FormDataContentType())
+		if contentType, ok := extraOptsParsed["requestContentType"]; ok {
+			req.Header.Set("Content-Type", contentType)
+		} else {
+			req.Header.Set("Content-Type", writer.FormDataContentType())
+		}
 	} else {
 		req, err = http.NewRequest(method, url, bytes.NewBuffer([]byte(data)))
 	}
@@ -1383,12 +1396,9 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 		return "", err
 	}
 
-	for i, v := range extraOpts {
-		switch v {
-		case "user":
-			_cred := strings.Split(extraOpts[i+1], ":")
-			req.SetBasicAuth(_cred[0], _cred[1])
-		}
+	if credinfo, ok := extraOptsParsed["user"]; ok {
+		_cred := strings.Split(credinfo, ":")
+		req.SetBasicAuth(_cred[0], _cred[1])
 	}
 
 	headers_dump := strings.ToUpper(strings.Join(headers, "|"))
@@ -1409,6 +1419,15 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 			panic("[ERROR] headers is a list of string representing headers using : as separator. Eg. Content-Type: text/html\n")
 		}
 		req.Header.Set(_tmp[0], strings.TrimSpace(_tmp[1]))
+	}
+
+	// DEBUG before seddnign request
+	if CURL_DEBUG == "yes" {
+		dump, err := httputil.DumpRequestOut(req, true)
+		if err != nil {
+			fmt.Println("Error dumping request:", err)
+		}
+		fmt.Printf("%s\n", string(dump))
 	}
 
 	// Do it now
