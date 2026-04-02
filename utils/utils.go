@@ -1262,6 +1262,13 @@ func Assert(cond bool, msg string, fatal bool) bool {
 // custom_client - if you want more option, create your own http/Client and then setup the way you want and pass
 // it here. Otherwise give it nil
 //
+// formFields - if it is supplied it turn on multipart form field mode. The fields name - value will be set. It is similar to
+// curl -F "name=value" -F "name1=value1"
+// If the value has @ it will be interpreted as fileField - like -F "maven2.asset2=@/absolute/path/to/the/local/file/product-1.0.0.jar;type=application/java-archive"
+//
+// extraOpts for now accept "user", "password" (curl option -u ) ; more curl opts can be added later on
+// Example Curl(..., "user", "username:password") which enable Bacics Auth
+//
 // Note the error return will not be nil if server returncode is not 2XX - it will have the first status code in it string so by checking err you can see the server response code.
 //
 // Example to use cutom client is to make session aware using cookie jar
@@ -1273,7 +1280,7 @@ func Assert(cond bool, msg string, fatal bool) bool {
 //		  Jar:     jar,
 //		  Timeout: time.Duration(_timeout) * time.Second,
 //	 }
-func Curl(method, url, data, savefilename string, headers []string, custom_client *http.Client) (string, error) {
+func Curl(method, url, data, savefilename string, headers []string, custom_client *http.Client, formFields map[string]string, extraOpts ...string) (string, error) {
 	CURL_DEBUG := Getenv("CURL_DEBUG", "no")
 	ca_cert_file := Getenv("CA_CERT_FILE", "")
 	ssl_key_file := Getenv("SSL_KEY_FILE", "")
@@ -1348,10 +1355,42 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 		log.Printf("[DEBUG] ca_cert_file '%v' - ssl_key_file '%v' ssl_cert_file '%v' insecureSkipVerify %v\n", ca_cert_file, ssl_key_file, ssl_cert_file, InsecureSkipVerify)
 	}
 
-	req, err := http.NewRequest(method, url, bytes.NewBuffer([]byte(data)))
+	var req *http.Request
+	// Process multipart
+	if len(formFields) > 0 {
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+		// 2. Add text fields (the -F key=value parts)
+		for key, val := range formFields {
+			// 3. Add file assets (the -F key=@file parts)
+			if strings.Contains(val, `@`) {
+				if err := AddFilePart(writer, key, strings.TrimPrefix(val, "@")); err != nil {
+					return "", err
+				}
+			} else {
+				if err := writer.WriteField(key, val); err != nil {
+					return "", err
+				}
+			}
+		}
+		writer.Close()
+		req, err = http.NewRequest(method, url, body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+	} else {
+		req, err = http.NewRequest(method, url, bytes.NewBuffer([]byte(data)))
+	}
 	if err != nil {
 		return "", err
 	}
+
+	for i, v := range extraOpts {
+		switch v {
+		case "user":
+			_cred := strings.Split(extraOpts[i+1], ":")
+			req.SetBasicAuth(_cred[0], _cred[1])
+		}
+	}
+
 	headers_dump := strings.ToUpper(strings.Join(headers, "|"))
 	if method == "POST" || method == "PUT" || method == "PATCH" {
 		if !strings.Contains(headers_dump, `CONTENT-TYPE`) {
@@ -1371,6 +1410,8 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 		}
 		req.Header.Set(_tmp[0], strings.TrimSpace(_tmp[1]))
 	}
+
+	// Do it now
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
@@ -1402,6 +1443,22 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 		}
 		return "OK save to " + savefilename, returnerr
 	}
+}
+
+// Helper to stream file content into the multipart writer
+func AddFilePart(w *multipart.Writer, fieldname, filename string) error {
+	file, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	part, err := w.CreateFormFile(fieldname, filename)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(part, file)
+	return err
 }
 
 // MakeRequest make a http request with method (POST or GET etc...). It support sessions - if you have existing session stored in cookie jar then pass it to

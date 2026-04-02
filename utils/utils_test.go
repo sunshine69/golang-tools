@@ -87,7 +87,7 @@ func TestBcryptHash(t *testing.T) {
 func TestCurl(t *testing.T) {
 	os.Setenv("INSECURE_SKIP_VERIFY", "yes")
 	// os.Setenv("CURL_DEBUG", "yes")
-	o, err := Curl("GET", "https://kernel.org", "", "", []string{}, nil)
+	o, err := Curl("GET", "https://kernel.org", "", "", []string{}, nil, nil)
 	CheckErr(err, "ERROR")
 	log.Println(o)
 }

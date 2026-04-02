@@ -213,7 +213,7 @@ func (s *SshExec) CopyAndExec(exebin, remoteWorkDir string, keepAndReuseExec boo
 
 	if strings.HasPrefix(exebin, "http") {
 		localExecPath = filepath.Join(tempDir, execName)
-		Curl("GET", exebin, "", localExecPath, []string{}, nil)
+		Curl("GET", exebin, "", localExecPath, []string{}, nil, nil)
 	}
 
 	remoteExecPath := filepath.Join(remoteWorkDir, execName)
@@ -280,7 +280,7 @@ func (s *SshExec) ExecGoMod(resourceUrl, gomodName, remoteWorkDir string, args .
 		}
 		savedFileName := filepath.Join(tempDir, "tmp", uuid.NewString()+".tgz")
 		defer os.RemoveAll(savedFileName)
-		if o, err := Curl("GET", strings.TrimPrefix(resourceUrl, "wget+"), "", savedFileName, s.HttpHeaders, nil); err != nil {
+		if o, err := Curl("GET", strings.TrimPrefix(resourceUrl, "wget+"), "", savedFileName, s.HttpHeaders, nil, nil); err != nil {
 			return o, fmt.Errorf("[ERROR] download file - %s - Output: %s", err.Error(), o)
 		}
 		if o, err := RunSystemCommandV2(GoTemplateString(`mkdir -p '{{.work_dir}}/gomod_source'
