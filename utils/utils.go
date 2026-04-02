@@ -1248,6 +1248,20 @@ func Assert(cond bool, msg string, fatal bool) bool {
 	return cond
 }
 
+// CurlOpt struct to fine tune Curl command beahaviour
+type CurlOpt struct {
+	// The form fields. Similar the option curl -F "key=value" -F "filename=@filepath"
+	FormFields map[string]string
+	// If set then enable Basic auth - curl -u "username:password"
+	User               string
+	Password           string
+	CaCertFile         string
+	SslKeyFile         string
+	SslCertFile        string
+	InsecureSkipVerify bool
+	Debug              string
+}
+
 // Make a HTTP request to url and get data. Emulate the curl command. Take the env var CURL_DEBUG - set to 'yes' if u
 // need more debugging. CA_CERT_FILE, SSL_KEY_FILE, SSL_CERT_FILE correspondingly if required
 //
@@ -1262,14 +1276,8 @@ func Assert(cond bool, msg string, fatal bool) bool {
 // custom_client - if you want more option, create your own http/Client and then setup the way you want and pass
 // it here. Otherwise give it nil
 //
-// formFields - if it is supplied it turn on multipart form field mode. The fields name - value will be set. It is similar to
-// curl -F "name=value" -F "name1=value1"
 // If the value has @ it will be interpreted as fileField - like -F "maven2.asset2=@/absolute/path/to/the/local/file/product-1.0.0.jar;type=application/java-archive"
 //
-// extraOpts map key for now accept "user", "password" (curl option -u ) ; more curl opts can be added later on
-// Example Curl(..., "user", "username:password") which enable Bacics Auth
-//
-// extraOpts - "requestContentType", "multipart/form-data" - Override requestCOntentType. Suitable for buggy server (java)
 // Note the error return will not be nil if server returncode is not 2XX - it will have the first status code in it string so by checking err you can see the server response code.
 //
 // Example to use cutom client is to make session aware using cookie jar
@@ -1281,17 +1289,22 @@ func Assert(cond bool, msg string, fatal bool) bool {
 //		  Jar:     jar,
 //		  Timeout: time.Duration(_timeout) * time.Second,
 //	 }
-func Curl(method, url, data, savefilename string, headers []string, custom_client *http.Client, formFields map[string]string, extraOpts ...map[string]string) (string, error) {
-	var extraOptsParsed map[string]string
-	if len(extraOpts) > 0 {
-		extraOptsParsed = extraOpts[0]
-	}
-
+func Curl(method, url, data, savefilename string, headers []string, custom_client *http.Client, curlOpt ...*CurlOpt) (string, error) {
 	CURL_DEBUG := Getenv("CURL_DEBUG", "no")
 	ca_cert_file := Getenv("CA_CERT_FILE", "")
 	ssl_key_file := Getenv("SSL_KEY_FILE", "")
 	ssl_cert_file := Getenv("SSL_CERT_FILE", "")
 	InsecureSkipVerify := Ternary(Getenv("INSECURE_SKIP_VERIFY", "no") == "yes", true, false)
+
+	var curlOpts *CurlOpt = nil
+	if len(curlOpt) > 0 {
+		curlOpts = curlOpt[0]
+		CURL_DEBUG = curlOpts.Debug
+		ca_cert_file = curlOpts.CaCertFile
+		ssl_key_file = curlOpts.SslKeyFile
+		ssl_cert_file = curlOpts.SslCertFile
+		InsecureSkipVerify = curlOpts.InsecureSkipVerify
+	}
 
 	var cert tls.Certificate
 	var useCert bool = false
@@ -1361,54 +1374,52 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 		log.Printf("[DEBUG] ca_cert_file '%v' - ssl_key_file '%v' ssl_cert_file '%v' insecureSkipVerify %v\n", ca_cert_file, ssl_key_file, ssl_cert_file, InsecureSkipVerify)
 	}
 
-	var req *http.Request
-	// Process multipart
-	if len(formFields) > 0 {
-		if CURL_DEBUG == "yes" {
-			log.Printf("[DEBUG] adding multipart form fields - formFields: %v\n", formFields)
-		}
-		body := &bytes.Buffer{}
-		writer := multipart.NewWriter(body)
-		// 2. Add text fields (the -F key=value parts)
-		for key, val := range formFields {
-			// 3. Add file assets (the -F key=@file parts)
-			if strings.Contains(val, `@`) {
-				if err := AddFilePart(writer, key, strings.TrimPrefix(val, "@")); err != nil {
-					return "", err
-				}
-			} else {
-				if err := writer.WriteField(key, val); err != nil {
-					return "", err
+	req, err := http.NewRequest(method, url, bytes.NewBuffer([]byte(data)))
+	var shouldOverrideContentType bool = true
+	if curlOpts != nil {
+		// Process multipart
+		if len(curlOpts.FormFields) > 0 {
+			if CURL_DEBUG == "yes" {
+				log.Printf("[DEBUG] adding multipart form fields - formFields: %v\n", curlOpts.FormFields)
+			}
+			body := &bytes.Buffer{}
+			writer := multipart.NewWriter(body)
+			// 2. Add text fields (the -F key=value parts)
+			for key, val := range curlOpts.FormFields {
+				// 3. Add file assets (the -F key=@file parts)
+				if strings.Contains(val, `@`) {
+					if err := AddFilePart(writer, key, strings.TrimPrefix(val, "@")); err != nil {
+						return "", err
+					}
+				} else {
+					if err := writer.WriteField(key, val); err != nil {
+						return "", err
+					}
 				}
 			}
-		}
-		writer.Close()
-		req, err = http.NewRequest(method, url, body)
-		if contentType, ok := extraOptsParsed["requestContentType"]; ok {
-			req.Header.Set("Content-Type", contentType)
-		} else {
+			writer.Close()
+			req, err = http.NewRequest(method, url, body)
 			req.Header.Set("Content-Type", writer.FormDataContentType())
+			shouldOverrideContentType = false
 		}
-	} else {
-		req, err = http.NewRequest(method, url, bytes.NewBuffer([]byte(data)))
+		if curlOpts.User != "" && curlOpts.Password != "" {
+			req.SetBasicAuth(curlOpts.User, curlOpts.Password)
+		}
 	}
 	if err != nil {
 		return "", err
 	}
 
-	if credinfo, ok := extraOptsParsed["user"]; ok {
-		_cred := strings.Split(credinfo, ":")
-		req.SetBasicAuth(_cred[0], _cred[1])
-	}
-
-	headers_dump := strings.ToUpper(strings.Join(headers, "|"))
-	if method == "POST" || method == "PUT" || method == "PATCH" {
-		if !strings.Contains(headers_dump, `CONTENT-TYPE`) {
-			var v any
-			if json.Unmarshal([]byte(data), &v) == nil {
-				headers = append(headers, `Content-Type: application/json`)
-			} else {
-				headers = append(headers, `Content-Type: application/x-www-form-urlencoded`)
+	if shouldOverrideContentType {
+		headers_dump := strings.ToUpper(strings.Join(headers, "|"))
+		if method == "POST" || method == "PUT" || method == "PATCH" {
+			if !strings.Contains(headers_dump, `CONTENT-TYPE`) {
+				var v any
+				if json.Unmarshal([]byte(data), &v) == nil {
+					headers = append(headers, `Content-Type: application/json`)
+				} else {
+					headers = append(headers, `Content-Type: application/x-www-form-urlencoded`)
+				}
 			}
 		}
 	}
@@ -1421,13 +1432,13 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 		req.Header.Set(_tmp[0], strings.TrimSpace(_tmp[1]))
 	}
 
-	// DEBUG before seddnign request
+	// DEBUG before sending request
 	if CURL_DEBUG == "yes" {
 		dump, err := httputil.DumpRequestOut(req, true)
 		if err != nil {
 			fmt.Println("Error dumping request:", err)
 		}
-		fmt.Printf("%s\n", string(dump))
+		fmt.Printf("**** Request Body ****\n%s\n**** End request body\n", base64.RawStdEncoding.EncodeToString(dump))
 	}
 
 	// Do it now
@@ -1438,7 +1449,7 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 	defer resp.Body.Close()
 	if CURL_DEBUG == "yes" {
 		log.Println("[DEBUG] REQUEST: " + JsonDump(Must(httputil.DumpRequest(req, true)), ""))
-		log.Println("[DEBUG] RESPONSE" + JsonDump(Must(httputil.DumpResponse(resp, true)), ""))
+		log.Println("[DEBUG] RESPONSE: " + JsonDump(Must(httputil.DumpResponse(resp, true)), ""))
 	}
 	var returnerr error
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
