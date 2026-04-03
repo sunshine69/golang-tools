@@ -364,16 +364,30 @@ echo -n "${BINARY_NAME}" > {{.srcDir}}/binary-name.txt
 	return out, nil
 }
 
-// Take local go template file, template it and copy to remote hosts
+// Take local go template file, template it and copy to remote hosts. If the src has
+// multilines then treat is as the template string
 func (s *SshExec) GoTemplate(src, dest string, data map[string]any, mode os.FileMode) (err error) {
-	if s.SshExecHost == "localhost" || s.SshExecHost == "127.0.0.1" {
-		GoTemplateFile(src, dest, data, mode)
-		return nil
+	if strings.IndexByte(src, '\n') == -1 {
+		if s.SshExecHost == "localhost" || s.SshExecHost == "127.0.0.1" {
+			GoTemplateFile(src, dest, data, mode)
+			return nil
+		}
+		tempDir := Must(os.MkdirTemp("", ""))
+		defer os.RemoveAll(tempDir)
+		tempFile := tempDir + "/" + uuid.NewString()
+		GoTemplateFile(src, tempFile, data, mode)
+		Must(s.CopyFile(dest, tempFile))
+	} else {
+		templatedSrc := GoTemplateString(src, data)
+		if s.SshExecHost == "localhost" || s.SshExecHost == "127.0.0.1" {
+			os.WriteFile(dest, []byte(templatedSrc), mode)
+			return nil
+		}
+		tempDir := Must(os.MkdirTemp("", ""))
+		defer os.RemoveAll(tempDir)
+		tempFile := tempDir + "/" + uuid.NewString()
+		os.WriteFile(tempFile, []byte(templatedSrc), mode)
+		_, err = s.CopyFile(dest, tempFile)
 	}
-	tempDir := Must(os.MkdirTemp("", ""))
-	defer os.RemoveAll(tempDir)
-	tempFile := tempDir + "/" + uuid.NewString()
-	GoTemplateFile(src, tempFile, data, mode)
-	Must(s.CopyFile(dest, tempFile))
 	return nil
 }
