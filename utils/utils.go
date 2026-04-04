@@ -3687,3 +3687,19 @@ func SliceContainsAnyItem[K comparable](main []K, sub []K) bool {
 	}
 	return false
 }
+
+func GetenvBool(key string, def bool) bool {
+	v, ok := os.LookupEnv(key)
+	if !ok {
+		return def
+	}
+
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "y":
+		return true
+	case "0", "false", "no", "n":
+		return false
+	default:
+		return def
+	}
+}
