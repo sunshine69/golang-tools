@@ -352,10 +352,19 @@ echo -n "${BINARY_NAME}" > {{.srcDir}}/binary-name.txt
 	}
 	out, err = s.Exec(GoTemplateString(`set -e
 		if [ '{{.remote_work_dir}}' != '' ]; then
-		cd {{.remote_work_dir}}
+			if [ ! -d '{{.remote_work_dir}}' ]; then
+			  mkdir -p '{{.remote_work_dir}}'
+			  CLEAN_WD='yes'
+			fi
+			cd {{.remote_work_dir}}
+		else
+			cd $(dirname '{{.remote_bin_path}}')
 		fi
 
 		{{.remote_bin_path}} {{ range $arg := .args }}{{$arg}} {{end}}
+		cd
+		rm -rf $( dirname {{.remote_bin_path}})
+		if [ "$CLEAN_WD" == "yes" ]; then rm -rf '{{.remote_work_dir}}'; fi
 	`, map[string]any{"remote_bin_path": remotePath + "/" + binary_name, "args": args, "remote_work_dir": remoteWorkDir}))
 	if err != nil {
 		return out, fmt.Errorf("[ERROR] Exec %s. Output: %s", err.Error(), out)
@@ -365,29 +374,29 @@ echo -n "${BINARY_NAME}" > {{.srcDir}}/binary-name.txt
 }
 
 // Take local go template file, template it and copy to remote hosts. If the src has
-// multilines then treat is as the template string
-func (s *SshExec) GoTemplate(src, dest string, data map[string]any, mode os.FileMode) (err error) {
+// multilines then treat is as the template string.
+// If dest is empty string or not absolute path, create a temp dir and template file into it
+// return the remote templated file path
+func (s *SshExec) GoTemplate(src, dest string, data map[string]any, mode os.FileMode) (remoteFilePath string, err error) {
+	if !filepath.IsAbs(dest) {
+		destDir := "/tmp/" + uuid.NewString()
+		dest = filepath.Join(destDir, Ternary(dest == "", uuid.NewString(), dest))
+	}
 	if strings.IndexByte(src, '\n') == -1 {
 		if s.SshExecHost == "localhost" || s.SshExecHost == "127.0.0.1" {
 			GoTemplateFile(src, dest, data, mode)
-			return nil
+			return dest, nil
 		}
-		tempDir := Must(os.MkdirTemp("", ""))
-		defer os.RemoveAll(tempDir)
-		tempFile := tempDir + "/" + uuid.NewString()
-		GoTemplateFile(src, tempFile, data, mode)
-		Must(s.CopyFile(dest, tempFile))
+		GoTemplateFile(src, dest, data, mode)
+		return s.CopyFile(dest, dest)
 	} else {
 		templatedSrc := GoTemplateString(src, data)
 		if s.SshExecHost == "localhost" || s.SshExecHost == "127.0.0.1" {
 			os.WriteFile(dest, []byte(templatedSrc), mode)
-			return nil
+			return dest, nil
 		}
-		tempDir := Must(os.MkdirTemp("", ""))
-		defer os.RemoveAll(tempDir)
-		tempFile := tempDir + "/" + uuid.NewString()
-		os.WriteFile(tempFile, []byte(templatedSrc), mode)
-		_, err = s.CopyFile(dest, tempFile)
+		os.WriteFile(dest, []byte(templatedSrc), mode)
+		_, err = s.CopyFile(dest, dest)
 	}
-	return nil
+	return dest, nil
 }
