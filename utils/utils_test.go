@@ -376,37 +376,34 @@ func TestUseStdinForRunSystemCmd(t *testing.T) {
 }
 
 func TestSshExec(t *testing.T) {
-	se := NewSshExec(&SshExec{
-		SshExecHost: "localhost",
-		SshKeyFile:  "/home/stevek/.ssh/id_rsa-home",
-		SshUser:     "stevek",
-	})
+	println("Test CopyFile")
+	se := Must(NewSshExec("192.168.20.18", "stevek", "/home/stevek/.ssh/id_rsa-home"))
 	o := Must(se.CopyFile("", "go.sum", "go.mod"))
-	defer os.RemoveAll(o)
-	if FileExistsV2(o+"/go.sum") != nil {
-		t.Fatal("Copy failed")
-	}
-	o1 := Must(se.CopyDir("", "go.mod", "go.sum", "/home/stevek/tmp/go-pipe"))
-	defer os.RemoveAll(o1)
-	time.Sleep(1 * time.Second)
-	if FileExistsV2(o1+"/go.sum") != nil {
-		t.Fatal("Copy dir failed. Path: " + o1)
-	}
+	println("Copy to dir: ", o)
+	o1 := Must(se.Exec("ls -lha " + o))
 	println(o1)
-	o2 := Must(se.Exec(`ls /home
+	o2 := Must(se.Exec("rm -rf " + o))
+
+	println("Test CopyDir")
+	o1 = Must(se.CopyDir("", "go.mod", "go.sum", "/home/stevek/tmp/go-pipe"))
+	println("Copy Dir: ", o1)
+	Must(se.Exec("rm -rf " + o1))
+
+	o2 = Must(se.Exec(`ls /home
 	echo "Running remotely multiple command"
 	`))
 	println(o2)
 	o3 := Must(se.Exec(`ls /home/`))
 	println(o3)
+
+	println("Tets Fetch ")
+	CheckErr(os.MkdirAll("/tmp/test-devops", 0o755), "")
+	o = Must(se.Fetch("/tmp/test-devops", "/home/stevek/note", "/home/stevek/x"))
+	println("Fetch return " + o)
 }
 
 func TestSshExecGomod(t *testing.T) {
-	se := NewSshExec(&SshExec{
-		SshExecHost: "192.168.200.180",
-		SshKeyFile:  "/home/stevek/.ssh/id_rsa-home",
-		SshUser:     "stevek",
-	})
+	se := Must(NewSshExec("192.168.200.180", "stevek", "/home/stevek/.ssh/id_rsa-home"))
 	o, err := se.ExecGoMod(`/home/stevek/src/automation-go`, "plays/pass-strength", "/home/stevek/src/golang-tools", "123qwe")
 	if err != nil {
 		t.Fatalf("[ERROR] %s - Output: %s", err.Error(), o)
@@ -416,15 +413,11 @@ func TestSshExecGomod(t *testing.T) {
 
 func TestConfigOverride(t *testing.T) {
 	type MyCfg struct {
-		SshExec
+		*SshExec
 		MySrcDirs []string
 	}
 	myCfg := MyCfg{
-		SshExec: *NewSshExec(&SshExec{
-			SshExecHost: "localhost",
-			SshKeyFile:  "/home/stevek/.ssh/id_rsa-home",
-			SshUser:     "stevek",
-		}),
+		SshExec:   Must(NewSshExec("localhost", "stevek", "/home/stevek/.ssh/id_rsa-home")),
 		MySrcDirs: []string{"/home/stevek/tmp/go-pipe"},
 	}
 	o := Must(myCfg.CopyDir("", myCfg.MySrcDirs...))

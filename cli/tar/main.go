@@ -15,6 +15,7 @@ var (
 	encrypt                bool
 	password               = flag.String("p", "", "Password for encryption. If provided encrypt is enabled")
 	tarOption              *u.TarOptions
+	changeDir              = flag.String("C", "", "Change to directory before action (extract to or make tar)")
 )
 
 func SetTarOpt() {
@@ -27,6 +28,8 @@ func SetTarOpt() {
 		}
 	}
 	tarOption = tarOption.WithStripTopLevelDir(*enableStripTopLevelDir)
+	tarOption.EnableCompression(true).WithCompressionLevel(*compressLevel)
+	tarOption.WithFormat(u.CompressionNone) // enable auto detection
 }
 
 func main() {
@@ -61,6 +64,11 @@ func main() {
 
 	// Call appropriate function based on operation using switch
 	SetTarOpt()
+	if *changeDir != "" {
+		curDir := u.Must(os.Getwd())
+		defer os.Chdir(curDir)
+		os.Chdir(*changeDir)
+	}
 	switch operation {
 	case "create":
 		u.CheckErr(u.CreateTarball([]string(inputFiles), *outputFile, tarOption), "CreateTarball")
