@@ -376,11 +376,7 @@ func TestUseStdinForRunSystemCmd(t *testing.T) {
 }
 
 func TestSshExec(t *testing.T) {
-	se := NewSshExec(&SshExec{
-		SshExecHost: "localhost",
-		SshKeyFile:  "/home/stevek/.ssh/id_rsa-home",
-		SshUser:     "stevek",
-	})
+	se := Must(NewSshExec("192.168.20.18", "stevek", "/home/stevek/.ssh/id_rsa-home"))
 	o := Must(se.CopyFile("", "go.sum", "go.mod"))
 	defer os.RemoveAll(o)
 	if FileExistsV2(o+"/go.sum") != nil {
@@ -402,11 +398,7 @@ func TestSshExec(t *testing.T) {
 }
 
 func TestSshExecGomod(t *testing.T) {
-	se := NewSshExec(&SshExec{
-		SshExecHost: "192.168.200.180",
-		SshKeyFile:  "/home/stevek/.ssh/id_rsa-home",
-		SshUser:     "stevek",
-	})
+	se := Must(NewSshExec("192.168.200.180", "stevek", "/home/stevek/.ssh/id_rsa-home"))
 	o, err := se.ExecGoMod(`/home/stevek/src/automation-go`, "plays/pass-strength", "/home/stevek/src/golang-tools", "123qwe")
 	if err != nil {
 		t.Fatalf("[ERROR] %s - Output: %s", err.Error(), o)
@@ -416,15 +408,11 @@ func TestSshExecGomod(t *testing.T) {
 
 func TestConfigOverride(t *testing.T) {
 	type MyCfg struct {
-		SshExec
+		*SshExec
 		MySrcDirs []string
 	}
 	myCfg := MyCfg{
-		SshExec: *NewSshExec(&SshExec{
-			SshExecHost: "localhost",
-			SshKeyFile:  "/home/stevek/.ssh/id_rsa-home",
-			SshUser:     "stevek",
-		}),
+		SshExec:   Must(NewSshExec("localhost", "stevek", "/home/stevek/.ssh/id_rsa-home")),
 		MySrcDirs: []string{"/home/stevek/tmp/go-pipe"},
 	}
 	o := Must(myCfg.CopyDir("", myCfg.MySrcDirs...))

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,6 +11,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pkg/sftp"
+	"golang.org/x/crypto/ssh"
 	// "github.com/melbahja/goph"
 )
 
@@ -18,8 +21,10 @@ import (
 type SshExec struct {
 	// Auto generated per each spawn
 	SessionDir string
+	SshClient  *ssh.Client
 	// Remote host name to exec the gomod or command
 	SshExecHost   string
+	SshPort       string
 	SshKeyFile    string
 	SshCommonOpts string
 	SshKnownHost  string
@@ -34,7 +39,122 @@ type SshExec struct {
 	HttpHeaders []string
 }
 
-func NewSshExec(s *SshExec) *SshExec {
+// NewSshExec initializes a new SshExec and establishes the SSH connection
+func NewSshExec(host, user, keyFile string, extraOpt ...string) (*SshExec, error) {
+	varArgs := ParseVarArgs(extraOpt...)
+
+	out := SshExec{
+		SshExecHost: host,
+		SshUser:     user,
+		SshKeyFile:  keyFile,
+	}
+	if p, ok := varArgs["port"]; ok {
+		out.SshPort = p
+	} else {
+		out.SshPort = "22"
+	}
+
+	key, err := os.ReadFile(keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read private key: %v", err)
+	}
+
+	signer, err := ssh.ParsePrivateKey(key)
+	if err != nil {
+		var passphraseErr *ssh.PassphraseMissingError
+		if errors.As(err, &passphraseErr) {
+			signer, err = ssh.ParsePrivateKeyWithPassphrase(key, []byte(os.Getenv("SSH_KEY_PASSPHRASE")))
+			if err != nil {
+				return nil, fmt.Errorf("unable to parse private key: %v", err)
+			}
+		}
+	}
+
+	config := &ssh.ClientConfig{
+		User: user,
+		Auth: []ssh.AuthMethod{
+			ssh.PublicKeys(signer),
+		},
+		// In a production environment, you should use ssh.FixedHostKey or verify against known_hosts
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	}
+
+	out.SshClient, err = ssh.Dial("tcp", host+":"+out.SshPort, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial: %v", err)
+	}
+
+	return &out, nil
+}
+
+// CopyFile copies file(s) to remote using SFTP. Filename will be retained.
+// remotePath is a directory and will be created if it does not exist.
+func (s *SshExec) CopyFile(remotePath string, srcPaths ...string) (out string, err error) {
+	if len(srcPaths) == 0 {
+		return "", fmt.Errorf("[ERROR] source is empty")
+	}
+	if s.SshClient == nil {
+		return "", fmt.Errorf("[ERROR] SSH client not initialized. Call NewSshExec first")
+	}
+
+	if remotePath == "" {
+		remotePath = fmt.Sprintf("/tmp/devops-ssh-copyfile-%s", uuid.New().String())
+	}
+
+	sftpClient, err := sftp.NewClient(s.SshClient)
+	if err != nil {
+		return "", fmt.Errorf("failed to create sftp client: %w", err)
+	}
+	defer sftpClient.Close()
+
+	// Ensure remote directory exists
+	err = sftpClient.MkdirAll(remotePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create remote dir: %w", err)
+	}
+
+	for _, src := range srcPaths {
+		err = s.copySingleFile(sftpClient, src, remotePath)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return remotePath, nil
+}
+
+func (s *SshExec) copySingleFile(sc *sftp.Client, srcPath string, remoteDir string) error {
+	srcFile, err := os.Open(srcPath)
+	if err != nil {
+		return fmt.Errorf("failed to open source file %s: %w", srcPath, err)
+	}
+	defer srcFile.Close()
+
+	info, err := srcFile.Stat()
+	if err != nil {
+		return err
+	}
+
+	if info.IsDir() {
+		return fmt.Errorf("source %s is a directory, please use CopyDir instead", srcPath)
+	}
+
+	dstPath := filepath.Join(remoteDir, filepath.Base(srcPath))
+	dstFile, err := sc.Create(dstPath)
+	if err != nil {
+		return fmt.Errorf("failed to create remote file %s: %w", dstPath, err)
+	}
+	defer dstFile.Close()
+
+	_, err = io.Copy(dstFile, srcFile)
+	if err != nil {
+		return fmt.Errorf("failed to copy content to %s: %w", dstPath, err)
+	}
+	s.CgoEnabled = Ternary(s.CgoEnabled == "", "1", s.CgoEnabled)
+	return sc.Chmod(dstPath, info.Mode())
+}
+
+func NewSshExecUseCLI(s *SshExec) *SshExec {
 	if s.SessionDir == "" {
 		s.SessionDir = Must(os.MkdirTemp("", "devops-tool-ssh"))
 	}
@@ -65,11 +185,81 @@ func (s *SshExec) Close() {
 	os.RemoveAll(s.SessionDir)
 }
 
+// CopyDir copies local dir/files to remote using a streaming tar/zstd approach via SSH Session.
+// Requires remote host has tar and zstd utils installed.
+func (s *SshExec) CopyDir(remotePath string, srcPaths ...string) (out string, err error) {
+	if len(srcPaths) == 0 {
+		return "", fmt.Errorf("[ERROR] source is empty")
+	}
+	if s.SshClient == nil {
+		return "", fmt.Errorf("[ERROR] SSH client not initialized")
+	}
+
+	if remotePath == "" {
+		remotePath = fmt.Sprintf("/tmp/devops-tool-ssh-copydir-%s", uuid.New().String())
+	}
+
+	// 1. Create a session to run the remote command
+	session, err := s.SshClient.NewSession()
+	if err != nil {
+		return "", fmt.Errorf("failed to create ssh session: %w", err)
+	}
+	defer session.Close()
+
+	// 2. Setup remote command: create dir and prepare to receive tar stream
+	// We use 'tar -xf - --zstd' to extract from stdin
+	// If remote system does not have tar
+	remoteCmd := fmt.Sprintf("mkdir -p %s && tar -xf - --z%s -C %s", remotePath, "std", remotePath)
+
+	// 3. Connect the remote command's stdin to our local stdin pipe
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		return "", fmt.Errorf("failed to create session stdin pipe: %w", err)
+	}
+
+	// 4. Start the remote command
+	if err := session.Start(remoteCmd); err != nil {
+		return "", fmt.Errorf("failed to start remote tar command: %w", err)
+	}
+
+	// 5. Create the tarball locally and stream it into the session's stdin
+	// We use a separate goroutine or a blocking call to ensure we write before Wait()
+	tarOpt := NewTarOptions().WithStripTopLevelDir(true)
+
+	// Create an error channel to capture errors from the streaming goroutine
+	errChan := make(chan error, 1)
+
+	go func() {
+		// We wrap the stdin pipe in a WriteCloser to satisfy CreateTarball requirements
+		// Note: CreateTarball must close the writer when done to signal EOF to tar
+		err := CreateTarball(srcPaths, stdin, tarOpt)
+		if err != nil {
+			errChan <- err
+		}
+	}()
+
+	// 6. Wait for the remote command to finish and check for errors
+	// Wait() returns error if the remote command exited with non-zero status
+	sessionErr := session.Wait()
+
+	// Check if the streaming goroutine encountered an error
+	streamErr := <-errChan
+
+	if sessionErr != nil {
+		return "", fmt.Errorf("remote tar command failed: %w", sessionErr)
+	}
+	if streamErr != nil {
+		return "", fmt.Errorf("failed to create local tarball: %w", streamErr)
+	}
+
+	return remotePath, nil
+}
+
 // Copy file(s) to remote. Filename will be retained. remotePath is a directory and be created if not exists
 // Use scp in the OS. Each file will spawn one scp thus if you copy multiple files/dirs, it is
 // better to use the func CopyDir instead as it will use pipe to remote.
 // If remotePath is empty a random tmp dir would be created and value return to be used for the next command
-func (s *SshExec) CopyFile(remotePath string, srcPaths ...string) (out string, err error) {
+func (s *SshExec) CopyFileUseCLI(remotePath string, srcPaths ...string) (out string, err error) {
 	if len(srcPaths) == 0 {
 		return "", fmt.Errorf("[ERROR] source is empty")
 	}
@@ -102,7 +292,7 @@ func (s *SshExec) CopyFile(remotePath string, srcPaths ...string) (out string, e
 // Use ssh exec and tar for compressing and extracting. Requires remote host has tar and zstd utils installed
 //
 // If remotePath is empty a random tmp dir would be created and value return to be used for the next command
-func (s *SshExec) CopyDir(remotePath string, srcPaths ...string) (out string, err error) {
+func (s *SshExec) CopyDirUseCLI(remotePath string, srcPaths ...string) (out string, err error) {
 	if len(srcPaths) == 0 {
 		return "", fmt.Errorf("[ERROR] source is empty")
 	}
@@ -399,4 +589,24 @@ func (s *SshExec) GoTemplate(src, dest string, data map[string]any, mode os.File
 		_, err = s.CopyFile(dest, dest)
 	}
 	return dest, nil
+}
+
+/**
+ * ParseVarArgs takes a variadic slice of strings and converts them into a map.
+ * It assumes the pattern: [key1, value1, key2, value2, ...]
+ *
+ * If the number of arguments is odd, the last element is ignored (as it has no pair)
+ * or you can handle it as a nil value depending on your preference.
+ */
+func ParseVarArgs(args ...string) map[string]string {
+	result := make(map[string]string)
+
+	// Iterate by 2, checking that i+1 is within bounds
+	for i := 0; i+1 < len(args); i += 2 {
+		key := args[i]
+		value := args[i+1]
+		result[key] = value
+	}
+
+	return result
 }
