@@ -536,12 +536,98 @@ func (s *SshExec) ExecUseCLI(commands string) (out string, err error) {
 	return
 }
 
+// CopyAndExec copies a local or a binary from a url to remoteWorkDir, and exec that bin in remoteWorkDir with execArgs
+// if exebin started with http(s):// then download it locally first before copy to remote
+// If remoteWorkDir is empty string, it will created as temporary and clean up later on
+// If remoteWorkDir is preset then the binary in there be checked - if it exists and same sha256 with local, no copy will be done
+func (s *SshExec) CopyAndExec(exebin, remoteWorkDir string, keepAndReuseExec bool, execArgs ...string) (out string, err error) {
+	var cleanupRemoteDir string
+	var cleanupRemoteFile string
+
+	if remoteWorkDir == "" {
+		if keepAndReuseExec {
+			return "", fmt.Errorf("[ERROR] cannot set keepAndReuseExec when remoteWorkDir is not provided")
+		}
+		cleanupRemoteDir = uuid.NewString()
+		defer func() {
+			if cleanupRemoteDir != "" {
+				s.Exec("rm -rf " + cleanupRemoteDir)
+			}
+		}()
+		remoteWorkDir = cleanupRemoteDir
+	}
+
+	tempDir, err := os.MkdirTemp("", "ssh_exec_")
+	if err != nil {
+		return "", fmt.Errorf("failed to create local temp dir: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	execName := filepath.Base(exebin)
+	localExecPath := exebin
+	needsDownload := strings.HasPrefix(exebin, "http")
+
+	if needsDownload {
+		localExecPath = filepath.Join(tempDir, execName)
+		if _, err := Curl("GET", exebin, "", localExecPath, []string{}, nil, nil); err != nil {
+			return "", fmt.Errorf("failed to download binary: %w", err)
+		}
+	}
+
+	remoteExecPath := filepath.Join(remoteWorkDir, execName)
+
+	// Logic to determine if we need to copy
+	shouldCopy := true
+	if keepAndReuseExec {
+		// Check if file exists and matches checksum
+		checkSumCmd := fmt.Sprintf("sha256sum -b %s", remoteExecPath)
+		remoteSumOut, err := s.Exec(checkSumCmd)
+		if err == nil && len(strings.Fields(remoteSumOut)) > 0 {
+			localSum := Sha256SumFile(localExecPath)
+			if strings.Fields(remoteSumOut)[0] == localSum {
+				shouldCopy = false
+			}
+		}
+	}
+
+	if shouldCopy {
+		_, err = s.CopyFile(remoteWorkDir, localExecPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to copy file to remote: %w", err)
+		}
+		// If we are not reusing, we should clean up the remote file after execution
+		if !keepAndReuseExec {
+			cleanupRemoteFile = remoteExecPath
+		}
+	}
+
+	// Prepare command execution
+	cmd := remoteExecPath
+	if len(execArgs) > 0 {
+		cmd = filepath.Join(remoteExecPath, strings.Join(execArgs, " "))
+		// Note: Adjust logic if execArgs are intended as flags/params rather than sub-paths
+		cmd = fmt.Sprintf("%s %s", remoteExecPath, strings.Join(execArgs, " "))
+	}
+
+	out, err = s.Exec(cmd)
+	if err != nil {
+		return out, fmt.Errorf("execution failed: %w", err)
+	}
+
+	// Cleanup remote file if it was a temporary copy
+	if cleanupRemoteFile != "" {
+		s.Exec("rm -f " + cleanupRemoteFile)
+	}
+
+	return out, nil
+}
+
 // Copy a local or a binary from a url to remoteWorkDir, and exec that bin in remoteWorkDir with execArgs
 // if exebin started with http(s):// then download it locally first before copy to remote
 // If remoteWorkDir is empty string, it will created as temporary and clean up later on
 // If remoteWorkDir is preset then the binary in there be checked - if it exists and same sha256 with local, no copy will be
 // done
-func (s *SshExec) CopyAndExec(exebin, remoteWorkDir string, keepAndReuseExec bool, execArgs ...string) (out string, err error) {
+func (s *SshExec) CopyAndExecUseCLI(exebin, remoteWorkDir string, keepAndReuseExec bool, execArgs ...string) (out string, err error) {
 	if remoteWorkDir == "" {
 		if keepAndReuseExec {
 			panic("[ERROR] can not set keepAndReuseExec when remoteWorkDir is not provided")

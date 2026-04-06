@@ -400,11 +400,14 @@ func TestSshExec(t *testing.T) {
 	CheckErr(os.MkdirAll("/tmp/test-devops", 0o755), "")
 	o = Must(se.Fetch("/tmp/test-devops", "/home/stevek/note", "/home/stevek/x"))
 	println("Fetch return " + o)
+
+	println("test CopyAndExec")
+	se.CopyAndExec("../cli/gotar", "", false, "-h")
 }
 
 func TestSshExecGomod(t *testing.T) {
-	se := Must(NewSshExec("192.168.200.180", "stevek", os.Getenv("HOME")+"/.ssh/id_rsa-home"))
-	o, err := se.ExecGoMod(`/home/stevek/src/automation-go`, "plays/pass-strength", os.Getenv("HOME")+"/src/golang-tools", "123qwe")
+	se := Must(NewSshExec("192.168.20.18", "stevek", os.Getenv("HOME")+"/.ssh/id_rsa-home"))
+	o, err := se.ExecGoMod(os.Getenv("HOME")+`/src/automation-go`, "plays/pass-strength", "/tmp", "123qwe")
 	if err != nil {
 		t.Fatalf("[ERROR] %s - Output: %s", err.Error(), o)
 	}
