@@ -265,30 +265,7 @@ func CreateTarball(sources interface{}, outputPath any, options *TarOptions) err
 		return fmt.Errorf("output path cannot be empty")
 	}
 
-	var fileList []string
-	switch v := sources.(type) {
-	case string:
-		fileList = []string{v}
-	case []string:
-		if len(v) == 0 {
-			return fmt.Errorf("no source files provided")
-		}
-		fileList = v
-	default:
-		return fmt.Errorf("sources must be a string or []string")
-	}
-
-	for _, f := range fileList {
-		if _, err := os.Lstat(f); os.IsNotExist(err) {
-			return fmt.Errorf("source path does not exist: %s", f)
-		}
-	}
-
-	if options == nil {
-		options = NewTarOptions()
-	}
-
-	// Prepare output
+	// Prepare output first so we can process the closing if we get pipe file
 	var outputFile io.WriteCloser
 	var err error
 	switch v := outputPath.(type) {
@@ -315,6 +292,29 @@ func CreateTarball(sources interface{}, outputPath any, options *TarOptions) err
 	defer outputFile.Close()
 
 	var writer io.Writer = outputFile
+
+	var fileList []string
+	switch v := sources.(type) {
+	case string:
+		fileList = []string{v}
+	case []string:
+		if len(v) == 0 {
+			return fmt.Errorf("no source files provided")
+		}
+		fileList = v
+	default:
+		return fmt.Errorf("sources must be a string or []string")
+	}
+
+	for _, f := range fileList {
+		if _, err := os.Lstat(f); os.IsNotExist(err) {
+			return fmt.Errorf("source path does not exist: %s", f)
+		}
+	}
+
+	if options == nil {
+		options = NewTarOptions()
+	}
 
 	// Encryption (non-standard layer; only for archives produced by this library)
 	if options.Encrypt {

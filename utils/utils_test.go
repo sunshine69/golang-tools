@@ -352,7 +352,7 @@ func TestUseStdinForRunSystemCmd(t *testing.T) {
 	// Give reader time to start (important for FIFO)
 	time.Sleep(200 * time.Millisecond)
 	tarOpts := NewTarOptions().WithStripTopLevelDir(true).EnableCompression(true)
-	CreateTarball([]string{"go.mod", "go.sum", "/home/stevek/tmp/goplay"}, fifo, tarOpts)
+	CreateTarball([]string{"go.mod", "go.sum", os.Getenv("HOME") + "/tmp/goplay"}, fifo, tarOpts)
 	// 4. Wait and verify
 	time.Sleep(2 * time.Second)
 
@@ -366,7 +366,7 @@ func TestUseStdinForRunSystemCmd(t *testing.T) {
 	}
 
 	// Use dot . if we only want the dir content, but not the dir itself in sources
-	CreateTarball("/home/stevek/tmp/1/.", destDir+"/test-create-tar.tar.zst", nil)
+	CreateTarball(os.Getenv("HOME")+"/tmp/1/.", destDir+"/test-create-tar.tar.zst", nil)
 
 	CheckErr(os.MkdirAll(destDir+"/new-extract", 0o755), "")
 	CheckErr(ExtractTarball(destDir+"/test-create-tar.tar.zst", destDir+"/new-extract", tarOpts), "")
@@ -377,7 +377,7 @@ func TestUseStdinForRunSystemCmd(t *testing.T) {
 
 func TestSshExec(t *testing.T) {
 	println("Test CopyFile")
-	se := Must(NewSshExec("192.168.20.18", "stevek", "/home/stevek/.ssh/id_rsa-home"))
+	se := Must(NewSshExec("192.168.20.18", "stevek", os.Getenv("HOME")+"/.ssh/id_rsa-home"))
 	o := Must(se.CopyFile("", "go.sum", "go.mod"))
 	println("Copy to dir: ", o)
 	o1 := Must(se.Exec("ls -lha " + o))
@@ -385,7 +385,7 @@ func TestSshExec(t *testing.T) {
 	o2 := Must(se.Exec("rm -rf " + o))
 
 	println("Test CopyDir")
-	o1 = Must(se.CopyDir("", "go.mod", "go.sum", "/home/stevek/tmp/go-pipe"))
+	o1 = Must(se.CopyDir("", "go.mod", "go.sum", os.Getenv("HOME")+"/tmp/go-pipe"))
 	println("Copy Dir: ", o1)
 	Must(se.Exec("rm -rf " + o1))
 
@@ -403,8 +403,8 @@ func TestSshExec(t *testing.T) {
 }
 
 func TestSshExecGomod(t *testing.T) {
-	se := Must(NewSshExec("192.168.200.180", "stevek", "/home/stevek/.ssh/id_rsa-home"))
-	o, err := se.ExecGoMod(`/home/stevek/src/automation-go`, "plays/pass-strength", "/home/stevek/src/golang-tools", "123qwe")
+	se := Must(NewSshExec("192.168.200.180", "stevek", os.Getenv("HOME")+"/.ssh/id_rsa-home"))
+	o, err := se.ExecGoMod(`/home/stevek/src/automation-go`, "plays/pass-strength", os.Getenv("HOME")+"/src/golang-tools", "123qwe")
 	if err != nil {
 		t.Fatalf("[ERROR] %s - Output: %s", err.Error(), o)
 	}
@@ -417,8 +417,8 @@ func TestConfigOverride(t *testing.T) {
 		MySrcDirs []string
 	}
 	myCfg := MyCfg{
-		SshExec:   Must(NewSshExec("localhost", "stevek", "/home/stevek/.ssh/id_rsa-home")),
-		MySrcDirs: []string{"/home/stevek/tmp/go-pipe"},
+		SshExec:   Must(NewSshExec("localhost", "stevek", os.Getenv("HOME")+"/.ssh/id_rsa-home")),
+		MySrcDirs: []string{os.Getenv("HOME") + "/tmp/go-pipe"},
 	}
 	o := Must(myCfg.CopyDir("", myCfg.MySrcDirs...))
 	println(o)

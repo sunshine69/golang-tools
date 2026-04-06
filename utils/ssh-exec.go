@@ -244,10 +244,13 @@ func (s *SshExec) CopyDir(remotePath string, srcPaths ...string) (out string, er
 
 	// 6. Wait for the remote command to finish and check for errors
 	// Wait() returns error if the remote command exited with non-zero status
+	// println("Before wait")
 	sessionErr := session.Wait()
 
 	// Check if the streaming goroutine encountered an error
+	// println("Read erro chan")
 	streamErr := <-errChan
+	// println("After read")
 
 	if sessionErr != nil {
 		return "", fmt.Errorf("remote tar command failed: %w", sessionErr)
