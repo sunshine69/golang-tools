@@ -79,6 +79,10 @@ func NewSshExec(host, user, keyFile string, extraOpt ...string) (*SshExec, error
 		// In a production environment, you should use ssh.FixedHostKey or verify against known_hosts
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
+	// 1. Force the config to populate its internal defaults
+	config.SetDefaults()
+	// 2. We need RSA :(
+	config.HostKeyAlgorithms = append(config.HostKeyAlgorithms, ssh.KeyAlgoRSA)
 
 	out.SshClient, err = ssh.Dial("tcp", host+":"+out.SshPort, config)
 	if err != nil {
