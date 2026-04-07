@@ -411,7 +411,9 @@ func TestSshExec(t *testing.T) {
 
 func TestSshExecGomod(t *testing.T) {
 	se := Must(NewSshExec("192.168.20.18", "stevek", os.Getenv("HOME")+"/.ssh/id_rsa-home"))
-	o, err := se.ExecGoMod(os.Getenv("HOME")+`/src/automation-go`, "plays/pass-strength", "/tmp", "123qwe")
+	url := os.Getenv("HOME") + `/src/automation-go`
+	url = "https://github.com/sunshine69/automation-go.git"
+	o, err := se.ExecGoMod(url, "plays/pass-strength", "/tmp", "123qwe")
 	if err != nil {
 		t.Fatalf("[ERROR] %s - Output: %s", err.Error(), o)
 	}

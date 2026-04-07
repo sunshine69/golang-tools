@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-git/go-git/v5"
 	"github.com/google/uuid"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
@@ -82,7 +81,7 @@ func NewSshExec(host, user, keyFile string, extraOpt ...string) (*SshExec, error
 	// 1. Force the config to populate its internal defaults
 	config.SetDefaults()
 	// 2. We need RSA :(
-	config.HostKeyAlgorithms = append(config.HostKeyAlgorithms, ssh.KeyAlgoRSA)
+	config.HostKeyAlgorithms = append(config.HostKeyAlgorithms, ssh.KeyAlgoRSA, ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSASHA512, ssh.KeyAlgoED25519)
 
 	out.SshClient, err = ssh.Dial("tcp", host+":"+out.SshPort, config)
 	if err != nil {
@@ -732,16 +731,16 @@ func (s *SshExec) ExecGoMod(resourceUrl, gomodName, remoteWorkDir string, args .
 		}
 
 	default:
-		// Git Clone using go-git
-		srcDir = filepath.Join(tempDir, "gomod_source")
-		_, err := git.PlainClone(srcDir, false, &git.CloneOptions{
-			URL:          resourceUrl,
-			Depth:        1,
-			SingleBranch: true,
-		})
-		if err != nil {
-			return "", fmt.Errorf("git clone failed: %w", err)
+		if err := os.Chdir(tempDir); err != nil {
+			return "", err
 		}
+		// attempt to use go-git failed, turn out it is not realy flexible enough and easy. git cli is best
+		if o, err := RunSystemCommandV2(GoTemplateString(`cd '{{.work_dir}}'
+git clone --depth=1 --single-branch --no-tags {{.git_checkout_url}} gomod_source
+		`, map[string]any{"git_checkout_url": resourceUrl, "work_dir": tempDir}), true); err != nil {
+			return "", fmt.Errorf("%s - %s", err.Error(), o)
+		}
+		srcDir = filepath.Join(tempDir, "gomod_source")
 	}
 
 	// 2. Compile the Module
@@ -911,9 +910,9 @@ fi
 			return "", err
 		}
 		if o, err := RunSystemCommandV2(GoTemplateString(`cd '{{.work_dir}}'
-git clone --depth=1 --single-branch --no-tags {{.git_checkout_url}} gomod_source'
+git clone --depth=1 --single-branch --no-tags {{.git_checkout_url}} gomod_source
 		`, map[string]any{"git_checkout_url": resourceUrl, "work_dir": tempDir}), true); err != nil {
-			return "", fmt.Errorf("[ERROR] %s - %s", err.Error(), o)
+			return "", fmt.Errorf("%s - %s", err.Error(), o)
 		}
 		srcDir = filepath.Join(tempDir, "gomod_source")
 	}
