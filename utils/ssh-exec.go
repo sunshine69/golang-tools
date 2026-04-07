@@ -781,8 +781,8 @@ echo -n "${BINARY_NAME}" > {{.srcDir}}/binary-name.txt
 		"goos":        goos,
 	})
 
-	if _, err := RunSystemCommandV2(buildScript, true); err != nil {
-		return "", fmt.Errorf("compilation failed: %w", err)
+	if o, err := RunSystemCommandV2(buildScript, true); err != nil {
+		return "", fmt.Errorf("compilation failed: %w - %s", err, o)
 	}
 
 	// Read the generated binary name
