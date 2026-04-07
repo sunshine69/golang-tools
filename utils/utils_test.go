@@ -304,8 +304,12 @@ func TestGoFindExec(t *testing.T) { // Example of fine tune the action to use Go
 }
 
 func TestRunSystemCmd(t *testing.T) {
-	println(RunSystemCommand(`ls `, true))
-	o, e := RunSystemCommandV2(`ls /something`, true)
+	println(RunSystemCommandV2(`ls `, true))
+	o, e := RunSystemCommandV2(`ls /something
+	echo 'Is single quote works?'
+	ls "filename" || true
+	ls 'my file' || true
+	`, true)
 	println(o)
 	if e != nil {
 		println(e.Error())
