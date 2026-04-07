@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-git/go-git/v5"
 	"github.com/google/uuid"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
@@ -318,7 +319,7 @@ func (s *SshExec) CopyDirUseCLI(remotePath string, srcPaths ...string) (out stri
 		"remote_path":     remotePath,
 		"ssh_user":        s.SshUser,
 	})
-	cmd := exec.Command("bash", "-c", cmdString)
+	cmd := exec.Command("sh", "-c", cmdString)
 
 	var fifo io.WriteCloser
 	go func() {
@@ -503,6 +504,11 @@ func (s *SshExec) Exec(commands string) (out string, err error) {
 	session.Stderr = os.Stderr // Or redirect to a buffer if you want to capture stderr specifically
 
 	// Run the command
+
+	shell_exec := Getenv("SHELL_EXEC", "")
+	if shell_exec != "" {
+		commandToRun = shell_exec + " -c '" + strings.ReplaceAll(commandToRun, "'", `'\''`) + "'"
+	}
 	err = session.Run(commandToRun)
 	return outputBuffer.String(), err
 }
@@ -684,6 +690,180 @@ func (s *SshExec) CopyAndExecUseCLI(exebin, remoteWorkDir string, keepAndReuseEx
 //
 // Return command output and error
 func (s *SshExec) ExecGoMod(resourceUrl, gomodName, remoteWorkDir string, args ...string) (out string, err error) {
+	tempDir, err := os.MkdirTemp("", "go_mod_build_")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Track current working directory to restore it later
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current wd: %w", err)
+	}
+	defer os.Chdir(cwd)
+
+	var srcDir string
+
+	// 1. Handle Source Acquisition
+	switch {
+	case FileExistsV2(resourceUrl) == nil:
+		// Local path
+		srcDir = resourceUrl
+
+	case strings.HasPrefix(resourceUrl, "wget+"):
+		// Download and Extract
+		downloadURL := strings.TrimPrefix(resourceUrl, "wget+")
+		srcDir = filepath.Join(tempDir, "gomod_source")
+		os.MkdirAll(srcDir, 0755)
+
+		archivePath := filepath.Join(tempDir, "archive.tar.gz")
+		// Assuming Curl is available as per previous context
+		if _, err := Curl("GET", downloadURL, "", archivePath, s.HttpHeaders, nil, nil); err != nil {
+			return "", fmt.Errorf("failed to download archive: %w", err)
+		}
+		// Passing nil for TarOptions allows the function to auto-detect compression (gzip, zstd, etc.)
+		if err := ExtractTarball(archivePath, srcDir, nil); err != nil {
+			return "", fmt.Errorf("failed to extract archive using ExtractTarball: %w", err)
+		}
+
+	default:
+		// Git Clone using go-git
+		srcDir = filepath.Join(tempDir, "gomod_source")
+		_, err := git.PlainClone(srcDir, false, &git.CloneOptions{
+			URL:          resourceUrl,
+			Depth:        1,
+			SingleBranch: true,
+		})
+		if err != nil {
+			return "", fmt.Errorf("git clone failed: %w", err)
+		}
+	}
+
+	// 2. Compile the Module
+	if err := os.Chdir(srcDir); err != nil {
+		return "", fmt.Errorf("failed to chdir to srcDir: %w", err)
+	}
+
+	// Define build parameters
+	goos := Getenv("GOOS", "linux")
+	goModDir := s.GoModDir
+	buildScript := GoTemplateString(`
+set -e
+export CGO_ENABLED={{.cgo_enabled}}
+export GOOS='{{.goos}}'
+{{if .go_proxy}}export GOPROXY="{{.go_proxy}}"{{end}}
+
+# Move to go.mod directory if specified
+{{if .gomod_dir}}cd {{.gomod_dir}}{{end}}
+
+go generate ./...
+
+# Determine binary name and build
+if [ '{{.gomod_name}}' != '' ]; then
+    BINARY_NAME='{{.gomod_name}}.exe'
+    go build -buildvcs=false -trimpath -ldflags="-extldflags=-static -w -s" -o "${BINARY_NAME}" {{.gomod_name}}/*.go
+else
+    BINARY_NAME=$(basename $(go list -m)).exe
+    go build -buildvcs=false -trimpath -ldflags="-extldflags=-static -w -s" -o "${BINARY_NAME}" .
+fi
+
+echo -n "${BINARY_NAME}" > {{.srcDir}}/binary-name.txt
+`, map[string]any{
+		"srcDir":      srcDir,
+		"gomod_name":  gomodName,
+		"gomod_dir":   goModDir,
+		"cgo_enabled": s.CgoEnabled,
+		"go_proxy":    s.GoProxy,
+		"goos":        goos,
+	})
+
+	if _, err := RunSystemCommandV2(buildScript, true); err != nil {
+		return "", fmt.Errorf("compilation failed: %w", err)
+	}
+
+	// Read the generated binary name
+	binNameBytes, err := os.ReadFile(filepath.Join(srcDir, "binary-name.txt"))
+	if err != nil {
+		return "", fmt.Errorf("failed to read binary name: %w", err)
+	}
+	binaryName := strings.TrimSpace(string(binNameBytes))
+	localBinPath := filepath.Join(srcDir, binaryName)
+
+	// 3. Copy to Remote and Execute
+	// We use an empty string for remotePath to signify we want a specific remote destination
+	// Note: CopyFile behavior depends on your implementation; assuming it returns the remote path
+	remoteBinPath, err := s.CopyFile(remoteWorkDir, localBinPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to copy binary to remote: %w", err)
+	}
+	remoteBinPath = filepath.Join(remoteBinPath, filepath.Base(binaryName)) // CopyFile only return the dir - not full path
+
+	// Prepare execution command
+	execArgsStr := ""
+	for _, arg := range args {
+		execArgsStr += " " + arg
+	}
+
+	// Execution script on remote
+	remoteExecScript := GoTemplateString(`
+set -e
+
+if [ ! -d '{{.remote_dir}}' ]; then
+	mkdir -p '{{.remote_dir}}'
+	CLEAN_WD='yes'
+	cd '{{.remote_dir}}'
+else
+    cd $(dirname '{{.remote_bin_path}}')
+fi
+
+{{.remote_bin_path}} {{ .exec_args }}
+
+# Cleanup: delete the binary after execution if not explicitly requested to persist
+if [ '{{.keep_bin}}' != 'true' ]; then
+    rm -f '{{.remote_bin_path}}'
+fi
+
+if [ "$CLEAN_WD" = "yes" ]; then
+	rm -rf '{{.remote_dir}}'
+fi
+`, map[string]any{
+		"remote_bin_path": remoteBinPath,
+		"remote_dir":      remoteWorkDir,
+		"exec_args":       execArgsStr,
+		"keep_bin":        "false", // We can adjust this based on logic requirements
+	})
+	out, err = s.Exec(remoteExecScript)
+	if err != nil {
+		return out, fmt.Errorf("remote execution failed: %w", err)
+	}
+
+	return out, nil
+}
+
+// Exec a gomod at the remote hostname. resourceUrl is the Url to fetch the go source code project.
+// It will fetch resourceUrl if required locally and compile it, then copy the cli to remote
+// end exec it with args
+//
+// resourceUrl ->
+// If it start with wget+ then assume it is download url. We strip off the 'wget+' to get the url
+// The last filename should be a tar ball and no root directory (that is the go.mod is at the root dir). We will download the file, extract it to a temp dir and chdir into it before build.
+//
+// # If it is normal directory path then it will use it directly for compile the cli
+//
+// All other case will be assumed as a git resource Url, See man git-clone for more. It will
+// be passed to git clone command as is.
+//
+// The directory structure should be a valid go mod dir (it has go.mod and go.sum)
+// a list of dirs named <gomodName> with a main.go compilable to a binary. If this is empty the the root dir will be used. The binary name is the go
+// mod name when you run go mod init <name>
+// the option GoModDir is the directory path leading to the go.mod and go.sum file, default empty, that is we use the root dir
+// The args will be parsed to the execution
+//
+// It will fetch the resource, compile it and copy to remote to exec. Currently only Linux remote hosts supported
+//
+// Return command output and error
+func (s *SshExec) ExecGoModUseCLI(resourceUrl, gomodName, remoteWorkDir string, args ...string) (out string, err error) {
 	tempDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return "", err
