@@ -40,21 +40,35 @@ type SshExec struct {
 }
 
 // NewSshExec initializes a new SshExec and establishes the SSH connection
-func NewSshExec(host, user, keyFile string, extraOpt ...string) (*SshExec, error) {
-	varArgs := ParseVarArgs(extraOpt...)
-
-	out := SshExec{
-		SshExecHost: host,
-		SshUser:     user,
-		SshKeyFile:  keyFile,
+func NewSshExec(s *SshExec) (*SshExec, error) {
+	// These fields are not required by ssh go client but generate it for these XXXUseCLI func to rely on ssh config working
+	// As go-git is not really good, we use git cli and it used ssh client cli
+	if s.SessionDir == "" {
+		s.SessionDir = Must(os.MkdirTemp("", "devops-tool-ssh"))
 	}
-	if p, ok := varArgs["port"]; ok {
-		out.SshPort = p
-	} else {
-		out.SshPort = "22"
+	if s.SshConfigFileContent == "" {
+		s.SshConfigFileContent = GoTemplateString(`Host *
+  ControlMaster auto
+  ControlPath {{.sessionDir}}/%r@%h-%p
+  ControlPersist 1h
+`, map[string]any{
+			"sessionDir": s.SessionDir,
+		})
 	}
+	if s.SshPort == "" {
+		s.SshPort = "22"
+	}
+	if s.SshConfigFilePath == "" {
+		s.SshConfigFilePath = filepath.Join(s.SessionDir, "ssh-config")
+		os.WriteFile(s.SshConfigFilePath, []byte(s.SshConfigFileContent), 0o600)
+	}
+	if s.SshCommonOpts == "" {
+		// Allow RSA key to be in so old system works
+		s.SshCommonOpts = fmt.Sprintf("-F '%s' -o IdentitiesOnly=yes -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null", s.SshConfigFilePath)
+	}
+	s.CgoEnabled = Ternary(s.CgoEnabled == "", "1", s.CgoEnabled)
 
-	key, err := os.ReadFile(keyFile)
+	key, err := os.ReadFile(s.SshKeyFile)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read private key: %v", err)
 	}
@@ -71,7 +85,7 @@ func NewSshExec(host, user, keyFile string, extraOpt ...string) (*SshExec, error
 	}
 
 	config := &ssh.ClientConfig{
-		User: user,
+		User: s.SshUser,
 		Auth: []ssh.AuthMethod{
 			ssh.PublicKeys(signer),
 		},
@@ -83,12 +97,12 @@ func NewSshExec(host, user, keyFile string, extraOpt ...string) (*SshExec, error
 	// 2. We need RSA :(
 	config.HostKeyAlgorithms = append(config.HostKeyAlgorithms, ssh.KeyAlgoRSA, ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSASHA512, ssh.KeyAlgoED25519)
 
-	out.SshClient, err = ssh.Dial("tcp", host+":"+out.SshPort, config)
+	s.SshClient, err = ssh.Dial("tcp", s.SshExecHost+":"+s.SshPort, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial: %v", err)
 	}
 
-	return &out, nil
+	return s, nil
 }
 
 // CopyFile copies file(s) to remote using SFTP. Filename will be retained.

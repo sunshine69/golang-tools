@@ -381,7 +381,11 @@ func TestUseStdinForRunSystemCmd(t *testing.T) {
 
 func TestSshExec(t *testing.T) {
 	println("Test CopyFile")
-	se := Must(NewSshExec("192.168.20.18", "stevek", os.Getenv("HOME")+"/.ssh/id_rsa-home"))
+	se := Must(NewSshExec(&SshExec{
+		SshExecHost: "192.168.20.18",
+		SshUser:     "stevek",
+		SshKeyFile:  os.Getenv("HOME") + "/.ssh/id_rsa-home",
+	}))
 	o := Must(se.CopyFile("", "go.sum", "go.mod"))
 	println("Copy to dir: ", o)
 	o1 := Must(se.Exec("ls -lha " + o))
@@ -410,7 +414,11 @@ func TestSshExec(t *testing.T) {
 }
 
 func TestSshExecGomod(t *testing.T) {
-	se := Must(NewSshExec("192.168.20.18", "stevek", os.Getenv("HOME")+"/.ssh/id_rsa-home"))
+	se := Must(NewSshExec(&SshExec{
+		SshExecHost: "192.168.20.18",
+		SshUser:     "stevek",
+		SshKeyFile:  os.Getenv("HOME") + "/.ssh/id_rsa-home",
+	}))
 	url := os.Getenv("HOME") + `/src/automation-go`
 	url = "https://github.com/sunshine69/automation-go.git"
 	o, err := se.ExecGoMod(url, "plays/pass-strength", "/tmp", "123qwe")
@@ -426,7 +434,11 @@ func TestConfigOverride(t *testing.T) {
 		MySrcDirs []string
 	}
 	myCfg := MyCfg{
-		SshExec:   Must(NewSshExec("localhost", "stevek", os.Getenv("HOME")+"/.ssh/id_rsa-home")),
+		SshExec: Must(NewSshExec(&SshExec{
+			SshExecHost: "localhost",
+			SshUser:     "stevek",
+			SshKeyFile:  os.Getenv("HOME") + "/.ssh/id_rsa-home",
+		})),
 		MySrcDirs: []string{os.Getenv("HOME") + "/tmp/go-pipe"},
 	}
 	o := Must(myCfg.CopyDir("", myCfg.MySrcDirs...))
