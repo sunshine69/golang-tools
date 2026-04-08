@@ -404,13 +404,13 @@ func TestSshExec(t *testing.T) {
 	o3 := Must(se.Exec(`ls /home/`))
 	println(o3)
 
-	// println("Tets Fetch ")
-	// CheckErr(os.MkdirAll("/tmp/test-devops", 0o755), "")
-	// o = Must(se.Fetch("/tmp/test-devops", "/home/stevek/note", "/home/stevek/x"))
-	// println("Fetch return " + o)
+	println("Tets Fetch ")
+	CheckErr(os.MkdirAll("/tmp/test-devops", 0o755), "")
+	o = Must(se.Fetch("/tmp/test-devops", "/home/stevek/note", "/home/stevek/x"))
+	println("Fetch return " + o)
 
 	println("Test CopyAndExec")
-	o = Must(se.CopyAndExec("../cli/gotar", "", false, "-h"))
+	o = Must(se.CopyAndExec("../cli/gotar.exe", "", false, "-h"))
 	println(o)
 
 	println("Test GoTemplate")
@@ -418,6 +418,10 @@ func TestSshExec(t *testing.T) {
 	LINE2: Line 2
 	`, ".env", map[string]any{"line1": "This is line 1"}, 0o750))
 	println(o)
+
+	Must(se.Exec("rm -rf " + filepath.Dir(o)))
+	// remember to close to clean up session dir
+	se.Close()
 }
 
 func TestSshExecGomod(t *testing.T) {
@@ -433,6 +437,8 @@ func TestSshExecGomod(t *testing.T) {
 		t.Fatalf("[ERROR] %s - Output: %s", err.Error(), o)
 	}
 	println(o)
+	// remember to close to clean up session dir
+	se.Close()
 }
 
 func TestConfigOverride(t *testing.T) {
@@ -442,15 +448,16 @@ func TestConfigOverride(t *testing.T) {
 	}
 	myCfg := MyCfg{
 		SshExec: Must(NewSshExec(&SshExec{
-			SshExecHost: "localhost",
+			SshExecHost: "192.168.20.18",
 			SshUser:     "stevek",
-			SshKeyFile:  os.Getenv("HOME") + "/.ssh/id_rsa-home",
+			SshKeyFile:  os.Getenv("HOME") + "/.ssh/id_rsa",
 		})),
 		MySrcDirs: []string{os.Getenv("HOME") + "/tmp/go-pipe"},
 	}
 	o := Must(myCfg.CopyDir("", myCfg.MySrcDirs...))
 	println(o)
-
+	// remember to close to clean up session dir
+	myCfg.Close()
 }
 
 func ExampleSha256SumFile() {

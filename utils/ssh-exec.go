@@ -577,21 +577,13 @@ func (s *SshExec) ExecUseCLI(commands string) (out string, err error) {
 // if exebin started with http(s):// then download it locally first before copy to remote
 // If remoteWorkDir is empty string, it will created as temporary and clean up later on
 // If remoteWorkDir is preset then the binary in there be checked - if it exists and same sha256 with local, no copy will be done
+// remoteWorkdir can be relative or absolute path if provided
 func (s *SshExec) CopyAndExec(exebin, remoteWorkDir string, keepAndReuseExec bool, execArgs ...string) (out string, err error) {
-	var cleanupRemoteDir string
-	var cleanupRemoteFile string
-
 	if remoteWorkDir == "" {
 		if keepAndReuseExec {
 			return "", fmt.Errorf("[ERROR] cannot set keepAndReuseExec when remoteWorkDir is not provided")
 		}
-		cleanupRemoteDir = uuid.NewString()
-		defer func() {
-			if cleanupRemoteDir != "" {
-				s.Exec("rm -rf " + cleanupRemoteDir)
-			}
-		}()
-		remoteWorkDir = cleanupRemoteDir
+		remoteWorkDir = filepath.Join(os.TempDir(), uuid.NewString())
 	}
 
 	tempDir, err := os.MkdirTemp("", "ssh_exec_")
@@ -609,7 +601,6 @@ func (s *SshExec) CopyAndExec(exebin, remoteWorkDir string, keepAndReuseExec boo
 		if _, err := Curl("GET", exebin, "", localExecPath, s.HttpHeaders, nil, &CurlOpt{FileMode: 0o755}); err != nil {
 			return "", fmt.Errorf("failed to download binary: %w", err)
 		}
-		// os.Chmod(localExecPath, 0o755)
 	}
 
 	remoteExecPath := filepath.Join(remoteWorkDir, execName)
@@ -627,36 +618,31 @@ func (s *SshExec) CopyAndExec(exebin, remoteWorkDir string, keepAndReuseExec boo
 			}
 		}
 	}
+	// Check if remoteWorkdir already exists then no clean it
+	remoteWorkDirExist, _ := s.Exec("if [ -d '" + remoteWorkDir + "' ]; then echo -n yes; else echo -n no; fi")
 
-	if shouldCopy {
+	if shouldCopy { // Now remoteWorkdir might be created if not exists
 		_, err = s.CopyFile(remoteWorkDir, localExecPath)
 		if err != nil {
 			return "", fmt.Errorf("failed to copy file to remote: %w", err)
-		}
-		// If we are not reusing, we should clean up the remote file after execution
-		if !keepAndReuseExec {
-			cleanupRemoteFile = remoteExecPath
 		}
 	}
 
 	// Prepare command execution
 	cmd := remoteExecPath
 	if len(execArgs) > 0 {
-		cmd = filepath.Join(remoteExecPath, strings.Join(execArgs, " "))
 		// Note: Adjust logic if execArgs are intended as flags/params rather than sub-paths
 		cmd = fmt.Sprintf("%s %s", remoteExecPath, strings.Join(execArgs, " "))
+	}
+
+	if !keepAndReuseExec && remoteWorkDirExist != "yes" {
+		defer s.Exec("rm -rf " + remoteWorkDir)
 	}
 
 	out, err = s.Exec("cd " + remoteWorkDir + " && exec " + cmd)
 	if err != nil {
 		return out, fmt.Errorf("execution failed: %w - output: %s", err, out)
 	}
-
-	// Cleanup remote file if it was a temporary copy
-	if cleanupRemoteFile != "" {
-		s.Exec("rm -f " + cleanupRemoteFile)
-	}
-
 	return out, nil
 }
 
@@ -760,9 +746,6 @@ func (s *SshExec) ExecGoMod(resourceUrl, gomodName, remoteWorkDir string, args .
 		}
 
 	default:
-		if err := os.Chdir(tempDir); err != nil {
-			return "", err
-		}
 		// attempt to use go-git failed, turn out it is not realy flexible enough and easy. git cli is best
 		if o, err := RunSystemCommandV2(GoTemplateString(`cd '{{.work_dir}}'
 git clone --depth=1 --single-branch --no-tags {{.git_checkout_url}} gomod_source
@@ -772,16 +755,12 @@ git clone --depth=1 --single-branch --no-tags {{.git_checkout_url}} gomod_source
 		srcDir = filepath.Join(tempDir, "gomod_source")
 	}
 
-	// 2. Compile the Module
-	if err := os.Chdir(srcDir); err != nil {
-		return "", fmt.Errorf("failed to chdir to srcDir: %w", err)
-	}
-
 	// Define build parameters
 	goos := Getenv("GOOS", "linux")
 	goModDir := s.GoModDir
 	buildScript := GoTemplateString(`
 set -e
+cd {{.srcDir}}
 export CGO_ENABLED={{.cgo_enabled}}
 export GOOS='{{.goos}}'
 {{if .go_proxy}}export GOPROXY="{{.go_proxy}}"{{end}}
@@ -823,54 +802,56 @@ echo -n "${BINARY_NAME}" > {{.srcDir}}/binary-name.txt
 	localBinPath := filepath.Join(srcDir, binaryName)
 
 	// 3. Copy to Remote and Execute
-	// We use an empty string for remotePath to signify we want a specific remote destination
-	// Note: CopyFile behavior depends on your implementation; assuming it returns the remote path
-	remoteBinPath, err := s.CopyFile(remoteWorkDir, localBinPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to copy binary to remote: %w", err)
-	}
-	remoteBinPath = filepath.Join(remoteBinPath, filepath.Base(binaryName)) // CopyFile only return the dir - not full path
+	return s.CopyAndExec(localBinPath, remoteWorkDir, false, args...)
 
-	// Prepare execution command
-	execArgsStr := ""
-	for _, arg := range args {
-		execArgsStr += " " + arg
-	}
+	// 	// We use an empty string for remotePath to signify we want a specific remote destination
+	// 	// Note: CopyFile behavior depends on your implementation; assuming it returns the remote path
+	// 	remoteBinPath, err := s.CopyFile(remoteWorkDir, localBinPath)
+	// 	if err != nil {
+	// 		return "", fmt.Errorf("failed to copy binary to remote: %w", err)
+	// 	}
+	// 	remoteBinPath = filepath.Join(remoteBinPath, filepath.Base(binaryName)) // CopyFile only return the dir - not full path
 
-	// Execution script on remote
-	remoteExecScript := GoTemplateString(`
-set -e
+	// 	// Prepare execution command
+	// 	execArgsStr := ""
+	// 	for _, arg := range args {
+	// 		execArgsStr += " " + arg
+	// 	}
 
-if [ ! -d '{{.remote_dir}}' ]; then
-	mkdir -p '{{.remote_dir}}'
-	CLEAN_WD='yes'
-	cd '{{.remote_dir}}'
-else
-    cd $(dirname '{{.remote_bin_path}}')
-fi
+	// 	// Execution script on remote
+	// 	remoteExecScript := GoTemplateString(`
+	// set -e
 
-{{.remote_bin_path}} {{ .exec_args }}
+	// if [ ! -d '{{.remote_dir}}' ]; then
+	// 	mkdir -p '{{.remote_dir}}'
+	// 	CLEAN_WD='yes'
+	// 	cd '{{.remote_dir}}'
+	// else
+	//     cd $(dirname '{{.remote_bin_path}}')
+	// fi
 
-# Cleanup: delete the binary after execution if not explicitly requested to persist
-if [ '{{.keep_bin}}' != 'true' ]; then
-    rm -f '{{.remote_bin_path}}'
-fi
+	// {{.remote_bin_path}} {{ .exec_args }}
 
-if [ "$CLEAN_WD" = "yes" ]; then
-	rm -rf '{{.remote_dir}}'
-fi
-`, map[string]any{
-		"remote_bin_path": remoteBinPath,
-		"remote_dir":      remoteWorkDir,
-		"exec_args":       execArgsStr,
-		"keep_bin":        "false", // We can adjust this based on logic requirements
-	})
-	out, err = s.Exec(remoteExecScript)
-	if err != nil {
-		return out, fmt.Errorf("remote execution failed: %w", err)
-	}
+	// # Cleanup: delete the binary after execution if not explicitly requested to persist
+	// if [ '{{.keep_bin}}' != 'true' ]; then
+	//     rm -f '{{.remote_bin_path}}'
+	// fi
 
-	return out, nil
+	// if [ "$CLEAN_WD" = "yes" ]; then
+	// 	rm -rf '{{.remote_dir}}'
+	// fi
+	// `, map[string]any{
+	// 		"remote_bin_path": remoteBinPath,
+	// 		"remote_dir":      remoteWorkDir,
+	// 		"exec_args":       execArgsStr,
+	// 		"keep_bin":        "false", // We can adjust this based on logic requirements
+	// 	})
+	// 	out, err = s.Exec(remoteExecScript)
+	// 	if err != nil {
+	// 		return out, fmt.Errorf("remote execution failed: %w", err)
+	// 	}
+
+	// return out, nil
 }
 
 // Exec a gomod at the remote hostname. resourceUrl is the Url to fetch the go source code project.
@@ -1034,6 +1015,8 @@ func (s *SshExec) GoTemplate(src, dest string, data map[string]any, mode os.File
 		if s.SshExecHost == "localhost" || s.SshExecHost == "127.0.0.1" {
 			return dest, nil
 		}
+		defer os.RemoveAll(filepath.Dir(dest)) // Clean up the local temp file we generated before CopyFile
+
 		rdir, err := s.CopyFile(filepath.Dir(dest), dest)
 		if err != nil {
 			return "", err
@@ -1047,6 +1030,8 @@ func (s *SshExec) GoTemplate(src, dest string, data map[string]any, mode os.File
 		if s.SshExecHost == "localhost" || s.SshExecHost == "127.0.0.1" {
 			return dest, nil
 		}
+		defer os.RemoveAll(filepath.Dir(dest)) // Clean up the local temp file we generated before CopyFile
+
 		rdir, err := s.CopyFile(filepath.Dir(dest), dest)
 		if err != nil {
 			return "", err
