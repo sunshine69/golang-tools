@@ -384,7 +384,7 @@ func TestSshExec(t *testing.T) {
 	se := Must(NewSshExec(&SshExec{
 		SshExecHost: "192.168.20.18",
 		SshUser:     "stevek",
-		SshKeyFile:  os.Getenv("HOME") + "/.ssh/id_rsa",
+		SshKeyFile:  os.Getenv("HOME") + "/.ssh/id_rsa-home",
 	}))
 	o := Must(se.CopyFile("", "go.sum", "go.mod"))
 	println("Copy to dir: ", o)

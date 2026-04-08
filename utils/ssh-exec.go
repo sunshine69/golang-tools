@@ -22,7 +22,7 @@ type SshExec struct {
 	// Auto generated per each spawn
 	SessionDir string
 	SshClient  *ssh.Client
-	// Remote host name to exec the gomod or command
+	// Remote host name to exec the gomod or command. Required
 	SshExecHost   string
 	SshPort       string
 	SshKeyFile    string
@@ -68,9 +68,17 @@ func NewSshExec(s *SshExec) (*SshExec, error) {
 	}
 	s.CgoEnabled = Ternary(s.CgoEnabled == "", "1", s.CgoEnabled)
 
+	if s.SshKeyFile != "" {
+		return s, s.Connect()
+	}
+
+	return s, nil
+}
+
+func (s *SshExec) Connect() error {
 	key, err := os.ReadFile(s.SshKeyFile)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read private key: %v", err)
+		return fmt.Errorf("unable to read private key: %v", err)
 	}
 
 	signer, err := ssh.ParsePrivateKey(key)
@@ -79,7 +87,7 @@ func NewSshExec(s *SshExec) (*SshExec, error) {
 		if errors.As(err, &passphraseErr) {
 			signer, err = ssh.ParsePrivateKeyWithPassphrase(key, []byte(os.Getenv("SSH_KEY_PASSPHRASE")))
 			if err != nil {
-				return nil, fmt.Errorf("unable to parse private key: %v", err)
+				return fmt.Errorf("unable to parse private key: %v", err)
 			}
 		}
 	}
@@ -99,10 +107,9 @@ func NewSshExec(s *SshExec) (*SshExec, error) {
 
 	s.SshClient, err = ssh.Dial("tcp", s.SshExecHost+":"+s.SshPort, config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to dial: %v", err)
+		return fmt.Errorf("failed to dial: %v", err)
 	}
-
-	return s, nil
+	return nil
 }
 
 // CopyFile copies file(s) to remote using SFTP. Filename will be retained.
