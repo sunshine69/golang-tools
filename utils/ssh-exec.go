@@ -143,6 +143,15 @@ func (s *SshExec) CopyFile(remotePath string, srcPaths ...string) (out string, e
 }
 
 func (s *SshExec) copySingleFile(sc *sftp.Client, srcPath string, remoteDir string) error {
+	needsDownload := strings.HasPrefix(srcPath, "http")
+	downloadFilePath := "/tmp/" + uuid.NewString()
+	if needsDownload {
+		if _, err := Curl("GET", srcPath, "", downloadFilePath, s.HttpHeaders, nil); err != nil {
+			return fmt.Errorf("failed to download binary: %w", err)
+		}
+		srcPath = downloadFilePath
+	}
+
 	srcFile, err := os.Open(srcPath)
 	if err != nil {
 		return fmt.Errorf("failed to open source file %s: %w", srcPath, err)
@@ -592,7 +601,7 @@ func (s *SshExec) CopyAndExec(exebin, remoteWorkDir string, keepAndReuseExec boo
 
 	if needsDownload {
 		localExecPath = filepath.Join(tempDir, execName)
-		if _, err := Curl("GET", exebin, "", localExecPath, []string{}, nil, nil); err != nil {
+		if _, err := Curl("GET", exebin, "", localExecPath, s.HttpHeaders, nil); err != nil {
 			return "", fmt.Errorf("failed to download binary: %w", err)
 		}
 	}
@@ -665,7 +674,7 @@ func (s *SshExec) CopyAndExecUseCLI(exebin, remoteWorkDir string, keepAndReuseEx
 
 	if strings.HasPrefix(exebin, "http") {
 		localExecPath = filepath.Join(tempDir, execName)
-		Curl("GET", exebin, "", localExecPath, []string{}, nil, nil)
+		Curl("GET", exebin, "", localExecPath, s.HttpHeaders, nil)
 	}
 
 	remoteExecPath := filepath.Join(remoteWorkDir, execName)
@@ -736,7 +745,7 @@ func (s *SshExec) ExecGoMod(resourceUrl, gomodName, remoteWorkDir string, args .
 
 		archivePath := filepath.Join(tempDir, "archive.tar.gz")
 		// Assuming Curl is available as per previous context
-		if _, err := Curl("GET", downloadURL, "", archivePath, s.HttpHeaders, nil, nil); err != nil {
+		if _, err := Curl("GET", downloadURL, "", archivePath, s.HttpHeaders, nil); err != nil {
 			return "", fmt.Errorf("failed to download archive: %w", err)
 		}
 		// Passing nil for TarOptions allows the function to auto-detect compression (gzip, zstd, etc.)
@@ -906,7 +915,7 @@ func (s *SshExec) ExecGoModUseCLI(resourceUrl, gomodName, remoteWorkDir string, 
 		}
 		savedFileName := filepath.Join(tempDir, "tmp", uuid.NewString()+".tgz")
 		defer os.RemoveAll(savedFileName)
-		if o, err := Curl("GET", strings.TrimPrefix(resourceUrl, "wget+"), "", savedFileName, s.HttpHeaders, nil, nil); err != nil {
+		if o, err := Curl("GET", strings.TrimPrefix(resourceUrl, "wget+"), "", savedFileName, s.HttpHeaders, nil); err != nil {
 			return o, fmt.Errorf("[ERROR] download file - %s - Output: %s", err.Error(), o)
 		}
 		if o, err := RunSystemCommandV2(GoTemplateString(`mkdir -p '{{.work_dir}}/gomod_source'
