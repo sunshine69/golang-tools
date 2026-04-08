@@ -1259,6 +1259,7 @@ type CurlOpt struct {
 	SslKeyFile         string
 	SslCertFile        string
 	InsecureSkipVerify bool
+	FileMode           os.FileMode
 	Debug              string
 }
 
@@ -1470,6 +1471,11 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 		_, err = io.Copy(outfile, resp.Body)
 		if err != nil {
 			return "", fmt.Errorf("%s - CopyFile err: %s", returnerr, err)
+		}
+		if curlOpts != nil {
+			if curlOpts.FileMode != 0 {
+				os.Chmod(savefilename, curlOpts.FileMode)
+			}
 		}
 		return "OK save to " + savefilename, returnerr
 	}

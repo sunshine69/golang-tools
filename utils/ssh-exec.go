@@ -107,6 +107,7 @@ func NewSshExec(s *SshExec) (*SshExec, error) {
 
 // CopyFile copies file(s) to remote using SFTP. Filename will be retained.
 // remotePath is a directory and will be created if it does not exist.
+// If srcPath starts with http then the file will be downloaded first before copying
 // Return the remote directory path
 func (s *SshExec) CopyFile(remotePath string, srcPaths ...string) (out string, err error) {
 	if len(srcPaths) == 0 {
@@ -144,12 +145,14 @@ func (s *SshExec) CopyFile(remotePath string, srcPaths ...string) (out string, e
 
 func (s *SshExec) copySingleFile(sc *sftp.Client, srcPath string, remoteDir string) error {
 	needsDownload := strings.HasPrefix(srcPath, "http")
-	downloadFilePath := "/tmp/" + uuid.NewString()
+	downloadFilePath := filepath.Join(os.TempDir(), uuid.NewString())
 	if needsDownload {
 		if _, err := Curl("GET", srcPath, "", downloadFilePath, s.HttpHeaders, nil); err != nil {
 			return fmt.Errorf("failed to download binary: %w", err)
 		}
 		srcPath = downloadFilePath
+		os.Chmod(downloadFilePath, 0o755)
+		defer os.RemoveAll(downloadFilePath)
 	}
 
 	srcFile, err := os.Open(srcPath)
@@ -182,7 +185,7 @@ func (s *SshExec) copySingleFile(sc *sftp.Client, srcPath string, remoteDir stri
 	return sc.Chmod(dstPath, info.Mode())
 }
 
-func NewSshExecUseCLI(s *SshExec) *SshExec {
+func NewSshExecUseCLI(s *SshExec) (*SshExec, error) {
 	if s.SessionDir == "" {
 		s.SessionDir = Must(os.MkdirTemp("", "devops-tool-ssh"))
 	}
@@ -197,7 +200,9 @@ func NewSshExecUseCLI(s *SshExec) *SshExec {
 	}
 	if s.SshConfigFilePath == "" {
 		s.SshConfigFilePath = filepath.Join(s.SessionDir, "ssh-config")
-		os.WriteFile(s.SshConfigFilePath, []byte(s.SshConfigFileContent), 0o600)
+		if err := os.WriteFile(s.SshConfigFilePath, []byte(s.SshConfigFileContent), 0o600); err != nil {
+			return nil, err
+		}
 	}
 	if s.SshCommonOpts == "" {
 		// Allow RSA key to be in so old system works
@@ -205,7 +210,7 @@ func NewSshExecUseCLI(s *SshExec) *SshExec {
 	}
 	s.CgoEnabled = Ternary(s.CgoEnabled == "", "1", s.CgoEnabled)
 
-	return s
+	return s, nil
 }
 
 // Clean up the object
@@ -224,7 +229,7 @@ func (s *SshExec) CopyDir(remotePath string, srcPaths ...string) (out string, er
 	}
 
 	if remotePath == "" {
-		remotePath = fmt.Sprintf("/tmp/devops-tool-ssh-copydir-%s", uuid.New().String())
+		remotePath = filepath.Join(os.TempDir(), "devops-tool-ssh-copydir-"+uuid.New().String())
 	}
 
 	// 1. Create a session to run the remote command
@@ -601,9 +606,10 @@ func (s *SshExec) CopyAndExec(exebin, remoteWorkDir string, keepAndReuseExec boo
 
 	if needsDownload {
 		localExecPath = filepath.Join(tempDir, execName)
-		if _, err := Curl("GET", exebin, "", localExecPath, s.HttpHeaders, nil); err != nil {
+		if _, err := Curl("GET", exebin, "", localExecPath, s.HttpHeaders, nil, &CurlOpt{FileMode: 0o755}); err != nil {
 			return "", fmt.Errorf("failed to download binary: %w", err)
 		}
+		// os.Chmod(localExecPath, 0o755)
 	}
 
 	remoteExecPath := filepath.Join(remoteWorkDir, execName)
@@ -641,9 +647,9 @@ func (s *SshExec) CopyAndExec(exebin, remoteWorkDir string, keepAndReuseExec boo
 		cmd = fmt.Sprintf("%s %s", remoteExecPath, strings.Join(execArgs, " "))
 	}
 
-	out, err = s.Exec(cmd)
+	out, err = s.Exec("cd " + remoteWorkDir + " && exec " + cmd)
 	if err != nil {
-		return out, fmt.Errorf("execution failed: %w", err)
+		return out, fmt.Errorf("execution failed: %w - output: %s", err, out)
 	}
 
 	// Cleanup remote file if it was a temporary copy
@@ -1014,26 +1020,39 @@ echo -n "${BINARY_NAME}" > {{.srcDir}}/binary-name.txt
 // return the remote templated file path
 func (s *SshExec) GoTemplate(src, dest string, data map[string]any, mode os.FileMode) (remoteFilePath string, err error) {
 	if !filepath.IsAbs(dest) {
-		destDir := "/tmp/" + uuid.NewString()
+		destDir := filepath.Join(os.TempDir(), uuid.NewString())
 		dest = filepath.Join(destDir, Ternary(dest == "", uuid.NewString(), dest))
 	}
-	if strings.IndexByte(src, '\n') == -1 {
-		if s.SshExecHost == "localhost" || s.SshExecHost == "127.0.0.1" {
-			GoTemplateFile(src, dest, data, mode)
-			return dest, nil
-		}
-		GoTemplateFile(src, dest, data, mode)
-		return s.CopyFile(dest, dest)
-	} else {
-		templatedSrc := GoTemplateString(src, data)
-		if s.SshExecHost == "localhost" || s.SshExecHost == "127.0.0.1" {
-			os.WriteFile(dest, []byte(templatedSrc), mode)
-			return dest, nil
-		}
-		os.WriteFile(dest, []byte(templatedSrc), mode)
-		_, err = s.CopyFile(dest, dest)
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return "", err
 	}
-	return dest, nil
+
+	filename := filepath.Base(dest)
+
+	if strings.IndexByte(src, '\n') == -1 { // it is a template file
+		GoTemplateFile(src, dest, data, mode)
+		if s.SshExecHost == "localhost" || s.SshExecHost == "127.0.0.1" {
+			return dest, nil
+		}
+		rdir, err := s.CopyFile(filepath.Dir(dest), dest)
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(rdir, filename), nil
+	} else { // It is template string as source
+		templatedSrc := GoTemplateString(src, data)
+		if err := os.WriteFile(dest, []byte(templatedSrc), mode); err != nil {
+			return "", err
+		}
+		if s.SshExecHost == "localhost" || s.SshExecHost == "127.0.0.1" {
+			return dest, nil
+		}
+		rdir, err := s.CopyFile(filepath.Dir(dest), dest)
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(rdir, filename), nil
+	}
 }
 
 /**

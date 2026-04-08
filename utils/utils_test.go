@@ -384,7 +384,7 @@ func TestSshExec(t *testing.T) {
 	se := Must(NewSshExec(&SshExec{
 		SshExecHost: "192.168.20.18",
 		SshUser:     "stevek",
-		SshKeyFile:  os.Getenv("HOME") + "/.ssh/id_rsa-home",
+		SshKeyFile:  os.Getenv("HOME") + "/.ssh/id_rsa",
 	}))
 	o := Must(se.CopyFile("", "go.sum", "go.mod"))
 	println("Copy to dir: ", o)
@@ -404,13 +404,20 @@ func TestSshExec(t *testing.T) {
 	o3 := Must(se.Exec(`ls /home/`))
 	println(o3)
 
-	println("Tets Fetch ")
-	CheckErr(os.MkdirAll("/tmp/test-devops", 0o755), "")
-	o = Must(se.Fetch("/tmp/test-devops", "/home/stevek/note", "/home/stevek/x"))
-	println("Fetch return " + o)
+	// println("Tets Fetch ")
+	// CheckErr(os.MkdirAll("/tmp/test-devops", 0o755), "")
+	// o = Must(se.Fetch("/tmp/test-devops", "/home/stevek/note", "/home/stevek/x"))
+	// println("Fetch return " + o)
 
-	println("test CopyAndExec")
-	se.CopyAndExec("../cli/gotar", "", false, "-h")
+	println("Test CopyAndExec")
+	o = Must(se.CopyAndExec("../cli/gotar", "", false, "-h"))
+	println(o)
+
+	println("Test GoTemplate")
+	o = Must(se.GoTemplate(`LINE: {{.line1}}
+	LINE2: Line 2
+	`, ".env", map[string]any{"line1": "This is line 1"}, 0o750))
+	println(o)
 }
 
 func TestSshExecGomod(t *testing.T) {
