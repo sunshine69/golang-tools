@@ -65,7 +65,14 @@ func CopyDirectory(scrDir, dest string) error {
 	return nil
 }
 
-func Copy(srcFile, dstFile string) error {
+// Copy - copy file. Destination if exists then will be overriden.
+// Preserves source file mode unless overridden via options.
+func Copy(srcFile, dstFile string, opts ...*os.FileMode) error {
+	srcInfo, err := os.Stat(srcFile)
+	if err != nil {
+		return err
+	}
+
 	out, err := os.Create(dstFile)
 	if err != nil {
 		return err
@@ -85,7 +92,12 @@ func Copy(srcFile, dstFile string) error {
 		return err
 	}
 
-	return nil
+	targetMode := srcInfo.Mode()
+	if len(opts) > 0 && opts[0] != nil {
+		targetMode = *opts[0]
+	}
+
+	return os.Chmod(dstFile, targetMode)
 }
 
 func Exists(filePath string) bool {
