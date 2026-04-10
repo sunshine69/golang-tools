@@ -457,7 +457,6 @@ func TestConfigOverride(t *testing.T) {
 	o := Must(myCfg.CopyDir("", myCfg.MySrcDirs...))
 	println(o)
 	// remember to close to clean up session dir
-	Copy()
 	myCfg.Close()
 }
 

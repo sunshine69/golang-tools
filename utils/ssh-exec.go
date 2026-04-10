@@ -33,10 +33,14 @@ type SshExec struct {
 	SshConfigFilePath    string
 	SshConfigFileContent string
 	// Directory name which contains the package main and compilable into a exec file to exec on remote. See ExecGoMod func for more
-	GoModDir    string
-	CgoEnabled  string
-	GoProxy     string
+	GoModDir string
+	// Default is 0 that is disable CGO_ENABLED=0 when compiling go source
+	CgoEnabled string
+	GoProxy    string
+	// This is used when we fetch external resource to build go src; if your web server requires auth, set it
 	HttpHeaders []string
+	// Use it to pass more options for Curl to fetch, example Basic Auth can be set using CurlOpt
+	CurlOpt *CurlOpt
 }
 
 // NewSshExec initializes a new SshExec and establishes the SSH connection
@@ -66,7 +70,7 @@ func NewSshExec(s *SshExec) (*SshExec, error) {
 		// Allow RSA key to be in so old system works
 		s.SshCommonOpts = fmt.Sprintf("-F '%s' -o IdentitiesOnly=yes -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null", s.SshConfigFilePath)
 	}
-	s.CgoEnabled = Ternary(s.CgoEnabled == "", "1", s.CgoEnabled)
+	s.CgoEnabled = Ternary(s.CgoEnabled == "", "0", s.CgoEnabled)
 
 	if s.SshKeyFile != "" {
 		return s, s.Connect()
@@ -154,7 +158,7 @@ func (s *SshExec) copySingleFile(sc *sftp.Client, srcPath string, remoteDir stri
 	needsDownload := strings.HasPrefix(srcPath, "http")
 	downloadFilePath := filepath.Join(os.TempDir(), uuid.NewString())
 	if needsDownload {
-		if _, err := Curl("GET", srcPath, "", downloadFilePath, s.HttpHeaders, nil); err != nil {
+		if _, err := Curl("GET", srcPath, "", downloadFilePath, s.HttpHeaders, nil, s.CurlOpt); err != nil {
 			return fmt.Errorf("failed to download binary: %w", err)
 		}
 		srcPath = downloadFilePath
@@ -188,7 +192,7 @@ func (s *SshExec) copySingleFile(sc *sftp.Client, srcPath string, remoteDir stri
 	if err != nil {
 		return fmt.Errorf("failed to copy content to %s: %w", dstPath, err)
 	}
-	s.CgoEnabled = Ternary(s.CgoEnabled == "", "1", s.CgoEnabled)
+	s.CgoEnabled = Ternary(s.CgoEnabled == "", "0", s.CgoEnabled)
 	return sc.Chmod(dstPath, info.Mode())
 }
 
@@ -215,7 +219,7 @@ func NewSshExecUseCLI(s *SshExec) (*SshExec, error) {
 		// Allow RSA key to be in so old system works
 		s.SshCommonOpts = fmt.Sprintf("-F '%s' -o IdentitiesOnly=yes -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null", s.SshConfigFilePath)
 	}
-	s.CgoEnabled = Ternary(s.CgoEnabled == "", "1", s.CgoEnabled)
+	s.CgoEnabled = Ternary(s.CgoEnabled == "", "0", s.CgoEnabled)
 
 	return s, nil
 }
@@ -605,7 +609,14 @@ func (s *SshExec) CopyAndExec(exebin, remoteWorkDir string, keepAndReuseExec boo
 
 	if needsDownload {
 		localExecPath = filepath.Join(tempDir, execName)
-		if _, err := Curl("GET", exebin, "", localExecPath, s.HttpHeaders, nil, &CurlOpt{FileMode: 0o755}); err != nil {
+		var cops CurlOpt
+		if s.CurlOpt == nil {
+			cops = CurlOpt{FileMode: 0o755}
+		} else {
+			cops = *s.CurlOpt
+			cops.FileMode = 0o755
+		}
+		if _, err := Curl("GET", exebin, "", localExecPath, s.HttpHeaders, nil, &cops); err != nil {
 			return "", fmt.Errorf("failed to download binary: %w", err)
 		}
 	}
@@ -673,7 +684,7 @@ func (s *SshExec) CopyAndExecUseCLI(exebin, remoteWorkDir string, keepAndReuseEx
 
 	if strings.HasPrefix(exebin, "http") {
 		localExecPath = filepath.Join(tempDir, execName)
-		Curl("GET", exebin, "", localExecPath, s.HttpHeaders, nil)
+		Curl("GET", exebin, "", localExecPath, s.HttpHeaders, nil, s.CurlOpt)
 	}
 
 	remoteExecPath := filepath.Join(remoteWorkDir, execName)
@@ -744,7 +755,7 @@ func (s *SshExec) ExecGoMod(resourceUrl, gomodName, remoteWorkDir string, args .
 
 		archivePath := filepath.Join(tempDir, "archive.tar.gz")
 		// Assuming Curl is available as per previous context
-		if _, err := Curl("GET", downloadURL, "", archivePath, s.HttpHeaders, nil); err != nil {
+		if _, err := Curl("GET", downloadURL, "", archivePath, s.HttpHeaders, nil, s.CurlOpt); err != nil {
 			return "", fmt.Errorf("failed to download archive: %w", err)
 		}
 		// Passing nil for TarOptions allows the function to auto-detect compression (gzip, zstd, etc.)
@@ -909,7 +920,7 @@ func (s *SshExec) ExecGoModUseCLI(resourceUrl, gomodName, remoteWorkDir string, 
 		}
 		savedFileName := filepath.Join(tempDir, "tmp", uuid.NewString()+".tgz")
 		defer os.RemoveAll(savedFileName)
-		if o, err := Curl("GET", strings.TrimPrefix(resourceUrl, "wget+"), "", savedFileName, s.HttpHeaders, nil); err != nil {
+		if o, err := Curl("GET", strings.TrimPrefix(resourceUrl, "wget+"), "", savedFileName, s.HttpHeaders, nil, s.CurlOpt); err != nil {
 			return o, fmt.Errorf("[ERROR] download file - %s - Output: %s", err.Error(), o)
 		}
 		if o, err := RunSystemCommandV2(GoTemplateString(`mkdir -p '{{.work_dir}}/gomod_source'
