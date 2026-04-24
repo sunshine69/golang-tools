@@ -3456,7 +3456,7 @@ func CloneSliceOfMap(a []any) (output []any) {
 }
 
 // MaskCredential RegexPattern
-var MaskCredentialPattern *regexp.Regexp = regexp.MustCompile(`(?i)(password|token|pass|passkey|secret|secret_key|access_key|PAT)([:=]{1,1})[\s]*[^\s]+`)
+var MaskCredentialPattern *regexp.Regexp = regexp.MustCompile(`(?i)(password|token|pass|passkey|secret|secret_key|access_key|PAT|AUTHORIZATION: Basic |Authorization: Basic |Authorization: Bearer |AUTH=)([:=]{1,1})[\s]*[^\s]+`)
 
 // Mask all credentials pattern
 func MaskCredential(inputstr string) string {
