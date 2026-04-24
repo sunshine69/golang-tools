@@ -676,7 +676,7 @@ func (s *SshExec) CopyAndExecWithOpts(exebin, remoteWorkDir string, keepAndReuse
 		"cmd":           cmd,
 	})
 	if execOpt.Debug {
-		fmt.Fprintf(os.Stderr, "[DEBUG] cmd: %s\n", scripText)
+		fmt.Fprintf(os.Stderr, "[DEBUG] cmd: %s\n", MaskCredential(scripText))
 	}
 
 	out, err = s.Exec(scripText)
