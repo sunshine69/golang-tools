@@ -590,6 +590,12 @@ type ExecOpts struct {
 	Envs map[string]string
 }
 
+// CopyAndExecWithOpts copies a local or a binary from a url to remoteWorkDir, and exec that bin in remoteWorkDir with execOpt
+// if exebin started with http(s):// then download it locally first before copy to remote
+// If remoteWorkDir is empty string, it will created as temporary and clean up later on
+// If remoteWorkDir is preset then the binary in there be checked - if it exists and same sha256 with local, no copy will be done
+// remoteWorkdir can be relative or absolute path if provided
+// Return the remoteWorkDir Path
 func (s *SshExec) CopyAndExecWithOpts(exebin, remoteWorkDir string, keepAndReuseExec bool, execOpt ExecOpts) (out string, err error) {
 	if remoteWorkDir == "" {
 		if keepAndReuseExec {
