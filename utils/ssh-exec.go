@@ -586,8 +586,9 @@ func (s *SshExec) ExecUseCLI(commands string) (out string, err error) {
 
 // ExecOpts is used to pass advanced Exec Options
 type ExecOpts struct {
-	Args []string
-	Envs map[string]string
+	Args  []string
+	Envs  map[string]string
+	Debug bool
 }
 
 // CopyAndExecWithOpts copies a local or a binary from a url to remoteWorkDir, and exec that bin in remoteWorkDir with execOpt
@@ -674,6 +675,10 @@ func (s *SshExec) CopyAndExecWithOpts(exebin, remoteWorkDir string, keepAndReuse
 		"envs":          execOpt.Envs,
 		"cmd":           cmd,
 	})
+	if execOpt.Debug {
+		fmt.Fprintf(os.Stderr, "[DEBUG] cmd: %s\n", scripText)
+	}
+
 	out, err = s.Exec(scripText)
 	if err != nil {
 		return out, fmt.Errorf("execution failed: %w - output: %s", err, out)
