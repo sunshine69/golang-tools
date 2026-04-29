@@ -60,8 +60,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// TimeISO8601LayOut
 const (
+	// Common golang datetime layout
 	TimeISO8601LayOut     = "2006-01-02T15:04:05-0700"
 	AUTimeLayout          = "02/01/2006 15:04:05 MST"
 	CleanStringDateLayout = "2006-01-02-150405"
@@ -313,8 +313,7 @@ func deriveKey(password, salt []byte, cfg EncryptionConfig) ([]byte, error) {
 	}
 }
 
-// Encrypt encrypts text using password-derived key with versioning. Depending on EncryptionConfig field OutputFmt; if string then
-// return base64 encoded of the encrypted otherwise return raw []byte
+// Encrypt encrypts text using password-derived key with versioning. Depending on EncryptionConfig field OutputFmt; if string then return base64 encoded of the encrypted otherwise return raw []byte
 func Encrypt[T string | []byte, T2 string | []byte](data T, password T2, cfg *EncryptionConfig) (T, error) {
 	if cfg == nil {
 		cfg = DefaultEncryptionConfig()
@@ -379,7 +378,8 @@ func Encrypt[T string | []byte, T2 string | []byte](data T, password T2, cfg *En
 }
 
 // Decrypt decrypts a versioned encrypted base64 string. If data is string, assume it is base64 encoded output of the Encrypt
-// Password can be string or []byte. Return type based on the encryption config OutputFmt, if it is string then return as string, otherwise []byte
+// Password can be string or []byte. Return type based on the encryption config OutputFmt, if it is string then return as
+// string, otherwise []byte
 func Decrypt[T string | []byte](data, password T, cfg *EncryptionConfig) (T, error) {
 	if cfg == nil {
 		cfg = DefaultEncryptionConfig()
@@ -509,7 +509,7 @@ func RandomHex(n int) (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
-// MakePassword -
+// MakePassword of length
 func MakePassword(length int) string {
 	b := make([]byte, length)
 	for i := range b {
@@ -520,12 +520,13 @@ func MakePassword(length int) string {
 
 // GoFindExec take a list of directory paths and list of regex pattern to match the file/dir name. If it matches then it call the callback function for that file/dir path (relatively to the current working dir if your dir/file path is relative path)
 //
-// filetype is parsed from the directory prefix eg. file:// for file, dir:// for directory. It only return the file type for the corresponding path.
+// filetype is parsed from the directory prefix eg. file:// for file, dir:// for directory. It only return the file type for
+// the corresponding path.
 //
 //	Eg. GoFindExec([]string{"file://."},[]string{`.*`}, func(myfilepath) error {
-//		println(myfilepath)
-//	 return nil
-//	})
+//			println(myfilepath)
+//		 return nil
+//		})
 func GoFindExec(directories []string, path_pattern []string, callback func(filename string, info fs.FileInfo) error) error {
 	pathPtn := []*regexp.Regexp{}
 	for _, p := range path_pattern {
@@ -953,6 +954,7 @@ func GenRandomString(n int) string {
 	return MakePassword(n)
 }
 
+// Run a DSL command on a database connection and return the map of results
 func RunDSL(dbc *sql.DB, sql string) map[string]any {
 	stmt, err := dbc.Prepare(sql)
 	if err != nil {
@@ -1087,7 +1089,8 @@ func Basename(fileName, ext string) string {
 	return fileName[:len(fileName)-len(ext)]
 }
 
-// The output of the function RunSystemCommandXXX when there is error. Without error it just return the raw command output from the shell
+// The output of the function RunSystemCommandXXX when there is error. Without error it just return the raw command output
+// from the shell
 // This allows the caller to fine parse the error and deal with it
 type SystemCommandOuput struct {
 	Stdout string `json:"Stdout"`
@@ -1095,9 +1098,10 @@ type SystemCommandOuput struct {
 	Cmd    string `json:"Cmd"`
 }
 
-// RunSystemCommand run the command 'cmd'. It will use 'bash -c <the-command>' thus requires bash installed
+// RunSystemCommand run the command 'cmd'. It will use '${SHELL} -c <the-command>' thus requires shell evn var defined
+// and installed. If env var SHELL is not set, default is bash
 // On windows you need to install bash or mingw64 shell
-// If command exec get error it will panic!
+// If command exec get error it will panic! Note only run on safe/trusted environment as no cleaning up performed
 func RunSystemCommand(cmd string, verbose bool) (output string) {
 	if verbose {
 		log.Printf("[INFO] command: %s\n", cmd)
@@ -1114,8 +1118,8 @@ func RunSystemCommand(cmd string, verbose bool) (output string) {
 	return
 }
 
-// RunSystemCommandV2 run the command 'cmd'. It will use 'bash -c <the-command>' thus requires bash installed
-// On windows you need to install bash or mingw64 shell
+// RunSystemCommandV2 run the command 'cmd'. It will use '${SHELL} -c <the-command>' thus requires ${SHELL} is set and installed
+// If env var SHELL is not set, default is bash. On windows you need to install bash or mingw64 shell
 // The only differrence with RunSystemCommand is that it returns an error if error happened and it wont panic
 // When no error, it return output as the command stdout.
 // When error happened, it return a json string with field { "Stdout": stdout, "Stderr": stderr, "Cmd": <the command u ran> },
@@ -1153,6 +1157,7 @@ func RunSystemCommandV3(command *exec.Cmd, verbose bool) (output string, err err
 	return stdout, nil
 }
 
+// Same as os.Getenv but with the fall back value
 func Getenv(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
 		return value
@@ -1160,11 +1165,13 @@ func Getenv(key, fallback string) string {
 	return fallback
 }
 
+// Dump a object into json string
 func JsonDump(obj any, indent string) string {
 	msgByte := JsonDumpByte(obj, indent)
 	return string(msgByte)
 }
 
+// Dump objects into a json bytes
 func JsonDumpByte(obj any, indent string) []byte {
 	if indent == "" {
 		indent = "    "
@@ -1209,12 +1216,14 @@ func Sleep(duration string) {
 	time.Sleep(d)
 }
 
+// Take err object, panic if not nil after printing error message
 func CheckErr(err error, location string) {
 	if err != nil {
 		log.Fatalf("[ERROR] at %s - %v\n", location, err)
 	}
 }
 
+// Take err object, if not nil printing error message, return a new errors object with location
 func CheckErrNonFatal(err error, location string) error {
 	if err != nil {
 		msg := fmt.Sprintf("[ERROR] at %s - %v. IGNORED\n", location, err)
@@ -1224,6 +1233,7 @@ func CheckErrNonFatal(err error, location string) error {
 	return nil
 }
 
+// Take err object, check the error msg contains the pattern. If match panic otherwise return the original error
 func CheckNonErrIfMatch(err error, ptn, location string) error {
 	if err != nil {
 		if strings.Contains(err.Error(), ptn) {
@@ -1232,9 +1242,11 @@ func CheckNonErrIfMatch(err error, ptn, location string) error {
 			log.Fatalf("[ERROR] at %s - %v\n", location, err)
 		}
 	}
-	return nil
+	return err
 }
 
+// Assert take a boolen expression and print msg - passed if the vlaue is true, otherwise failed. If fatail is set it
+// actually panic instead of printing error message
 func Assert(cond bool, msg string, fatal bool) bool {
 	if cond {
 		log.Printf("Assert Passed - %s\n", msg)
