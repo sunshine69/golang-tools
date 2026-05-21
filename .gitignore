@@ -40,3 +40,5 @@ utils/utils_test.go
 *.tbz
 *.tgz
 *.tar.*
+utils/.playwright-mcp/**
+utils/doc/**

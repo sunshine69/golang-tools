@@ -3302,7 +3302,8 @@ func LineInLines(datalines []string, search_pattern string, replace string) (out
 func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []string, marker []string, replText string, keepBoundaryLines bool, backup bool, start_line int, extraArgs ...map[string]any) (oldBlock string, start, end int, matchedPattern [][]string) {
 	fstat, err := os.Stat(filename)
 	if errors.Is(err, fs.ErrNotExist) {
-		panic("[ERROR]BlockInFile File " + filename + " doesn't exist\n")
+		fmt.Print("[ERROR]BlockInFile File " + filename + " doesn't exist\n")
+		return "", 0, 0, nil
 	}
 
 	insertIfNotFound := true
@@ -3316,7 +3317,7 @@ func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []str
 	switch block {
 	case "":
 		if insertIfNotFound {
-			fmt.Fprintf(os.Stderr, "block not found - upper: %v | lower: %v | marker: %v. Will add the block at teh end of file\n", upper_bound_pattern, lower_bound_pattern, marker)
+			fmt.Fprintf(os.Stderr, "block not found - upper: %v | lower: %v | marker: %v. Will add the block at the end of file\n", upper_bound_pattern, lower_bound_pattern, marker)
 			olddataB := Must(os.ReadFile(filename))
 			if backup {
 				CheckErr(os.WriteFile(filename+".bak", olddataB, fstat.Mode()), "BlockInFile Write backup file")
@@ -3336,7 +3337,7 @@ func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []str
 			})
 
 			olddataB = append(olddataB, []byte(newBlock)...)
-			CheckErr(os.WriteFile(filename, olddataB, fstat.Mode()), "BlockInFile Write new file")
+			CheckErrNonFatal(os.WriteFile(filename, olddataB, fstat.Mode()), "BlockInFile Write new file")
 			return "", 0, 0, matchedPattern
 		} else {
 			fmt.Fprintf(os.Stderr, "block not found and insertIfNotFound set to false, skipping\n")
@@ -3361,7 +3362,10 @@ func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []str
 	if backup {
 		os.WriteFile(filename+".bak", []byte(strings.Join(datalines, "\n")), fstat.Mode())
 	}
-	os.WriteFile(filename, []byte(strings.Join(upPartLines, "\n")+"\n"+replText+"\n"+strings.Join(downPartLines, "\n")), fstat.Mode())
+	if err := os.WriteFile(filename, []byte(strings.Join(upPartLines, "\n")+"\n"+replText+"\n"+strings.Join(downPartLines, "\n")), fstat.Mode()); err != nil {
+		fmt.Println("[ERROR] " + err.Error())
+		return "", 0, 0, nil
+	}
 	return block, start_line_no, end_line_no, matchedPattern
 }
 
