@@ -2573,13 +2573,13 @@ func LineInFile(filename string, opt *LineInfileOpt) (err error, changed bool) {
 		return fmt.Errorf("LineInFile: non-regular destination file %s", filename), false
 	}
 	if opt.Search_string != "" && opt.Regexp != "" {
-		panic("[ERROR] conflicting option. Search_string and Regexp can not be both set")
+		return fmt.Errorf("[ERROR] conflicting option. Search_string and Regexp can not be both set"), false
 	}
 	if opt.Insertafter != "" && opt.Insertbefore != "" {
-		panic("[ERROR] conflicting option. Insertafter and Insertbefore can not be both set")
+		return fmt.Errorf("[ERROR] conflicting option. Insertafter and Insertbefore can not be both set"), false
 	}
 	if opt.LineNo > 0 && opt.Regexp != "" {
-		panic("[ERROR] conflicting option. LineNo and Regexp can not be both set")
+		return fmt.Errorf("[ERROR] conflicting option. LineNo and Regexp can not be both set"), false
 	}
 	data, err := os.ReadFile(filename)
 	if err1 := CheckErrNonFatal(err, "LineInFile ReadFile"); err1 != nil {
@@ -2587,7 +2587,9 @@ func LineInFile(filename string, opt *LineInfileOpt) (err error, changed bool) {
 	}
 
 	if opt.Backup && opt.State != "print" {
-		os.WriteFile(filename+".backup-"+time.Now().Format(TimeISO8601LayOut), data, fmode)
+		if err := os.WriteFile(filename+".backup-"+time.Now().Format(TimeISO8601LayOut), data, fmode); err != nil {
+			return err, false
+		}
 	}
 	changed = false
 	optLineB := []byte(opt.Line)
@@ -2626,7 +2628,9 @@ func LineInFile(filename string, opt *LineInfileOpt) (err error, changed bool) {
 			for _, v := range d2 { // then remove by val here.
 				d = RemoveItemByVal(d, v)
 			}
-			os.WriteFile(filename, []byte(strings.Join(d, "\n")), fmode)
+			if err := os.WriteFile(filename, []byte(strings.Join(d, "\n")), fmode); err != nil {
+				return err, false
+			}
 		}
 		return nil, true
 	}
@@ -2702,7 +2706,9 @@ func LineInFile(filename string, opt *LineInfileOpt) (err error, changed bool) {
 					datalines = InsertItemAfter(datalines, last, optLineB)
 				}
 			}
-			os.WriteFile(filename, []byte(bytes.Join(datalines, []byte("\n"))), fmode)
+			if err := os.WriteFile(filename, []byte(bytes.Join(datalines, []byte("\n"))), fmode); err != nil {
+				return err, false
+			}
 			changed = true
 		case "print":
 			return returnFunc(processAbsentLines(line_exist_idx, index_list, search_string_found))
@@ -2789,7 +2795,9 @@ func LineInFile(filename string, opt *LineInfileOpt) (err error, changed bool) {
 					datalines = InsertItemAfter(datalines, last, optLineB)
 				}
 			}
-			os.WriteFile(filename, []byte(bytes.Join(datalines, []byte("\n"))), fmode)
+			if err := os.WriteFile(filename, []byte(bytes.Join(datalines, []byte("\n"))), fmode); err != nil {
+				return err, false
+			}
 			changed = true
 		case "print":
 			return returnFunc(processAbsentLines(line_exist_idx, index_list, search_string_found))
