@@ -3733,3 +3733,18 @@ func GetenvBool(key string, def bool) bool {
 		return def
 	}
 }
+
+// Cloning enything haha
+func DeepClone[T any](orig T) (T, error) {
+	var clone T
+
+	// Convert original struct to JSON bytes
+	bytes, err := json.Marshal(orig)
+	if err != nil {
+		return clone, err
+	}
+
+	// Unmarshal bytes into the brand new struct allocation
+	err = json.Unmarshal(bytes, &clone)
+	return clone, err
+}
