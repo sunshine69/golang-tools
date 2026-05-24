@@ -3,7 +3,6 @@ package utils
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -613,58 +612,6 @@ func ExtractTextBlock(filename string, start_pattern, end_pattern []string) (blo
 	return
 }
 
-// Extract a text block which contains marker which could be an int or a list of pattern. if it is an int it is the line number.
-//
-// First we get the text from the line number or search for a match to the upper pattern. If we found we will search down for the marker if it is defined, and when found, search for the lower_bound_pattern.
-//
-// # The marker should be in the middle
-//
-// Return the text within the upper and lower, but not including the lower bound. Also return the line number range and full file content as datalines
-//
-// upper and lower is important; you can ignore marker by using a empty []string{}
-func ExtractTextBlockContains(filename string, upper_bound_pattern, lower_bound_pattern []string, marker []string, start_line int) (block string, start_line_no int, end_line_no int, datalines []string, matchedPatterns [][]string) {
-	datab := Must(os.ReadFile(filename))
-	datalines = strings.Split(string(datab), "\n")
-	all_lines_count := len(datalines)
-
-	if start_line >= all_lines_count {
-		return "", 0, 0, datalines, [][]string{}
-	}
-
-	found_upper, found_marker, found_lower, matchedUpper := false, false, false, []string{}
-
-	found_upper, start_line_no, matchedUpper = SearchPatternListInStrings(datalines, upper_bound_pattern, start_line, all_lines_count, 0)
-
-	if !found_upper {
-		return "", 0, 0, datalines, [][]string{}
-	}
-	matchedPatterns = append(matchedPatterns, matchedUpper)
-
-	marker_line_no, matchedMarker := 0, []string{}
-	if len(marker) > 0 {
-		found_marker, marker_line_no, matchedMarker = SearchPatternListInStrings(datalines, marker, start_line_no+len(upper_bound_pattern), all_lines_count, 0)
-		if !found_marker {
-			return "", 0, 0, datalines, [][]string{}
-		}
-		matchedPatterns = append(matchedPatterns, matchedMarker)
-	} else {
-		marker_line_no = start_line_no
-	}
-	matchedLower := []string{}
-	found_lower, end_line_no, matchedLower = SearchPatternListInStrings(datalines, lower_bound_pattern, marker_line_no+len(marker), all_lines_count, 0)
-
-	if !found_lower {
-		if strings.Contains(lower_bound_pattern[0], "EOF") {
-			end_line_no = all_lines_count
-		} else {
-			return "", 0, 0, datalines, [][]string{}
-		}
-	}
-	matchedPatterns = append(matchedPatterns, matchedLower)
-
-	return strings.Join(datalines[start_line_no:end_line_no], "\n"), start_line_no, end_line_no, datalines, matchedPatterns
-}
-
 // SplitFirstLine return the first line from a text block. Line ending can be unix based or windows based.
 // The rest of the block is return also as the second output
 func SplitFirstLine[T string | []byte](data T) (T, T) {
@@ -837,81 +784,287 @@ func LineInLines(datalines []string, search_pattern string, replace string) (out
 	return datalines
 }
 
-// Find a block text matching and replace content with replText. Return the old text block. Use ExtractTextBlockContains under the hood to get the text block, see that func for help.
+// ExtractTextBlockContains extracts a text block which contains marker which could be an int or a list of pattern.
 //
-// if not care about marker pass a empty slice []string{}.
+// First we get the text from the line number or search for a match to the upper pattern. If we found we will search
+// down for the marker if it is defined, and when found, search for the lower_bound_pattern.
 //
-// To be sure of accuracy all of pattern must be uniquely identified. Recommend to use full line matching (use anchor ^ and $). The lowerbound if in the pattern there is string EOF then even the lowerbound not found but we hit EOF it will still return match for the block. See example in the test function
+// The marker should be in the middle.
+//
+// Return the text within the upper and lower, but not including the lower bound. Also return the line number range
+// and full file content as datalines.
+//
+// upper and lower is important; you can ignore marker by using an empty []string{}.
+func ExtractTextBlockContains(
+	filename string,
+	upper_bound_pattern, lower_bound_pattern []string,
+	marker []string,
+	start_line int,
+) (block string, start_line_no int, end_line_no int, datalines []string, matchedPatterns [][]string) {
 
-// extraArg is optional but currently only accept one map[string]any. The key would be a extra feature to control the behaviour
-// As of now  key:
-// insertIfNotFound => bool | controll if we do insert block if no block found. Default is true
-func BlockInFile(filename string, upper_bound_pattern, lower_bound_pattern []string, marker []string, replText string, keepBoundaryLines bool, backup bool, start_line int, extraArgs ...map[string]any) (oldBlock string, start, end int, matchedPattern [][]string) {
-	fstat, err := os.Stat(filename)
-	if errors.Is(err, fs.ErrNotExist) {
-		fmt.Print("[ERROR]BlockInFile File " + filename + " doesn't exist\n")
-		return "", 0, 0, nil
+	// Read all lines from file
+	f, err := os.Open(filename)
+	if err != nil {
+		return "", -1, -1, nil, nil
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		datalines = append(datalines, scanner.Text())
 	}
 
-	insertIfNotFound := true
-	if len(extraArgs) > 0 { //
-		if val, ok := extraArgs[0]["insertIfNotFound"]; ok {
-			insertIfNotFound = val.(bool)
-		}
-	}
+	total := len(datalines)
+	matchedPatterns = make([][]string, 3) // [0]=upper matched, [1]=marker matched, [2]=lower matched
 
-	block, start_line_no, end_line_no, datalines, _matchedPattern := ExtractTextBlockContains(filename, upper_bound_pattern, lower_bound_pattern, marker, start_line)
-	switch block {
-	case "":
-		if insertIfNotFound {
-			fmt.Fprintf(os.Stderr, "block not found - upper: %v | lower: %v | marker: %v. Will add the block at the end of file\n", upper_bound_pattern, lower_bound_pattern, marker)
-			olddataB := Must(os.ReadFile(filename))
-			if backup {
-				CheckErr(os.WriteFile(filename+".bak", olddataB, fstat.Mode()), "BlockInFile Write backup file")
+	// Helper: compile patterns and try to match a line, return matched pattern string or ""
+	matchAny := func(line string, patterns []string) string {
+		for _, pat := range patterns {
+			re, err := regexp.Compile(pat)
+			if err != nil {
+				continue
 			}
-
-			newBlock := GoTemplateString(`{{ range $line := .startlines }}
-{{ $line }}
-{{- end }}
-{{ $.oldblock }}
-{{- range $line := .endlines }}
-{{ $line }}
-{{ end }}
-`, map[string]any{
-				"startlines": upper_bound_pattern,
-				"oldblock":   replText,
-				"endlines":   lower_bound_pattern,
-			})
-
-			olddataB = append(olddataB, []byte(newBlock)...)
-			CheckErrNonFatal(os.WriteFile(filename, olddataB, fstat.Mode()), "BlockInFile Write new file")
-			return "", 0, 0, matchedPattern
-		} else {
-			fmt.Fprintf(os.Stderr, "block not found and insertIfNotFound set to false, skipping\n")
-			return "", 0, 0, matchedPattern
+			if re.MatchString(line) {
+				return pat
+			}
 		}
-	default:
-		fmt.Fprintf(os.Stderr, "block found. start_line_no: %d - end_line_no: %d\n", start_line_no, end_line_no)
+		return ""
 	}
 
-	matchedPattern = _matchedPattern
+	// Determine search start offset (1-based start_line, 0 means beginning)
+	searchFrom := 0
+	if start_line > 0 {
+		searchFrom = start_line - 1
+	}
+	if searchFrom >= total {
+		return "", -1, -1, datalines, matchedPatterns
+	}
 
-	var upPartLines, downPartLines []string
-	delta_lines := len(upper_bound_pattern)
+	// ── Step 1: Find upper bound ──────────────────────────────────────────────
+	upperStart := -1
+
+	if len(upper_bound_pattern) == 0 {
+		// No upper pattern — start from start_line (or 0)
+		upperStart = searchFrom
+	} else {
+		for i := searchFrom; i < total; i++ {
+			if pat := matchAny(datalines[i], upper_bound_pattern); pat != "" {
+				upperStart = i
+				matchedPatterns[0] = append(matchedPatterns[0], pat)
+				break
+			}
+		}
+	}
+
+	if upperStart == -1 {
+		return "", -1, -1, datalines, matchedPatterns
+	}
+
+	// ── Step 2: Find marker (if provided) ────────────────────────────────────
+	// marker must appear after the upper bound; if not found the block is invalid
+	markerFound := len(marker) == 0 // trivially satisfied when no marker given
+
+	if !markerFound {
+		for i := upperStart + 1; i < total; i++ {
+			if pat := matchAny(datalines[i], marker); pat != "" {
+				markerFound = true
+				matchedPatterns[1] = append(matchedPatterns[1], pat)
+				break
+			}
+		}
+	}
+
+	if !markerFound {
+		return "", -1, -1, datalines, matchedPatterns
+	}
+
+	// ── Step 3: Find lower bound ──────────────────────────────────────────────
+	eofAllowed := false
+	for _, pat := range lower_bound_pattern {
+		if strings.Contains(pat, "EOF") {
+			eofAllowed = true
+			break
+		}
+	}
+
+	lowerEnd := -1 // index of the line that IS the lower bound (excluded from block)
+
+	if len(lower_bound_pattern) == 0 {
+		// No lower pattern — block runs to EOF
+		lowerEnd = total
+	} else {
+		for i := upperStart + 1; i < total; i++ {
+			if pat := matchAny(datalines[i], lower_bound_pattern); pat != "" {
+				lowerEnd = i
+				matchedPatterns[2] = append(matchedPatterns[2], pat)
+				break
+			}
+		}
+		if lowerEnd == -1 && eofAllowed {
+			lowerEnd = total
+		}
+	}
+
+	if lowerEnd == -1 {
+		return "", -1, -1, datalines, matchedPatterns
+	}
+
+	// ── Assemble block ────────────────────────────────────────────────────────
+	// Include the upper bound line; exclude the lower bound line.
+	start_line_no = upperStart + 1 // 1-based line number of the upper bound line
+	end_line_no = lowerEnd         // equals the 1-based line number of the last *included* line
+	// (lowerEnd is 0-based exclusive, so lowerEnd == 1-based last included)
+
+	blockLines := datalines[upperStart:lowerEnd]
+	block = strings.Join(blockLines, "\n")
+
+	return block, start_line_no, end_line_no, datalines, matchedPatterns
+}
+
+// errBlock returns a sentinel error result: oldBlock carries a human-readable error
+// message prefixed with "ERROR: " so the caller can detect failure via start == -1
+// and inspect oldBlock for the reason.
+func errBlock(format string, args ...any) (string, int, int, [][]string) {
+	return "ERROR: " + fmt.Sprintf(format, args...), -1, -1, nil
+}
+
+// BlockInFile finds a block of text matching the given patterns and replaces it with replText.
+// Returns the old block, start/end line numbers (1-based, end is the line just before the lower bound),
+// and the matched patterns for each bound.
+//
+// On any error (file not found, backup failure, write failure, etc.) the function returns:
+//   - oldBlock = "ERROR: <human-readable description>"
+//   - start = -1, end = -1
+//
+// Callers detect failure with a simple `if start == -1` check, then read oldBlock for the reason.
+// Note: start == -1 also means "block not found + text was appended" (not an error); distinguish
+// these by checking whether oldBlock has the "ERROR: " prefix.
+//
+// If not care about marker pass an empty slice []string{}.
+//
+// To be sure of accuracy all patterns must uniquely identify the block. Recommend full-line matching
+// (use anchors ^ and $). If lower_bound_pattern contains "EOF", reaching end-of-file counts as a match.
+//
+// extraArg is optional; accepted keys:
+//
+//	insertIfNotFound => bool  — insert replText if no block is found (default: true)
+func BlockInFile(
+	filename string,
+	upper_bound_pattern, lower_bound_pattern []string,
+	marker []string,
+	replText string,
+	keepBoundaryLines bool,
+	backup bool,
+	start_line int,
+	extraArgs ...map[string]any,
+) (oldBlock string, start, end int, matchedPattern [][]string) {
+
+	// Parse optional extra args
+	insertIfNotFound := true
+	if len(extraArgs) > 0 && extraArgs[0] != nil {
+		if v, ok := extraArgs[0]["insertIfNotFound"]; ok {
+			if b, ok := v.(bool); ok {
+				insertIfNotFound = b
+			}
+		}
+	}
+
+	// Extract the block.
+	// ExtractTextBlockContains signals an unreadable file with startNo==-1 AND nil datalines.
+	block, startNo, endNo, datalines, matched := ExtractTextBlockContains(
+		filename, upper_bound_pattern, lower_bound_pattern, marker, start_line,
+	)
+
+	if startNo == -1 && datalines == nil {
+		return errBlock("could not read file %q", filename)
+	}
+
+	oldBlock = block
+	matchedPattern = matched
+
+	// ── Block not found ───────────────────────────────────────────────────────
+	if startNo == -1 {
+		if !insertIfNotFound {
+			// Caller opted out of insertion — not an error, just nothing to do.
+			return oldBlock, -1, -1, matchedPattern
+		}
+
+		// Append replText at end of file.
+		f, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+		if err != nil {
+			return errBlock("block not found and could not open %q for append: %v", filename, err)
+		}
+		defer f.Close()
+
+		if _, err = fmt.Fprintln(f, replText); err != nil {
+			return errBlock("block not found and could not append to %q: %v", filename, err)
+		}
+
+		// Successful insertion; indices are -1 to signal "was not found, text appended".
+		return oldBlock, -1, -1, matchedPattern
+	}
+
+	start = startNo
+	end = endNo
+
+	// ── Optional backup ───────────────────────────────────────────────────────
+	if backup {
+		backupName := filename + ".bak"
+		data, err := os.ReadFile(filename)
+		if err != nil {
+			return errBlock("could not read %q for backup: %v", filename, err)
+		}
+		if err = os.WriteFile(backupName, data, 0644); err != nil {
+			return errBlock("could not write backup file %q: %v", backupName, err)
+		}
+	}
+
+	// ── Build replacement line slice ──────────────────────────────────────────
+	// startNo is the 1-based line number of the upper-bound line  → 0-based idx = startNo-1
+	// endNo   is the 1-based number of the last included line     → 0-based exclusive = endNo
+	// upperIdx: 0-based index of the upper-bound line.
+	// lowerIdx: 0-based index of the lower-bound line (excluded from the old block).
+	upperIdx := startNo - 1
+	lowerIdx := endNo // points AT the lower-bound line
+
+	var newLines []string
+
+	// Lines strictly before the block (never includes upper boundary).
+	newLines = append(newLines, datalines[:upperIdx]...)
 
 	if keepBoundaryLines {
-		upPartLines = datalines[0 : start_line_no+delta_lines]
-		downPartLines = datalines[end_line_no:]
+		// Retain upper-bound line, then replacement, then lower-bound line.
+		newLines = append(newLines, datalines[upperIdx])
+		if replText != "" {
+			newLines = append(newLines, strings.Split(replText, "\n")...)
+		}
+		if lowerIdx < len(datalines) {
+			newLines = append(newLines, datalines[lowerIdx])
+		}
+		// Continue from the line after the lower boundary.
+		lowerIdx++
 	} else {
-		upPartLines = datalines[0:start_line_no]
-		downPartLines = datalines[end_line_no+1:]
+		// Drop both boundary lines and the inner content; insert replacement.
+		if replText != "" {
+			newLines = append(newLines, strings.Split(replText, "\n")...)
+		}
+		// Skip past the lower-bound line.
+		lowerIdx++
 	}
-	if backup {
-		os.WriteFile(filename+".bak", []byte(strings.Join(datalines, "\n")), fstat.Mode())
+
+	if lowerIdx < len(datalines) {
+		newLines = append(newLines, datalines[lowerIdx:]...)
 	}
-	if err := os.WriteFile(filename, []byte(strings.Join(upPartLines, "\n")+"\n"+replText+"\n"+strings.Join(downPartLines, "\n")), fstat.Mode()); err != nil {
-		fmt.Println("[ERROR] " + err.Error())
-		return "", 0, 0, nil
+
+	// ── Write back ────────────────────────────────────────────────────────────
+	output := strings.Join(newLines, "\n")
+	if len(datalines) > 0 && !strings.HasSuffix(output, "\n") {
+		output += "\n"
 	}
-	return block, start_line_no, end_line_no, matchedPattern
+
+	if err := os.WriteFile(filename, []byte(output), 0644); err != nil {
+		return errBlock("could not write %q: %v", filename, err)
+	}
+
+	return oldBlock, start, end, matchedPattern
 }

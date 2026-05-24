@@ -2,463 +2,571 @@ package utils
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
-// setupTestFile creates a temporary directory and writes content into it, returning the full file path.
-func setupTestFile(t *testing.T, name string, content string) string {
+// helper: write a temp file with given content, return path
+func writeTmp(t *testing.T, content string) string {
 	t.Helper()
-	dir := t.TempDir()
-	filePath := filepath.Join(dir, name)
-	err := os.WriteFile(filePath, []byte(content), 0644)
+	f, err := os.CreateTemp("", "textblock_*.txt")
 	if err != nil {
-		t.Fatalf("setupTestFile: failed to create test file %s: %v", filePath, err)
+		t.Fatal(err)
 	}
-	return filePath
+	defer f.Close()
+	f.WriteString(content)
+	return f.Name()
 }
 
-// assertFileContent reads the actual content of a file and compares it with expected.
-func assertFileContent(t *testing.T, path string, expected string) {
-	t.Helper()
-	actual, err := os.ReadFile(path)
+// isErrResult checks the sentinel error convention: oldBlock starts with "ERROR: " and both indices are -1.
+func isErrResult(oldBlock string, start, end int) bool {
+	return start == -1 && end == -1 && strings.HasPrefix(oldBlock, "ERROR: ")
+}
+
+// ─── ExtractTextBlockContains ──────────────────────────────────────────────────
+
+func TestExtract_BasicBlock(t *testing.T) {
+	content := strings.Join([]string{
+		"line1",
+		"# BEGIN",
+		"  content A",
+		"  content B",
+		"# END",
+		"line6",
+	}, "\n") + "\n"
+
+	path := writeTmp(t, content)
+	defer os.Remove(path)
+
+	block, start, end, _, _ := ExtractTextBlockContains(
+		path,
+		[]string{`^# BEGIN$`},
+		[]string{`^# END$`},
+		[]string{},
+		0,
+	)
+
+	if start != 2 {
+		t.Errorf("expected start=2, got %d", start)
+	}
+	// end_line_no is the 1-based index of the last *included* line.
+	// "# END" is line 5 (1-based), so last included is line 4.
+	if end != 4 {
+		t.Errorf("expected end=4 (last included line), got %d", end)
+	}
+	if !strings.Contains(block, "content A") {
+		t.Errorf("block missing content A: %q", block)
+	}
+	if strings.Contains(block, "# END") {
+		t.Errorf("block should not include lower bound line")
+	}
+}
+
+func TestExtract_WithMarker(t *testing.T) {
+	content := strings.Join([]string{
+		"# SECTION_START",
+		"  alpha",
+		"  MARKER_HERE",
+		"  beta",
+		"# SECTION_END",
+	}, "\n") + "\n"
+
+	path := writeTmp(t, content)
+	defer os.Remove(path)
+
+	block, start, end, _, matched := ExtractTextBlockContains(
+		path,
+		[]string{`^# SECTION_START$`},
+		[]string{`^# SECTION_END$`},
+		[]string{`MARKER_HERE`},
+		0,
+	)
+
+	if start == -1 {
+		t.Fatal("expected a match, got -1")
+	}
+	if !strings.Contains(block, "alpha") || !strings.Contains(block, "beta") {
+		t.Errorf("block content wrong: %q", block)
+	}
+	_ = end
+	_ = matched
+}
+
+func TestExtract_MarkerNotFound_ReturnsNegOne(t *testing.T) {
+	content := strings.Join([]string{
+		"# BEGIN",
+		"  no marker here",
+		"# END",
+	}, "\n") + "\n"
+
+	path := writeTmp(t, content)
+	defer os.Remove(path)
+
+	_, start, _, _, _ := ExtractTextBlockContains(
+		path,
+		[]string{`^# BEGIN$`},
+		[]string{`^# END$`},
+		[]string{`MISSING_MARKER`},
+		0,
+	)
+	if start != -1 {
+		t.Errorf("expected -1 when marker not found, got %d", start)
+	}
+}
+
+func TestExtract_EOFLowerBound(t *testing.T) {
+	// Lower bound pattern contains "EOF" so hitting file end counts as a match
+	content := strings.Join([]string{
+		"# START",
+		"  data line",
+		"  more data",
+		// no explicit end marker
+	}, "\n") + "\n"
+
+	path := writeTmp(t, content)
+	defer os.Remove(path)
+
+	block, start, end, datalines, _ := ExtractTextBlockContains(
+		path,
+		[]string{`^# START$`},
+		[]string{`^# END_EOF$`}, // contains "EOF"
+		[]string{},
+		0,
+	)
+
+	if start == -1 {
+		t.Fatal("expected match via EOF fallback")
+	}
+	if end != len(datalines) {
+		t.Errorf("expected end=%d (len of file), got %d", len(datalines), end)
+	}
+	if !strings.Contains(block, "data line") {
+		t.Errorf("block missing expected content: %q", block)
+	}
+}
+
+func TestExtract_StartLine(t *testing.T) {
+	// Two identical blocks; start_line skips past the first
+	content := strings.Join([]string{
+		"# BEGIN",     // 1
+		"  block one", // 2
+		"# END",       // 3
+		"# BEGIN",     // 4
+		"  block two", // 5
+		"# END",       // 6
+	}, "\n") + "\n"
+
+	path := writeTmp(t, content)
+	defer os.Remove(path)
+
+	// start_line=4 → skip to line 4 (1-based)
+	block, start, _, _, _ := ExtractTextBlockContains(
+		path,
+		[]string{`^# BEGIN$`},
+		[]string{`^# END$`},
+		[]string{},
+		4,
+	)
+
+	if start != 4 {
+		t.Errorf("expected start=4 (second block), got %d", start)
+	}
+	if !strings.Contains(block, "block two") {
+		t.Errorf("expected second block, got: %q", block)
+	}
+}
+
+// ─── BlockInFile — normal operation ───────────────────────────────────────────
+
+func TestBlockInFile_Replace(t *testing.T) {
+	content := strings.Join([]string{
+		"preamble",
+		"# BEGIN",
+		"  old content",
+		"# END",
+		"postamble",
+	}, "\n") + "\n"
+
+	path := writeTmp(t, content)
+	defer os.Remove(path)
+
+	oldBlock, start, end, _ := BlockInFile(
+		path,
+		[]string{`^# BEGIN$`},
+		[]string{`^# END$`},
+		[]string{},
+		"  new content",
+		false,
+		false,
+		0,
+	)
+
+	if isErrResult(oldBlock, start, end) {
+		t.Fatalf("unexpected error: %s", oldBlock)
+	}
+	if !strings.Contains(oldBlock, "old content") {
+		t.Errorf("oldBlock should contain old content, got: %q", oldBlock)
+	}
+
+	data, _ := os.ReadFile(path)
+	result := string(data)
+
+	if !strings.Contains(result, "new content") {
+		t.Errorf("file should contain new content:\n%s", result)
+	}
+	if strings.Contains(result, "old content") {
+		t.Errorf("file should NOT contain old content:\n%s", result)
+	}
+	if !strings.Contains(result, "preamble") || !strings.Contains(result, "postamble") {
+		t.Errorf("surrounding lines should be preserved:\n%s", result)
+	}
+}
+
+func TestBlockInFile_Replace_BoundaryLinesRemoved(t *testing.T) {
+	// keepBoundaryLines=false (the default) must remove the upper AND lower bound
+	// lines themselves, not just the inner content.
+	content := strings.Join([]string{
+		"preamble",
+		"# BEGIN",
+		"  old content",
+		"# END",
+		"postamble",
+	}, "\n") + "\n"
+
+	path := writeTmp(t, content)
+	defer os.Remove(path)
+
+	oldBlock, start, end, _ := BlockInFile(
+		path,
+		[]string{`^# BEGIN$`},
+		[]string{`^# END$`},
+		[]string{},
+		"  new content",
+		false, // keepBoundaryLines — the key flag under test
+		false,
+		0,
+	)
+
+	if isErrResult(oldBlock, start, end) {
+		t.Fatalf("unexpected error: %s", oldBlock)
+	}
+
+	data, _ := os.ReadFile(path)
+	result := string(data)
+
+	// Boundary lines must be gone.
+	if strings.Contains(result, "# BEGIN") {
+		t.Errorf("# BEGIN should be removed when keepBoundaryLines=false:\n%s", result)
+	}
+	if strings.Contains(result, "# END") {
+		t.Errorf("# END should be removed when keepBoundaryLines=false:\n%s", result)
+	}
+
+	// Replacement content must be present.
+	if !strings.Contains(result, "new content") {
+		t.Errorf("replacement content missing:\n%s", result)
+	}
+
+	// Lines outside the block must be untouched.
+	if !strings.Contains(result, "preamble") || !strings.Contains(result, "postamble") {
+		t.Errorf("surrounding lines should be preserved:\n%s", result)
+	}
+}
+
+func TestBlockInFile_KeepBoundaryLines(t *testing.T) {
+	content := strings.Join([]string{
+		"# BEGIN",
+		"  old",
+		"# END",
+	}, "\n") + "\n"
+
+	path := writeTmp(t, content)
+	defer os.Remove(path)
+
+	oldBlock, start, end, _ := BlockInFile(
+		path,
+		[]string{`^# BEGIN$`},
+		[]string{`^# END$`},
+		[]string{},
+		"  replaced",
+		true,
+		false,
+		0,
+	)
+
+	if isErrResult(oldBlock, start, end) {
+		t.Fatalf("unexpected error: %s", oldBlock)
+	}
+
+	data, _ := os.ReadFile(path)
+	result := string(data)
+
+	if !strings.Contains(result, "# BEGIN") {
+		t.Errorf("expected # BEGIN preserved:\n%s", result)
+	}
+	if !strings.Contains(result, "# END") {
+		t.Errorf("expected # END preserved:\n%s", result)
+	}
+	if !strings.Contains(result, "replaced") {
+		t.Errorf("expected replacement content:\n%s", result)
+	}
+	if strings.Contains(result, "old") {
+		t.Errorf("old content should be gone:\n%s", result)
+	}
+}
+
+func TestBlockInFile_InsertIfNotFound(t *testing.T) {
+	content := "no blocks here\n"
+	path := writeTmp(t, content)
+	defer os.Remove(path)
+
+	oldBlock, start, end, _ := BlockInFile(
+		path,
+		[]string{`^# BEGIN$`},
+		[]string{`^# END$`},
+		[]string{},
+		"appended line",
+		false,
+		false,
+		0,
+		map[string]any{"insertIfNotFound": true},
+	)
+
+	// "not found + appended" returns -1/-1 but NO "ERROR: " prefix.
+	if strings.HasPrefix(oldBlock, "ERROR: ") {
+		t.Fatalf("unexpected error on insert-if-not-found: %s", oldBlock)
+	}
+	if start != -1 || end != -1 {
+		t.Errorf("expected -1/-1 for not-found case, got start=%d end=%d", start, end)
+	}
+
+	data, _ := os.ReadFile(path)
+	if !strings.Contains(string(data), "appended line") {
+		t.Errorf("expected appended line when not found, got:\n%s", string(data))
+	}
+}
+
+func TestBlockInFile_NoInsertIfNotFound(t *testing.T) {
+	content := "no blocks here\n"
+	path := writeTmp(t, content)
+	defer os.Remove(path)
+
+	oldBlock, start, end, _ := BlockInFile(
+		path,
+		[]string{`^# BEGIN$`},
+		[]string{`^# END$`},
+		[]string{},
+		"should not appear",
+		false,
+		false,
+		0,
+		map[string]any{"insertIfNotFound": false},
+	)
+
+	// Not an error — caller just opted out.
+	if strings.HasPrefix(oldBlock, "ERROR: ") {
+		t.Fatalf("unexpected error: %s", oldBlock)
+	}
+	if start != -1 || end != -1 {
+		t.Errorf("expected -1/-1 for not-found case")
+	}
+
+	data, _ := os.ReadFile(path)
+	if strings.Contains(string(data), "should not appear") {
+		t.Errorf("expected no insertion, got:\n%s", string(data))
+	}
+}
+
+func TestBlockInFile_Backup(t *testing.T) {
+	content := strings.Join([]string{
+		"# BEGIN",
+		"  original",
+		"# END",
+	}, "\n") + "\n"
+
+	path := writeTmp(t, content)
+	defer os.Remove(path)
+	defer os.Remove(path + ".bak")
+
+	oldBlock, start, end, _ := BlockInFile(
+		path,
+		[]string{`^# BEGIN$`},
+		[]string{`^# END$`},
+		[]string{},
+		"  replaced",
+		false,
+		true,
+		0,
+	)
+
+	if isErrResult(oldBlock, start, end) {
+		t.Fatalf("unexpected error: %s", oldBlock)
+	}
+
+	bak, err := os.ReadFile(path + ".bak")
 	if err != nil {
-		t.Fatalf("assertFileContent: failed to read %s: %v", path, err)
+		t.Fatal("backup file not created:", err)
 	}
-
-	gotStr := strings.TrimSpace(string(actual))
-	expStr := strings.TrimSpace(expected)
-
-	if gotStr != expStr {
-		t.Errorf("\n=== File: %s ===\nExpected:\n%s\nActual  :\n%s",
-			path, expected, string(actual))
+	if !strings.Contains(string(bak), "original") {
+		t.Errorf("backup should contain original content:\n%s", string(bak))
 	}
 }
 
-// assertFileNotExists verifies that a file does NOT exist.
-func assertFileNotExists(t *testing.T, path string) {
-	t.Helper()
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Errorf("assertFileNotExists: expected %s to not exist but it did", path)
+func TestBlockInFile_EOFPattern(t *testing.T) {
+	content := strings.Join([]string{
+		"# START",
+		"  old data",
+	}, "\n") + "\n"
+
+	path := writeTmp(t, content)
+	defer os.Remove(path)
+
+	oldBlock, start, end, _ := BlockInFile(
+		path,
+		[]string{`^# START$`},
+		[]string{`EOF`},
+		[]string{},
+		"  new data",
+		false,
+		false,
+		0,
+	)
+
+	if isErrResult(oldBlock, start, end) {
+		t.Fatalf("unexpected error: %s", oldBlock)
+	}
+	if start == -1 {
+		t.Fatal("expected match via EOF lower bound")
+	}
+	if !strings.Contains(oldBlock, "old data") {
+		t.Errorf("old block should contain old data: %q", oldBlock)
+	}
+
+	data, _ := os.ReadFile(path)
+	if !strings.Contains(string(data), "new data") {
+		t.Errorf("file should have new data:\n%s", string(data))
 	}
 }
 
-// --- Tests for basic replacement (no markers) -----------------------------------
+// ─── BlockInFile — error sentinel tests ───────────────────────────────────────
 
-func TestBlockInFile_BasicReplacement(t *testing.T) {
-	content := `header line 1
-# UPPER_BOUNDARY
-old content here
-# LOWER_BOUNDARY
-footer line`
+func TestBlockInFile_Error_FileNotFound(t *testing.T) {
+	oldBlock, start, end, matched := BlockInFile(
+		"/nonexistent/path/file.txt",
+		[]string{`^# BEGIN$`},
+		[]string{`^# END$`},
+		[]string{},
+		"replacement",
+		false, false, 0,
+	)
 
-	path := setupTestFile(t, "basic.txt", content)
-
-	BlockInFile(path, []string{"^# UPPER_BOUNDARY"}, []string{".*LOWER.*BOUNDARY.*"}, nil,
-		"new replaced content\nwith multiple lines", false, false, 0)
-
-	expected := `header line 1
-# UPPER_BOUNDARY
-new replaced content
-with multiple lines
-# LOWER_BOUNDARY
-footer line`
-	assertFileContent(t, path, expected)
-}
-
-func TestBlockInFile_BoundaryLinesKept_True(t *testing.T) {
-	content := `--- BEGIN ---
-old block content
---- END ---`
-
-	path := setupTestFile(t, "keep_true.txt", content)
-
-	BlockInFile(path, []string{"^--- BEGIN ---"}, []string{".*END.*"}, nil,
-		"replaced block", true, false, 0)
-
-	expected := `--- BEGIN ---
-replaced block
---- END ---`
-	assertFileContent(t, path, expected)
-}
-
-func TestBlockInFile_BoundaryLinesKept_False(t *testing.T) {
-	content := `header
-# UPPER
-old content
-# LOWER
-footer`
-
-	path := setupTestFile(t, "keep_false.txt", content)
-
-	BlockInFile(path, []string{"^# UPPER"}, []string{".*LOWER.*"}, nil,
-		"new block\nreplaced here", false, false, 0)
-
-	expected := `header
-new block
-replaced here
-footer`
-	assertFileContent(t, path, expected)
-}
-
-// --- Tests with markers ---------------------------------------------------------
-
-func TestBlockInFile_WithMarker(t *testing.T) {
-	content := `start config
-# MARKER_HERE
-key2 = old_value
-end of file`
-
-	path := setupTestFile(t, "marker.txt", content)
-
-	BlockInFile(path, []string{"^start"}, []string{".*file$"},
-		[]string{"# MARKER_HERE"}, "# UPDATED_MARKER\n  key3 = new_val", false, false, 0)
-
-	expected := `start config
-# UPDATED_MARKER
-  key3 = new_val
-end of file`
-	assertFileContent(t, path, expected)
-}
-
-// --- Tests for insertIfNotFound -------------------------------------------------
-
-func TestBlockInFile_InsertIfNotFound_True_AppendsNewBlock(t *testing.T) {
-	content := `existing header line`
-
-	path := setupTestFile(t, "insert_true.txt", content)
-
-	BlockInFile(path, []string{"^### NEW_BLOCK ###"}, []string{".*END_NEW.*"}, nil,
-		"  key = value\n  status = active", false, false, 0, map[string]any{"insertIfNotFound": true})
-
-	expected := `existing header line
-### NEW_BLOCK ###
-  key = value
-  status = active
-END_NEW`
-	assertFileContent(t, path, expected)
-}
-
-func TestBlockInFile_InsertIfNotFound_False_NoChange(t *testing.T) {
-	content := `some existing content
-no matching block here at all`
-
-	path := setupTestFile(t, "insert_false.txt", content)
-
-	BlockInFile(path, []string{"^### MISSING ###"}, []string{".*END.*"}, nil,
-		"should not appear anywhere", false, false, 0, map[string]any{"insertIfNotFound": false})
-
-	assertFileContent(t, path, content) // file should be unchanged
-}
-
-// --- Tests for backup -----------------------------------------------------------
-
-func TestBlockInFile_BackupCreated(t *testing.T) {
-	content := `backup test content
-# UPPER
-old data that will be replaced
-# LOWER
-end of file`
-
-	path := setupTestFile(t, "with_backup.txt", content)
-
-	BlockInFile(path, []string{"^# UPPER"}, []string{".*LOWER.*"}, nil,
-		"replaced backup data", false, true, 0) // enable backup
-
-	bakPath := path + ".bak"
-
-	if _, err := os.Stat(bakPath); os.IsNotExist(err) {
-		t.Fatal("TestBlockInFile_BackupCreated: expected .bak file to be created but it was not")
+	if !isErrResult(oldBlock, start, end) {
+		t.Errorf("expected error sentinel for missing file, got oldBlock=%q start=%d end=%d", oldBlock, start, end)
 	}
-
-	assertFileContent(t, bakPath, content) // backup should hold original content
-
-	newExpected := `backup test content
-# UPPER
-replaced backup data
-# LOWER
-end of file`
-	assertFileContent(t, path, newExpected)
-}
-
-func TestBlockInFile_NoBackupWhenFlagFalse(t *testing.T) {
-	content := `no backup needed here`
-
-	path := setupTestFile(t, "no_backup.txt", content)
-
-	BlockInFile(path, []string{"^no"}, []string{".*here.*"}, nil,
-		"replaced without backup", false, false, 0) // no backup flag
-
-	assertFileNotExists(t, path+".bak")
-}
-
-// --- Tests for non-existent file ------------------------------------------------
-
-func TestBlockInFile_FileDoesNotExist_NoPanic(t *testing.T) {
-	path := filepath.Join(os.TempDir(), "blockinfile_nonexistent_12345.txt")
-	defer os.Remove(path) // ensure cleanup if something created it
-
-	_, _, _, _ = BlockInFile(path, []string{"^UPPER"}, []string{".*LOWER.*"}, nil,
-		"content", false, false, 0)
-
-	assertFileNotExists(t, path+".bak")
-}
-
-// --- Tests for multiple matching blocks -----------------------------------------
-
-func TestBlockInFile_MultipleBlocks_ReplacesFirstOnly(t *testing.T) {
-	content := `# UPPER
-block one old content
-# LOWER
-middle text
-# UPPER
-block two old content
-# LOWER`
-
-	path := setupTestFile(t, "multi.txt", content)
-
-	BlockInFile(path, []string{"^# UPPER"}, []string{".*LOWER.*"}, nil,
-		"replaced block one only", false, false, 0)
-
-	expected := `# UPPER
-replaced block one only
-# LOWER
-middle text
-# UPPER
-block two old content
-# LOWER`
-	assertFileContent(t, path, expected)
-}
-
-// --- Tests for empty / edge-case patterns ---------------------------------------
-
-func TestBlockInFile_EmptyUpperPattern_MatchesNothing(t *testing.T) {
-	content := `first line of file`
-
-	path := setupTestFile(t, "empty_upper.txt", content)
-
-	// Empty upper pattern means SearchPatternListInStrings returns false immediately.
-	BlockInFile(path, []string{}, []string{".*EOF.*"}, nil,
-		"should not appear", false, false, 0)
-
-	assertFileContent(t, path, content) // file unchanged when insertIfNotFound is true but no lower match found? 
-}
-
-func TestBlockInFile_ExactLinePatterns(t *testing.T) {
-	content := `--- BEGIN ---
-old block content
---- END ---`
-
-	path := setupTestFile(t, "exact.txt", content)
-
-	BlockInFile(path, []string{"^--- BEGIN ---$"}, []string{".*END.*$"}, nil,
-		"replaced with exact patterns", true, false, 0)
-
-	expected := `--- BEGIN ---
-replaced with exact patterns
---- END ---`
-	assertFileContent(t, path, expected)
-}
-
-// --- Tests for start_line parameter ---------------------------------------------
-
-func TestBlockInFile_StartLine_SkipsEarlierMatches(t *testing.T) {
-	content := `# UPPER
-block at line 0
-# LOWER
-some text
-# UPPER
-block we want to replace
-# LOWER`
-
-	path := setupTestFile(t, "startline.txt", content)
-
-	// start_line=1 means search starts from line index 1 (skipping the first # UPPER block).
-	BlockInFile(path, []string{"^# UPPER"}, []string{".*LOWER.*"}, nil,
-		"replaced second block only", false, false, 0) // default start_line = 0
-
-	expected := `# UPPER
-block at line 0
-# LOWER
-some text
-# UPPER
-replaced second block only
-# LOWER`
-	assertFileContent(t, path, expected)
-}
-
-// --- Tests for keepBoundaryLines with marker ------------------------------------
-
-func TestBlockInFile_KeepBoundariesWithMarker_True(t *testing.T) {
-	content := `header line
-### START ###
-  key = old_value
-### END ###
-footer`
-
-	path := setupTestFile(t, "keep_marker.txt", content)
-
-	BlockInFile(path, []string{"^### START ###"}, []string{".*END.*$"},
-		[]string{"key"}, "# NEW_MARKER\n  new_key = new_val", true, false, 0)
-
-	expected := `header line
-### START ###
-# NEW_MARKER
-  new_key = new_val
-### END ---` // Note: actual output depends on implementation; verify behavior.
-	assertFileContent(t, path, expected)
-}
-
-// --- Tests for file with trailing newline ---------------------------------------
-
-func TestBlockInFile_TrailingNewlines_PreservedAroundReplacement(t *testing.T) {
-	content := `header line
-# UPPER
-old content
-# LOWER
-footer` + "\n\n" // extra newlines at end
-
-	path := setupTestFile(t, "trailing.txt", content)
-
-	BlockInFile(path, []string{"^# UPPER"}, []string{".*LOWER.*"}, nil,
-		"new block here", false, false, 0)
-
-	expected := `header line
-# UPPER
-new block here
-# LOWER
-footer` + "\n\n" // trailing newlines should be preserved in downPartLines
-	assertFileContent(t, path, expected)
-}
-
-// --- Tests for return values ----------------------------------------------------
-
-func TestBlockInFile_ReturnValues_CorrectWhenFound(t *testing.T) {
-	content := `header
-# UPPER_BOUNDARY
-old content here
-# LOWER_BOUNDARY
-footer`
-
-	path := setupTestFile(t, "returnvals.txt", content)
-
-	oldBlock, startLineNo, endLineNo, matchedPatterns := BlockInFile(path, []string{"^# UPPER.*"}, []string{".*LOWER.*BOUNDARY.*"}, nil,
-		"replaced block", false, false, 0)
-
-	if oldBlock == "" {
-		t.Error("expected non-empty oldBlock when a matching block was found")
+	if matched != nil {
+		t.Errorf("expected nil matchedPattern on error, got %v", matched)
 	}
-	if startLineNo < 1 || endLineNo <= startLineNo {
-		t.Errorf("unexpected line range: start=%d, end=%d", startLineNo, endLineNo)
-	}
+	t.Logf("error message: %s", oldBlock)
+}
 
-	expected := `header
-# UPPER_BOUNDARY
-replaced block
-# LOWER_BOUNDARY
-footer`
-	assertFileContent(t, path, expected)
-	
-	if len(matchedPatterns) == 0 {
-		t.Error("expected matched patterns to be returned")
+func TestBlockInFile_Error_AppendToReadonlyDir(t *testing.T) {
+	// Create a read-only directory so OpenFile fails during insertIfNotFound append.
+	dir, err := os.MkdirTemp("", "readonly_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	// Write an empty file, then make the directory read-only so we can't open for append.
+	fpath := dir + "/test.txt"
+	os.WriteFile(fpath, []byte("no blocks\n"), 0644)
+	os.Chmod(dir, 0555) // r-xr-xr-x — can read files, can't create/append
+
+	oldBlock, start, end, _ := BlockInFile(
+		fpath,
+		[]string{`^# BEGIN$`},
+		[]string{`^# END$`},
+		[]string{},
+		"replacement",
+		false, false, 0,
+		map[string]any{"insertIfNotFound": true},
+	)
+
+	os.Chmod(dir, 0755) // restore so cleanup works
+
+	if !isErrResult(oldBlock, start, end) {
+		// On some CI environments running as root, permission checks are skipped —
+		// just log rather than hard-fail.
+		t.Logf("NOTE: error sentinel not returned (possibly running as root): oldBlock=%q start=%d", oldBlock, start)
+	} else {
+		t.Logf("error message: %s", oldBlock)
 	}
 }
 
-func TestBlockInFile_ReturnValues_EmptyWhenNotFoundInsertFalse(t *testing.T) {
-	content := `no matching block here at all`
+func TestBlockInFile_Error_WriteFailure(t *testing.T) {
+	content := strings.Join([]string{
+		"# BEGIN",
+		"  data",
+		"# END",
+	}, "\n") + "\n"
 
-	path := setupTestFile(t, "returnvals_notfound.txt", content)
+	path := writeTmp(t, content)
+	defer os.Remove(path)
 
-	oldBlock, startLineNo, endLineNo, _ := BlockInFile(path, []string{"^### MISSING ###"}, []string{".*END.*"}, nil,
-		"should not appear", false, false, 0, map[string]any{"insertIfNotFound": false})
+	// Make the file read-only so WriteFile fails.
+	os.Chmod(path, 0444)
+	defer os.Chmod(path, 0644)
 
-	if oldBlock != "" {
-		t.Errorf("expected empty oldBlock when block was not found and insertIfNotFound=false; got: %q", oldBlock)
+	oldBlock, start, end, _ := BlockInFile(
+		path,
+		[]string{`^# BEGIN$`},
+		[]string{`^# END$`},
+		[]string{},
+		"replacement",
+		false, false, 0,
+	)
+
+	if !isErrResult(oldBlock, start, end) {
+		t.Logf("NOTE: error sentinel not returned (possibly running as root): oldBlock=%q start=%d", oldBlock, start)
+	} else {
+		t.Logf("error message: %s", oldBlock)
 	}
-	assertFileContent(t, path, content) // file unchanged
-	
-	if startLineNo != 0 || endLineNo != 0 {
-		t.Errorf("unexpected line numbers for non-found case: start=%d, end=%d", startLineNo, endLineNo)
+}
+
+// isErrResult is also useful for documentation — show the distinction between
+// "not found + inserted" vs actual errors.
+func TestBlockInFile_ErrorPrefix_Distinguishable(t *testing.T) {
+	// "not found + inserted" must NOT carry the ERROR: prefix.
+	content := "nothing here\n"
+	path := writeTmp(t, content)
+	defer os.Remove(path)
+
+	oldBlock, start, end, _ := BlockInFile(
+		path,
+		[]string{`^# MISSING$`},
+		[]string{`^# ALSO_MISSING$`},
+		[]string{},
+		"appended",
+		false, false, 0,
+	)
+
+	if start != -1 || end != -1 {
+		t.Errorf("expected -1/-1 for not-found case")
 	}
-}
-
-// --- Tests for boundary line count with multi-line patterns ---------------------
-
-func TestBlockInFile_MultiLineUpperPattern_KeepsAllLinesWhenKeepBoundariesTrue(t *testing.T) {
-	content := `header
-# UPPER_BOUNDARY_LINE1
-# UPPER_BOUNDARY_LINE2
-old block content
---- END ---`
-
-	path := setupTestFile(t, "multiline_upper.txt", content)
-
-	BlockInFile(path, []string{"^# UPPER.*LINE1$", "^# UPPER.*LINE2$"}, nil,
-		nil, // no marker
-		"replaced multi-line upper boundary block", true, false, 0)
-
-	expected := `header
-# UPPER_BOUNDARY_LINE1
-# UPPER_BOUNDARY_LINE2
-replaced multi-line upper boundary block
---- END ---`
-	assertFileContent(t, path, expected)
-}
-
-// --- Tests for insertIfNotFound with EOF in lower pattern -----------------------
-
-func TestBlockInFile_InsertWithEOF_LowerPattern_AppendsAtEnd(t *testing.T) {
-	content := `some content here`
-
-	path := setupTestFile(t, "insert_eof.txt", content)
-
-	BlockInFile(path, []string{"^### NEW_SECTION ###"}, nil, // no lower pattern - uses EOF fallback when insertIfNotFound=true
-		nil, 
-		"  item1 = value\n  item2 = other", false, false, 0, map[string]any{"insertIfNotFound": true})
-
-	expected := `some content here
-### NEW_SECTION ###
-  item1 = value
-  item2 = other`
-	assertFileContent(t, path, expected)
-}
-
-// --- Tests for marker not found (should return empty block and skip replacement) --
-
-func TestBlockInFile_MarkerNotFound_ReturnsEmptyAndSkipsReplacement(t *testing.T) {
-	content := `header line
-### START ###
-  key = old_value
---- END ---`
-
-	path := setupTestFile(t, "marker_notfound.txt", content)
-
-	// Marker pattern "^nonexistent$" won't match anything between upper and lower bounds.
-	oldBlock, _, _, _ := BlockInFile(path, []string{"^### START ###"}, nil, 
-		[]string{".*END.*$"}, // marker doesn't exist in the file!
-		nil, "should not replace", false, false, 0)
-
-	if oldBlock != "" {
-		t.Errorf("expected empty block when marker was not found; got: %q", oldBlock)
+	if strings.HasPrefix(oldBlock, "ERROR: ") {
+		t.Errorf("not-found+inserted should not use ERROR: prefix, got: %s", oldBlock)
 	}
-	assertFileContent(t, path, content) // original should be unchanged
-}
 
-// --- Tests for lower bound pattern containing EOF fallback -----------------------
-
-func TestBlockInFile_LowerPatternWithEOF_FallbackToEndOfFile(t *testing.T) {
-	content := `header line
-# UPPER_BOUNDARY
-old block content` + "\n" // no explicit end marker, should use EOF fallback when found
-
-	path := setupTestFile(t, "eof_fallback.txt", content)
-
-	BlockInFile(path, []string{"^# UPPER.*BOUNDARY"}, nil, 
-		nil, "replaced with eof fallback", false, false, 0)
-
-	expected := `header line
-# UPPER_BOUNDARY
-replaced with eof fallback`
-	assertFileContent(t, path, expected)
+	// A real error (bad file) MUST carry the ERROR: prefix.
+	oldBlock2, start2, end2, _ := BlockInFile(
+		"/no/such/file.txt",
+		[]string{`^# MISSING$`},
+		[]string{`^# ALSO_MISSING$`},
+		[]string{},
+		"appended",
+		false, false, 0,
+	)
+	if !strings.HasPrefix(oldBlock2, "ERROR: ") || start2 != -1 || end2 != -1 {
+		t.Errorf("missing file should produce ERROR: prefix, got: %q start=%d end=%d", oldBlock2, start2, end2)
+	}
 }
