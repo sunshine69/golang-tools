@@ -555,6 +555,24 @@ func (s *SshExec) Exec(commands string) (out string, err error) {
 	return outputBuffer.String(), err
 }
 
+func (s *SshExec) ExecWithOpts(commands string, execOpts ...ExecOpts) (out string, err error) {
+	newCommand := commands
+	if len(execOpts) == 1 {
+		opt := execOpts[0]
+		newCommand = GoTemplateString(`
+{{ range $k, $v := .envs }}
+export {{$k}}='{{$v}}'
+{{ end }}
+
+exec {{.commands}} {{.commandOpt}}
+			`, map[string]any{"envs": opt.Envs, "commands": commands, "commandOpt": strings.Join(opt.Args, " ")})
+		if opt.Debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] ExecWithOpts\n%s\n", newCommand)
+		}
+	}
+	return s.Exec(newCommand)
+}
+
 // Exec a command on remote host hostname via ssh. Multiline command supported
 func (s *SshExec) ExecUseCLI(commands string) (out string, err error) {
 	commandList := strings.Split(commands, "\n")
@@ -1159,6 +1177,15 @@ func (s *SshExec) GoTemplate(src, dest string, data map[string]any, mode os.File
 		}
 		return filepath.Join(rdir, filename), nil
 	}
+}
+
+// Similar to GoTemplate but then exec the template as remote command
+func (s *SshExec) GoTemplateAndExec(src, dest string, data map[string]any, execOpt ...ExecOpts) (out string, err error) {
+	remoteFilePath, err1 := s.GoTemplate(src, dest, data, 0o754)
+	if err1 != nil {
+		return "", err1
+	}
+	return s.ExecWithOpts(remoteFilePath, execOpt...)
 }
 
 /**
