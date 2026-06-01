@@ -563,9 +563,13 @@ func (s *SshExec) ExecWithOpts(commands string, execOpts ...ExecOpts) (out strin
 {{ range $k, $v := .envs }}
 export {{$k}}='{{$v}}'
 {{ end }}
-
+if [ '{{ .optWorkdir }}' != '' ]; then
+	cd {{ .optWorkdir }} || exit 1
+else
+	cd $(dirname {{.command}})
+fi
 exec {{.commands}} {{.commandOpt}}
-			`, map[string]any{"envs": opt.Envs, "commands": commands, "commandOpt": strings.Join(opt.Args, " ")})
+			`, map[string]any{"envs": opt.Envs, "optWorkdir": opt.Workdir, "commands": commands, "commandOpt": strings.Join(opt.Args, " ")})
 		if opt.Debug {
 			fmt.Fprintf(os.Stderr, "[DEBUG] ExecWithOpts\n%s\n", newCommand)
 		}
@@ -604,9 +608,10 @@ func (s *SshExec) ExecUseCLI(commands string) (out string, err error) {
 
 // ExecOpts is used to pass advanced Exec Options
 type ExecOpts struct {
-	Args  []string
-	Envs  map[string]string
-	Debug bool
+	Args    []string
+	Envs    map[string]string
+	Debug   bool
+	Workdir string
 }
 
 // CopyAndExecWithOpts copies a local or a binary from a url to remoteWorkDir, and exec that bin in remoteWorkDir with execOpt
@@ -1180,11 +1185,17 @@ func (s *SshExec) GoTemplate(src, dest string, data map[string]any, mode os.File
 }
 
 // Similar to GoTemplate but then exec the template as remote command
-func (s *SshExec) GoTemplateAndExec(src, dest string, data map[string]any, execOpt ...ExecOpts) (out string, err error) {
-	remoteFilePath, err1 := s.GoTemplate(src, dest, data, 0o754)
+// If dest is nil or not absolute path, create a temp dir and template file into it. It is the working dir and the value will be returned
+func (s *SshExec) GoTemplateAndExec(src string, dest *string, data map[string]any, execOpt ...ExecOpts) (out string, err error) {
+	newdest := ""
+	if dest != nil {
+		newdest = *dest
+	}
+	remoteFilePath, err1 := s.GoTemplate(src, newdest, data, 0o754)
 	if err1 != nil {
 		return "", err1
 	}
+	*dest = remoteFilePath
 	return s.ExecWithOpts(remoteFilePath, execOpt...)
 }
 
