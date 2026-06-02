@@ -2144,9 +2144,16 @@ func GoTemplateString(srcString string, data any) string {
 	if found {
 		srcString = remain
 	}
-	t1 := template.Must(template.New("").Delims(variable_start, variable_end).Funcs(GoTextTemplateFuncMap).Parse(srcString))
+	t1, err := template.New("").Delims(variable_start, variable_end).Funcs(GoTextTemplateFuncMap).Parse(srcString)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR] %s\n", err.Error())
+		return ""
+	}
 	var buff bytes.Buffer
-	CheckErr(t1.Execute(&buff, data), "GoTemplateString Execute")
+	if err := t1.Execute(&buff, data); err != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR] %s\n", err.Error())
+		return ""
+	}
 	return buff.String()
 }
 
