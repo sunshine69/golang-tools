@@ -118,7 +118,7 @@ func (s *SshExec) Connect() error {
 
 // CopyFile copies file(s) to remote using SFTP. Filename will be retained.
 // remotePath is a directory and will be created if it does not exist.
-// If srcPath starts with http then the file will be downloaded first before copying
+// If srcPath starts with http then the file will be downloaded first before copying.
 // Return the remote directory path
 func (s *SshExec) CopyFile(remotePath string, srcPaths ...string) (out string, err error) {
 	if len(srcPaths) == 0 {
@@ -184,13 +184,13 @@ func (s *SshExec) copySingleFile(sc *sftp.Client, srcPath string, remoteDir stri
 	dstPath := filepath.Join(remoteDir, filepath.Base(srcPath))
 	dstFile, err := sc.Create(dstPath)
 	if err != nil {
-		return fmt.Errorf("failed to create remote file %s: %w", dstPath, err)
+		return fmt.Errorf("failed to create remote file dstPath: %s\nsrcPath: %s\nerr: %w", dstPath, srcPath, err)
 	}
 	defer dstFile.Close()
 
 	_, err = io.Copy(dstFile, srcFile)
 	if err != nil {
-		return fmt.Errorf("failed to copy content to %s: %w", dstPath, err)
+		return fmt.Errorf("failed to copy content to dstPath: %s\nsrcPath: %s\nerr: %w", dstPath, srcPath, err)
 	}
 	s.CgoEnabled = Ternary(s.CgoEnabled == "", "0", s.CgoEnabled)
 	return sc.Chmod(dstPath, info.Mode())
