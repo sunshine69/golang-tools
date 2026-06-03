@@ -121,6 +121,9 @@ func (s *SshExec) Connect() error {
 // If srcPath starts with http then the file will be downloaded first before copying.
 // Return the remote directory path
 func (s *SshExec) CopyFile(remotePath string, srcPaths ...string) (out string, err error) {
+	if os.Getenv("DEBUG") != "" {
+		fmt.Fprintf(os.Stderr, "[DEBUG] CopyFile remotePath: '%s' - srcPaths: '%v'\n", remotePath, srcPaths)
+	}
 	if len(srcPaths) == 0 {
 		return "", fmt.Errorf("[ERROR] source is empty")
 	}
@@ -145,6 +148,9 @@ func (s *SshExec) CopyFile(remotePath string, srcPaths ...string) (out string, e
 	}
 
 	for _, src := range srcPaths {
+		if os.Getenv("DEBUG") != "" {
+			fmt.Fprintf(os.Stderr, "[DEBUG] CopyFile remotePath: '%s' - src: '%s'\n", remotePath, src)
+		}
 		err = s.copySingleFile(sftpClient, src, remotePath)
 		if err != nil {
 			return remotePath, err
@@ -155,6 +161,9 @@ func (s *SshExec) CopyFile(remotePath string, srcPaths ...string) (out string, e
 }
 
 func (s *SshExec) copySingleFile(sc *sftp.Client, srcPath string, remoteDir string) error {
+	if os.Getenv("DEBUG") != "" {
+		fmt.Fprintf(os.Stderr, "[DEBUG] copySingleFile srcPath: '%s' - remoteDir: '%s'\n", srcPath, remoteDir)
+	}
 	needsDownload := strings.HasPrefix(srcPath, "http")
 	downloadFilePath := filepath.Join(os.TempDir(), uuid.NewString())
 	if needsDownload {
@@ -165,7 +174,9 @@ func (s *SshExec) copySingleFile(sc *sftp.Client, srcPath string, remoteDir stri
 		os.Chmod(downloadFilePath, 0o755)
 		defer os.RemoveAll(downloadFilePath)
 	}
-
+	if os.Getenv("DEBUG") != "" {
+		fmt.Fprintf(os.Stderr, "[DEBUG] copySingleFile after parsing curl. srcPath: '%s' - remoteDir: '%s'\n", srcPath, remoteDir)
+	}
 	srcFile, err := os.Open(srcPath)
 	if err != nil {
 		return fmt.Errorf("failed to open source file %s: %w", srcPath, err)
@@ -1141,7 +1152,8 @@ echo -n "${BINARY_NAME}" > {{.srcDir}}/binary-name.txt
 
 // Take local go template file, template it and copy to remote hosts. If the src has
 // multilines then treat is as the template string.
-// If dest is empty string or not absolute path, create a temp dir and template file into it
+// If dest is empty string or not absolute path, create a temp dir and template file into it.
+// dest if set, must be path to a file, not directory
 // return the remote templated file path
 func (s *SshExec) GoTemplate(src, dest string, data map[string]any, mode os.FileMode) (remoteFilePath string, err error) {
 	if !filepath.IsAbs(dest) {
@@ -1184,18 +1196,23 @@ func (s *SshExec) GoTemplate(src, dest string, data map[string]any, mode os.File
 	}
 }
 
-// Similar to GoTemplate but then exec the template as remote command
-// If dest is nil or not absolute path, create a temp dir and template file into it. It is the working dir and the value will be returned
+// Template a src which might be a file or template string, and execute it as script on remote. dest is the remote working dir where we exec the script.
+//
+// If dest is nil, create a temp dir and template file into it and exec. the working dir will be unknown to you.
+//
+// Set dest to non nil, even empty string, the working directory will be return to dest so you can re-use the value.
 func (s *SshExec) GoTemplateAndExec(src string, dest *string, data map[string]any, execOpt ...ExecOpts) (out string, err error) {
-	newdest := ""
+	newdest := "" // Must be a file or empty
 	if dest != nil {
-		newdest = *dest
+		newdest = filepath.Join(*dest, uuid.NewString())
 	}
 	remoteFilePath, err1 := s.GoTemplate(src, newdest, data, 0o754)
 	if err1 != nil {
 		return "", err1
 	}
-	*dest = remoteFilePath
+	if dest != nil {
+		*dest = filepath.Dir(remoteFilePath)
+	}
 	return s.ExecWithOpts(remoteFilePath, execOpt...)
 }
 
