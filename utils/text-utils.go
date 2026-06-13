@@ -1027,21 +1027,21 @@ func BlockInFile(
 	upperIdx := startNo - 1
 	lowerIdx := endNo // points AT the lower-bound line
 
+	// ── Build replacement line slice ──────────────────────────────────────────
 	var newLines []string
 
 	// Lines strictly before the block (never includes upper boundary).
 	newLines = append(newLines, datalines[:upperIdx]...)
 
 	if keepBoundaryLines {
-		// Retain upper-bound line, then replacement, then lower-bound line.
-		newLines = append(newLines, datalines[upperIdx])
+		// Retain upper-bound line, then replacement. The lower bound was never
+		// part of the extracted block, so we don't blindly re-append it here.
+		// If you want to replace a function body but keep the braces:
+		newLines = append(newLines, datalines[upperIdx]) // Keep upper boundary (e.g., "func main() {")
 		if replText != "" {
 			newLines = append(newLines, strings.Split(replText, "\n")...)
 		}
-		if lowerIdx < len(datalines) {
-			newLines = append(newLines, datalines[lowerIdx])
-		}
-		// Continue from the line after the lower boundary.
+		// Skip past the lower-bound line.
 		lowerIdx++
 	} else {
 		// Drop both boundary lines and the inner content; insert replacement.
