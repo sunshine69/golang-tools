@@ -786,8 +786,10 @@ func LineInLines(datalines []string, search_pattern string, replace string) (out
 
 // ExtractTextBlockContains extracts a text block which contains marker which could be an int or a list of pattern.
 //
-// First we get the text from the line number or search for a match to the upper pattern. If we found we will search
-// down for the marker if it is defined, and when found, search for the lower_bound_pattern.
+// First we get the text from the line number or search for a match to the marker if provided. If we found we will search
+// upward for the upper bound and when found, search downward for the lower_bound_pattern.
+//
+// If marker is not provided we search the upper bound first and then lower bound.
 //
 // The marker should be in the middle.
 //
@@ -802,7 +804,6 @@ func ExtractTextBlockContains(
 	start_line int,
 ) (block string, start_line_no int, end_line_no int, datalines []string, matchedPatterns [][]string) {
 
-	// Read all lines from file
 	f, err := os.Open(filename)
 	if err != nil {
 		return "", -1, -1, nil, nil
@@ -817,7 +818,6 @@ func ExtractTextBlockContains(
 	total := len(datalines)
 	matchedPatterns = make([][]string, 3) // [0]=upper matched, [1]=marker matched, [2]=lower matched
 
-	// Helper: compile patterns and try to match a line, return matched pattern string or ""
 	matchAny := func(line string, patterns []string) string {
 		for _, pat := range patterns {
 			re, err := regexp.Compile(pat)
@@ -831,7 +831,6 @@ func ExtractTextBlockContains(
 		return ""
 	}
 
-	// Determine search start offset (1-based start_line, 0 means beginning)
 	searchFrom := 0
 	if start_line > 0 {
 		searchFrom = start_line - 1
@@ -840,45 +839,6 @@ func ExtractTextBlockContains(
 		return "", -1, -1, datalines, matchedPatterns
 	}
 
-	// ── Step 1: Find upper bound ──────────────────────────────────────────────
-	upperStart := -1
-
-	if len(upper_bound_pattern) == 0 {
-		// No upper pattern — start from start_line (or 0)
-		upperStart = searchFrom
-	} else {
-		for i := searchFrom; i < total; i++ {
-			if pat := matchAny(datalines[i], upper_bound_pattern); pat != "" {
-				upperStart = i
-				matchedPatterns[0] = append(matchedPatterns[0], pat)
-				break
-			}
-		}
-	}
-
-	if upperStart == -1 {
-		return "", -1, -1, datalines, matchedPatterns
-	}
-
-	// ── Step 2: Find marker (if provided) ────────────────────────────────────
-	// marker must appear after the upper bound; if not found the block is invalid
-	markerFound := len(marker) == 0 // trivially satisfied when no marker given
-
-	if !markerFound {
-		for i := upperStart + 1; i < total; i++ {
-			if pat := matchAny(datalines[i], marker); pat != "" {
-				markerFound = true
-				matchedPatterns[1] = append(matchedPatterns[1], pat)
-				break
-			}
-		}
-	}
-
-	if !markerFound {
-		return "", -1, -1, datalines, matchedPatterns
-	}
-
-	// ── Step 3: Find lower bound ──────────────────────────────────────────────
 	eofAllowed := false
 	for _, pat := range lower_bound_pattern {
 		if strings.Contains(pat, "EOF") {
@@ -887,33 +847,99 @@ func ExtractTextBlockContains(
 		}
 	}
 
-	lowerEnd := -1 // index of the line that IS the lower bound (excluded from block)
+	var upperStart, lowerEnd int
 
-	if len(lower_bound_pattern) == 0 {
-		// No lower pattern — block runs to EOF
-		lowerEnd = total
+	if len(marker) == 0 {
+		// ── No marker: upper first, then lower, in order ───────────────────
+		upperStart = -1
+		if len(upper_bound_pattern) == 0 {
+			upperStart = searchFrom
+		} else {
+			for i := searchFrom; i < total; i++ {
+				if pat := matchAny(datalines[i], upper_bound_pattern); pat != "" {
+					upperStart = i
+					matchedPatterns[0] = append(matchedPatterns[0], pat)
+					break
+				}
+			}
+		}
+		if upperStart == -1 {
+			return "", -1, -1, datalines, matchedPatterns
+		}
+
+		lowerEnd = -1
+		if len(lower_bound_pattern) == 0 {
+			lowerEnd = total
+		} else {
+			for i := upperStart + 1; i < total; i++ {
+				if pat := matchAny(datalines[i], lower_bound_pattern); pat != "" {
+					lowerEnd = i
+					matchedPatterns[2] = append(matchedPatterns[2], pat)
+					break
+				}
+			}
+			if lowerEnd == -1 && eofAllowed {
+				lowerEnd = total
+			}
+		}
+		if lowerEnd == -1 {
+			return "", -1, -1, datalines, matchedPatterns
+		}
+
 	} else {
-		for i := upperStart + 1; i < total; i++ {
-			if pat := matchAny(datalines[i], lower_bound_pattern); pat != "" {
-				lowerEnd = i
-				matchedPatterns[2] = append(matchedPatterns[2], pat)
+		// ── Marker provided: find marker first, then trace outward ─────────
+		markerIdx := -1
+		for i := searchFrom; i < total; i++ {
+			if pat := matchAny(datalines[i], marker); pat != "" {
+				markerIdx = i
+				matchedPatterns[1] = append(matchedPatterns[1], pat)
 				break
 			}
 		}
-		if lowerEnd == -1 && eofAllowed {
+		if markerIdx == -1 {
+			return "", -1, -1, datalines, matchedPatterns
+		}
+
+		// Trace upward from marker to find upper bound
+		upperStart = -1
+		if len(upper_bound_pattern) == 0 {
+			upperStart = searchFrom
+		} else {
+			for i := markerIdx; i >= searchFrom; i-- {
+				if pat := matchAny(datalines[i], upper_bound_pattern); pat != "" {
+					upperStart = i
+					matchedPatterns[0] = append(matchedPatterns[0], pat)
+					break
+				}
+			}
+		}
+		if upperStart == -1 {
+			return "", -1, -1, datalines, matchedPatterns
+		}
+
+		// Trace downward from marker to find lower bound
+		lowerEnd = -1
+		if len(lower_bound_pattern) == 0 {
 			lowerEnd = total
+		} else {
+			for i := markerIdx + 1; i < total; i++ {
+				if pat := matchAny(datalines[i], lower_bound_pattern); pat != "" {
+					lowerEnd = i
+					matchedPatterns[2] = append(matchedPatterns[2], pat)
+					break
+				}
+			}
+			if lowerEnd == -1 && eofAllowed {
+				lowerEnd = total
+			}
+		}
+		if lowerEnd == -1 {
+			return "", -1, -1, datalines, matchedPatterns
 		}
 	}
 
-	if lowerEnd == -1 {
-		return "", -1, -1, datalines, matchedPatterns
-	}
-
-	// ── Assemble block ────────────────────────────────────────────────────────
-	// Include the upper bound line; exclude the lower bound line.
-	start_line_no = upperStart + 1 // 1-based line number of the upper bound line
-	end_line_no = lowerEnd         // equals the 1-based line number of the last *included* line
-	// (lowerEnd is 0-based exclusive, so lowerEnd == 1-based last included)
+	start_line_no = upperStart + 1
+	end_line_no = lowerEnd
 
 	blockLines := datalines[upperStart:lowerEnd]
 	block = strings.Join(blockLines, "\n")
