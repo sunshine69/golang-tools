@@ -382,9 +382,12 @@ func TestUseStdinForRunSystemCmd(t *testing.T) {
 func TestSshExec(t *testing.T) {
 	println("Test CopyFile")
 	se := Must(NewSshExec(&SshExec{
-		SshExecHost: "192.168.20.18",
-		SshUser:     "stevek",
-		SshKeyFile:  os.Getenv("HOME") + "/.ssh/id_rsa-home",
+		// SshExecHost: "192.168.20.18",
+		SshExecHost: "AUSIGSYDBLD001D",
+		// SshUser:     "stevek",
+		SshUser: "ansible",
+		// SshKeyFile:  os.Getenv("HOME") + "/.ssh/id_rsa-home",
+		SshKeyFile: "/home/sitsxk5/tmp/tmpkey",
 	}))
 	o := Must(se.CopyFile("", "go.sum", "go.mod"))
 	println("Copy to dir: ", o)
@@ -399,6 +402,8 @@ func TestSshExec(t *testing.T) {
 
 	o2 = Must(se.Exec(`ls /home
 	echo "Running remotely multiple command"
+	echo "This is notes" > /tmp/notes
+	echo "This is xnotes content" > /tmp/xnotes
 	`))
 	println(o2)
 	o3 := Must(se.Exec(`ls /home/`))
@@ -406,11 +411,13 @@ func TestSshExec(t *testing.T) {
 
 	println("Tets Fetch ")
 	CheckErr(os.MkdirAll("/tmp/test-devops", 0o755), "")
-	o = Must(se.Fetch("/tmp/test-devops", "/home/stevek/note", "/home/stevek/x"))
+	o = Must(se.Fetch("/tmp/test-devops", "/tmp/notes", "/tmp/xnotes"))
 	println("Fetch return " + o)
 
+	Must(RunSystemCommandV2(`go build -o gozip.exe cmd/gozip/*.go`, true))
+
 	println("Test CopyAndExec")
-	o = Must(se.CopyAndExec("../cli/gotar.exe", "", false, "-h"))
+	o = Must(se.CopyAndExec("gozip.exe", "", false, "-h"))
 	println(o)
 
 	println("Test GoTemplate")
@@ -421,6 +428,11 @@ func TestSshExec(t *testing.T) {
 
 	Must(se.Exec("rm -rf " + filepath.Dir(o)))
 	// remember to close to clean up session dir
+
+	o = Must(se.CopyAndExecWithOpts("gozip.exe", "", false, ExecOpts{
+		Args: []string{"-h"},
+	}))
+	println("[DEBUG] CopyAndExecWithOpts " + o)
 	se.Close()
 }
 
