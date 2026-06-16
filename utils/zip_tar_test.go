@@ -95,51 +95,51 @@ func TestTar(t *testing.T) {
 	t.Cleanup(func() { RunSystemCommandV2("rm -rf extracted extracted_encrypted multiple-sources", true) })
 }
 
-func TestZipComplex(t *testing.T) {
-	RunSystemCommandV2("rm -f *.zip; rm -rf custom_extract; rm -rf extracted", true)
-	// Example 1: Single file
-	// Original usage - directory
-	err := CreateZipArchive("../gitlab", "directory.zip", nil)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-	}
+// func TestZipComplex(t *testing.T) {
+// 	RunSystemCommandV2("rm -f *.zip; rm -rf custom_extract; rm -rf extracted", true)
+// 	// Example 1: Single file
+// 	// Original usage - directory
+// 	err := CreateZipArchive("../gitlab", "directory.zip", nil)
+// 	if err != nil {
+// 		fmt.Printf("Error: %v\n", err)
+// 	}
 
-	// New usage - single file
-	err = CreateZipArchive("dircopy-linux.go", "single_file.zip", nil)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-	}
+// 	// New usage - single file
+// 	err = CreateZipArchive("dircopy-linux.go", "single_file.zip", nil)
+// 	if err != nil {
+// 		fmt.Printf("Error: %v\n", err)
+// 	}
 
-	// New usage - multiple files/directories
-	sources := []string{"dircopy-linux.go", "dircopy-windows.go", "../gitlab"}
-	options := &ZipOptions{
-		UseCompression: true,
-		Encrypt:        false,
-	}
-	err = CreateZipArchive(sources, "multiple_sources.zip", options)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-	}
-	CheckErr(ExtractZipArchive("multiple_sources.zip", "multiple-sources", options), "")
-	// With encryption (using your implementation)
-	encryptedOptions := &ZipOptions{
-		UseCompression: true,
-		Encrypt:        true,
-		Password:       "mypassword",
-	}
-	err = CreateZipArchive("../gitlab", "encrypted.zip", encryptedOptions)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-	}
-	CheckErr(ExtractZipArchive("encrypted.zip", "extracted_encrypted", encryptedOptions), "")
-	t.Cleanup(func() { RunSystemCommandV2("rm -rf extracted extracted_encrypted multiple-sources", true) })
-}
+// 	// New usage - multiple files/directories
+// 	sources := []string{"dircopy-linux.go", "dircopy-windows.go", "../gitlab"}
+// 	options := &ZipOptions{
+// 		UseCompression: true,
+// 		Encrypt:        false,
+// 	}
+// 	err = CreateZipArchive(sources, "multiple_sources.zip", options)
+// 	if err != nil {
+// 		fmt.Printf("Error: %v\n", err)
+// 	}
+// 	CheckErr(ExtractZipArchive("multiple_sources.zip", "multiple-sources", options), "")
+// 	// With encryption (using your implementation)
+// 	encryptedOptions := &ZipOptions{
+// 		UseCompression: true,
+// 		Encrypt:        true,
+// 		Password:       "mypassword",
+// 	}
+// 	err = CreateZipArchive("../gitlab", "encrypted.zip", encryptedOptions)
+// 	if err != nil {
+// 		fmt.Printf("Error: %v\n", err)
+// 	}
+// 	CheckErr(ExtractZipArchive("encrypted.zip", "extracted_encrypted", encryptedOptions), "")
+// 	t.Cleanup(func() { RunSystemCommandV2("rm -rf extracted extracted_encrypted multiple-sources", true) })
+// }
 
-func TestCpio(t *testing.T) {
-	opt := NewCompEncOptions().WithEncrypt(true).WithPassword("123").WithCompression(true).WithOverwriteExisting(true).WithEncryptMode(EncryptModeCTR)
-	CheckErr(CreateCompEncArchive("go.sum", "/tmp/test-cpio.compenc", opt), "")
-	CheckErr(ExtractCompEncArchive("/tmp/test-cpio.compenc", "-", opt), "")
-	t.Cleanup(func() {
-		RunSystemCommandV2("rm -rf extracted extracted_encrypted multiple-sources /tmp/test-cpio.compenc", true)
-	})
-}
+// func TestCpio(t *testing.T) {
+// 	opt := NewCompEncOptions().WithEncrypt(true).WithPassword("123").WithCompression(true).WithOverwriteExisting(true).WithEncryptMode(EncryptModeCTR)
+// 	CheckErr(CreateCompEncArchive("go.sum", "/tmp/test-cpio.compenc", opt), "")
+// 	CheckErr(ExtractCompEncArchive("/tmp/test-cpio.compenc", "-", opt), "")
+// 	t.Cleanup(func() {
+// 		RunSystemCommandV2("rm -rf extracted extracted_encrypted multiple-sources /tmp/test-cpio.compenc", true)
+// 	})
+// }

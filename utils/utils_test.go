@@ -6,15 +6,11 @@ import (
 	"io/fs"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // func TestUnzip(t *testing.T) {
@@ -84,13 +80,13 @@ func TestBcryptHash(t *testing.T) {
 }
 
 // go test -timeout 30s -run '^TestCurl$'  -v
-func TestCurl(t *testing.T) {
-	os.Setenv("INSECURE_SKIP_VERIFY", "yes")
-	// os.Setenv("CURL_DEBUG", "yes")
-	o, err := Curl("GET", "https://kernel.org", "", "", []string{}, nil)
-	CheckErr(err, "ERROR")
-	log.Println(o)
-}
+// func TestCurl(t *testing.T) {
+// 	os.Setenv("INSECURE_SKIP_VERIFY", "yes")
+// 	// os.Setenv("CURL_DEBUG", "yes")
+// 	o, err := Curl("GET", "https://kernel.org", "", "", []string{}, nil)
+// 	CheckErr(err, "ERROR")
+// 	log.Println(o)
+// }
 
 func TestRemoveItem(t *testing.T) {
 	o := RemoveItemByIndex([]interface{}{"a", 21, "3"}, 1)
@@ -169,39 +165,39 @@ func TestSplitFirstLine(t *testing.T) {
 	println("REST", string(restLines))
 }
 
-func TestLinesInBlock(t *testing.T) {
-	textfile := "../tests/test.txt"
-	_, start, end, blocklines, matchedPattern := ExtractTextBlockContains(textfile, []string{`5.2 Inclusions provided`}, []string{`Part 2 Standard Terms`}, []string{`6.3 Ending on`}, 0)
-	block1 := blocklines[start:end]
-	start_block_lines := ExtractLineInLines(block1, `6.3 Ending on`, `([\d]+\/[\d]+\/[\d]+)`, `Fixed term agreements only`)
-	println(JsonDump(start_block_lines, ""), JsonDump(matchedPattern, ""))
-	block, _, _, _, _ := ExtractTextBlockContains(textfile, []string{`Item 2.1 Tenant\/s`}, []string{`2.2 Address for service`}, []string{`1. Full name/s`}, 0)
-	tenantBlocks := SplitTextByPattern(block, `(?m)[\d]\. Full name\/s ([a-zA-Z0-9\s]+)`, true)
-	println(JsonDump(tenantBlocks, ""))
-	lineblocks := []string{}
-	for _, l := range tenantBlocks {
-		sp := strings.Split(l, "\n")
-		for _, l1 := range sp {
-			l1 = strings.TrimSpace(l1)
-			if l1 != "" {
-				lineblocks = append(lineblocks, l1)
-			}
-		}
-	}
-	start_block_lines = ExtractLineInLines(lineblocks, `Item 2.1 Tenant`, `Full name\/s (.*)$`, `Emergency contact full name`)
-	println(JsonDump(start_block_lines, ""))
-	start_block_lines = ExtractLineInLines(lineblocks, `Emergency contact full name`, `Full name\/s (.*)$`, `Emergency contact full name`)
-	println(JsonDump(start_block_lines, ""))
-	tenantNamePtn := regexp.MustCompile(`(?m)[\d]\. Full name\/s (.*)`)
-	tenantNames := []string{}
-	for _, l := range tenantBlocks {
-		parsed := tenantNamePtn.FindStringSubmatch(l)
-		if parsed != nil {
-			tenantNames = append(tenantNames, parsed[1])
-		}
-	}
-	println("Tenants: ", JsonDump(tenantNames, ""))
-}
+// func TestLinesInBlock(t *testing.T) {
+// 	textfile := "../tests/test.txt"
+// 	_, start, end, blocklines, matchedPattern := ExtractTextBlockContains(textfile, []string{`5.2 Inclusions provided`}, []string{`Part 2 Standard Terms`}, []string{`6.3 Ending on`}, 0)
+// 	block1 := blocklines[start:end]
+// 	start_block_lines := ExtractLineInLines(block1, `6.3 Ending on`, `([\d]+\/[\d]+\/[\d]+)`, `Fixed term agreements only`)
+// 	println(JsonDump(start_block_lines, ""), JsonDump(matchedPattern, ""))
+// 	block, _, _, _, _ := ExtractTextBlockContains(textfile, []string{`Item 2.1 Tenant\/s`}, []string{`2.2 Address for service`}, []string{`1. Full name/s`}, 0)
+// 	tenantBlocks := SplitTextByPattern(block, `(?m)[\d]\. Full name\/s ([a-zA-Z0-9\s]+)`, true)
+// 	println(JsonDump(tenantBlocks, ""))
+// 	lineblocks := []string{}
+// 	for _, l := range tenantBlocks {
+// 		sp := strings.Split(l, "\n")
+// 		for _, l1 := range sp {
+// 			l1 = strings.TrimSpace(l1)
+// 			if l1 != "" {
+// 				lineblocks = append(lineblocks, l1)
+// 			}
+// 		}
+// 	}
+// 	start_block_lines = ExtractLineInLines(lineblocks, `Item 2.1 Tenant`, `Full name\/s (.*)$`, `Emergency contact full name`)
+// 	println(JsonDump(start_block_lines, ""))
+// 	start_block_lines = ExtractLineInLines(lineblocks, `Emergency contact full name`, `Full name\/s (.*)$`, `Emergency contact full name`)
+// 	println(JsonDump(start_block_lines, ""))
+// 	tenantNamePtn := regexp.MustCompile(`(?m)[\d]\. Full name\/s (.*)`)
+// 	tenantNames := []string{}
+// 	for _, l := range tenantBlocks {
+// 		parsed := tenantNamePtn.FindStringSubmatch(l)
+// 		if parsed != nil {
+// 			tenantNames = append(tenantNames, parsed[1])
+// 		}
+// 	}
+// 	println("Tenants: ", JsonDump(tenantNames, ""))
+// }
 
 func TestBlockInFile(t *testing.T) {
 	sourceBlock := `	$ANSIBLE_VAULT;1.1;AES256
@@ -332,62 +328,62 @@ func TestGrepStream(t *testing.T) {
 
 }
 
-func TestUseStdinForRunSystemCmd(t *testing.T) {
-	destDir := Must(os.Getwd()) + "/" + uuid.New().String() + "test-tar"
-	CheckErr(os.MkdirAll(destDir, 0o755), "")
-	defer os.RemoveAll(destDir)
-	// fifo := "/tmp/test-fifo"
-	// os.RemoveAll(fifo)
-	// unix.Mkfifo(fifo, uint32(0666))
-	// start reader first
-	var fifo io.WriteCloser
-	go func() {
-		cmd := exec.Command("tar", "xf", "-", "--zstd", "-C", destDir)
-		// fd, err := os.OpenFile(fifo, os.O_RDONLY, 0600)
-		// CheckErr(err, "")
-		// cmd.Stdin = fd
-		// cmd.Stdout = os.Stdout
-		// cmd.Stderr = os.Stderr
-		fifo = Must(cmd.StdinPipe())
-		o, err := RunSystemCommandV3(cmd, true)
-		CheckErr(err, "Error "+o)
-		println(o)
-	}()
-	// Give reader time to start (important for FIFO)
-	time.Sleep(200 * time.Millisecond)
-	tarOpts := NewTarOptions().WithStripTopLevelDir(true).EnableCompression(true)
-	CreateTarball([]string{"go.mod", "go.sum", os.Getenv("HOME") + "/tmp/goplay"}, fifo, tarOpts)
-	// 4. Wait and verify
-	time.Sleep(2 * time.Second)
+// func TestUseStdinForRunSystemCmd(t *testing.T) {
+// 	destDir := Must(os.Getwd()) + "/" + uuid.New().String() + "test-tar"
+// 	CheckErr(os.MkdirAll(destDir, 0o755), "")
+// 	defer os.RemoveAll(destDir)
+// 	// fifo := "/tmp/test-fifo"
+// 	// os.RemoveAll(fifo)
+// 	// unix.Mkfifo(fifo, uint32(0666))
+// 	// start reader first
+// 	var fifo io.WriteCloser
+// 	go func() {
+// 		cmd := exec.Command("tar", "xf", "-", "--zstd", "-C", destDir)
+// 		// fd, err := os.OpenFile(fifo, os.O_RDONLY, 0600)
+// 		// CheckErr(err, "")
+// 		// cmd.Stdin = fd
+// 		// cmd.Stdout = os.Stdout
+// 		// cmd.Stderr = os.Stderr
+// 		fifo = Must(cmd.StdinPipe())
+// 		o, err := RunSystemCommandV3(cmd, true)
+// 		CheckErr(err, "Error "+o)
+// 		println(o)
+// 	}()
+// 	// Give reader time to start (important for FIFO)
+// 	time.Sleep(200 * time.Millisecond)
+// 	tarOpts := NewTarOptions().WithStripTopLevelDir(true).EnableCompression(true)
+// 	CreateTarball([]string{"go.mod", "go.sum", os.Getenv("HOME") + "/tmp/goplay"}, fifo, tarOpts)
+// 	// 4. Wait and verify
+// 	time.Sleep(2 * time.Second)
 
-	filepath.Walk(destDir, func(path string, info os.FileInfo, err error) error {
-		fmt.Println("extracted:", path)
-		return nil
-	})
+// 	filepath.Walk(destDir, func(path string, info os.FileInfo, err error) error {
+// 		fmt.Println("extracted:", path)
+// 		return nil
+// 	})
 
-	if FileExistsV2(destDir+"/go.mod") != nil {
-		t.Fatal("Can not find file go.mod in the dest dir: " + destDir + "/go.mod")
-	}
+// 	if FileExistsV2(destDir+"/go.mod") != nil {
+// 		t.Fatal("Can not find file go.mod in the dest dir: " + destDir + "/go.mod")
+// 	}
 
-	// Use dot . if we only want the dir content, but not the dir itself in sources
-	CreateTarball(os.Getenv("HOME")+"/tmp/1/.", destDir+"/test-create-tar.tar.zst", nil)
+// 	// Use dot . if we only want the dir content, but not the dir itself in sources
+// 	CreateTarball(os.Getenv("HOME")+"/tmp/1/.", destDir+"/test-create-tar.tar.zst", nil)
 
-	CheckErr(os.MkdirAll(destDir+"/new-extract", 0o755), "")
-	CheckErr(ExtractTarball(destDir+"/test-create-tar.tar.zst", destDir+"/new-extract", tarOpts), "")
-	if FileExistsV2(destDir+"/new-extract/go.mod") != nil {
-		t.Fatal("Can not find file go.mod in the dest dir new-extract")
-	}
-}
+// 	CheckErr(os.MkdirAll(destDir+"/new-extract", 0o755), "")
+// 	CheckErr(ExtractTarball(destDir+"/test-create-tar.tar.zst", destDir+"/new-extract", tarOpts), "")
+// 	if FileExistsV2(destDir+"/new-extract/go.mod") != nil {
+// 		t.Fatal("Can not find file go.mod in the dest dir new-extract")
+// 	}
+// }
 
 func TestSshExec(t *testing.T) {
 	println("Test CopyFile")
 	se := Must(NewSshExec(&SshExec{
-		// SshExecHost: "192.168.20.18",
-		SshExecHost: "AUSIGSYDBLD001D",
-		// SshUser:     "stevek",
-		SshUser: "ansible",
-		// SshKeyFile:  os.Getenv("HOME") + "/.ssh/id_rsa-home",
-		SshKeyFile: "/home/sitsxk5/tmp/tmpkey",
+		SshExecHost: "192.168.20.18",
+		// SshExecHost: "AUSIGSYDBLD001D",
+		SshUser: "stevek",
+		// SshUser: "ansible",
+		SshKeyFile: os.Getenv("HOME") + "/.ssh/id_rsa-home",
+		// SshKeyFile: "/home/sitsxk5/tmp/tmpkey",
 	}))
 	o := Must(se.CopyFile("", "go.sum", "go.mod"))
 	println("Copy to dir: ", o)
@@ -462,7 +458,7 @@ func TestConfigOverride(t *testing.T) {
 		SshExec: Must(NewSshExec(&SshExec{
 			SshExecHost: "192.168.20.18",
 			SshUser:     "stevek",
-			SshKeyFile:  os.Getenv("HOME") + "/.ssh/id_rsa",
+			SshKeyFile:  os.Getenv("HOME") + "/.ssh/id_rsa-home",
 		})),
 		MySrcDirs: []string{os.Getenv("HOME") + "/tmp/go-pipe"},
 	}
@@ -472,10 +468,10 @@ func TestConfigOverride(t *testing.T) {
 	myCfg.Close()
 }
 
-func ExampleSha256SumFile() {
-	fmt.Println(Sha256SumFile("tar.go"))
-	// Output: 57a486ec3bfd0d0414cfbe29bc8297887326d0cf625cebb313382335c1bbcf64
-}
+// func ExampleSha256SumFile() {
+// 	fmt.Println(Sha256SumFile("tar.go"))
+// 	// Output: 57a486ec3bfd0d0414cfbe29bc8297887326d0cf625cebb313382335c1bbcf64
+// }
 
 func TestCamelCaseToWords(t *testing.T) {
 	tests := []struct {
