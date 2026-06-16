@@ -80,13 +80,13 @@ func TestBcryptHash(t *testing.T) {
 }
 
 // go test -timeout 30s -run '^TestCurl$'  -v
-// func TestCurl(t *testing.T) {
-// 	os.Setenv("INSECURE_SKIP_VERIFY", "yes")
-// 	// os.Setenv("CURL_DEBUG", "yes")
-// 	o, err := Curl("GET", "https://kernel.org", "", "", []string{}, nil)
-// 	CheckErr(err, "ERROR")
-// 	log.Println(o)
-// }
+func TestCurl(t *testing.T) {
+	os.Setenv("INSECURE_SKIP_VERIFY", "yes")
+	// os.Setenv("CURL_DEBUG", "yes")
+	o, err := Curl("GET", "https://kernel.org", "", "", []string{}, nil)
+	CheckErr(err, "ERROR")
+	log.Println(o)
+}
 
 func TestRemoveItem(t *testing.T) {
 	o := RemoveItemByIndex([]interface{}{"a", 21, "3"}, 1)
@@ -165,6 +165,7 @@ func TestSplitFirstLine(t *testing.T) {
 	println("REST", string(restLines))
 }
 
+// Failed test, need more investigation
 // func TestLinesInBlock(t *testing.T) {
 // 	textfile := "../tests/test.txt"
 // 	_, start, end, blocklines, matchedPattern := ExtractTextBlockContains(textfile, []string{`5.2 Inclusions provided`}, []string{`Part 2 Standard Terms`}, []string{`6.3 Ending on`}, 0)
@@ -328,6 +329,7 @@ func TestGrepStream(t *testing.T) {
 
 }
 
+// Failed test
 // func TestUseStdinForRunSystemCmd(t *testing.T) {
 // 	destDir := Must(os.Getwd()) + "/" + uuid.New().String() + "test-tar"
 // 	CheckErr(os.MkdirAll(destDir, 0o755), "")
