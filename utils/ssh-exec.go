@@ -869,13 +869,6 @@ func (s *SshExec) ExecGoMod(resourceUrl, gomodName, remoteWorkDir string, args .
 	}
 	defer os.RemoveAll(tempDir)
 
-	// Track current working directory to restore it later
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", fmt.Errorf("failed to get current wd: %w", err)
-	}
-	defer os.Chdir(cwd)
-
 	var srcDir string
 
 	// 1. Handle Source Acquisition
@@ -1040,30 +1033,22 @@ func (s *SshExec) ExecGoModUseCLI(resourceUrl, gomodName, remoteWorkDir string, 
 
 	srcDir := ""
 	// outputCliPath := binary_name
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	defer os.Chdir(cwd)
 	// Process srcDir
 	switch {
 	case FileExistsV2(resourceUrl) == nil:
 		srcDir = resourceUrl
 
 	case strings.HasPrefix(resourceUrl, "wget+"):
-		if err := os.Chdir(tempDir); err != nil {
-			return "", err
-		}
 		savedFileName := filepath.Join(tempDir, "tmp", uuid.NewString()+".tgz")
 		defer os.RemoveAll(savedFileName)
 		if o, err := Curl("GET", strings.TrimPrefix(resourceUrl, "wget+"), "", savedFileName, s.HttpHeaders, nil, s.CurlOpt); err != nil {
 			return o, fmt.Errorf("[ERROR] download file - %s - Output: %s", err.Error(), o)
 		}
-		if o, err := RunSystemCommandV2(GoTemplateString(`mkdir -p '{{.work_dir}}/gomod_source'
-tar xf '{{.saved_file_name}}' -C '{{.work_dir}}/gomod_source'
+		if o, err := RunSystemCommandV2(GoTemplateString(`cd {{ .work_dir }}
+		mkdir -p '{{ .work_dir }}/gomod_source'
+tar xf '{{.saved_file_name}}' -C '{{ .work_dir }}/gomod_source'
 if [ "$?" != "0" ]; then
-  tar xf '{{.saved_file_name}}' --zstd -C '{{.work_dir}}/gomod_source'
+  tar xf '{{ .saved_file_name }}' --zstd -C '{{ .work_dir }}/gomod_source'
 fi
 		`, map[string]any{"saved_file_name": filepath.ToSlash(savedFileName), "work_dir": tempDir}), true); err != nil {
 			return "", fmt.Errorf("[ERROR] %s - %s", err.Error(), o)
@@ -1071,9 +1056,6 @@ fi
 		srcDir = filepath.Join(tempDir, "gomod_source")
 
 	default: // git clone ops
-		if err := os.Chdir(tempDir); err != nil {
-			return "", err
-		}
 		if o, err := RunSystemCommandV2(GoTemplateString(`cd '{{.work_dir}}'
 git clone --depth=1 --single-branch --no-tags {{.git_checkout_url}} gomod_source
 		`, map[string]any{"git_checkout_url": resourceUrl, "work_dir": tempDir}), true); err != nil {
@@ -1082,9 +1064,6 @@ git clone --depth=1 --single-branch --no-tags {{.git_checkout_url}} gomod_source
 		srcDir = filepath.Join(tempDir, "gomod_source")
 	}
 
-	if err := (os.Chdir(srcDir)); err != nil {
-		return "", fmt.Errorf("Chdir to %s", srcDir)
-	}
 	if out, err = RunSystemCommandV2(GoTemplateString(`set -e
 cd '{{.srcDir}}'
 

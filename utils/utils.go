@@ -2742,8 +2742,7 @@ func CreateDirTree(srcDirpath, targetRoot string) error {
 	if isExist, err := FileExists(srcDirpath); !isExist || err != nil {
 		panic(fmt.Sprintf("[ERROR] src '%s' does not exist\n", srcDirpath))
 	}
-	os.Chdir(srcDirpath)
-	filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
+	filepath.WalkDir(srcDirpath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "prevent panic by handling failure accessing a path %q: %v\n", srcDirpath, err)
 			return err
