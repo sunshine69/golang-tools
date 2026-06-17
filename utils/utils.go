@@ -2749,8 +2749,12 @@ func CreateDirTree(srcDirpath, targetRoot string) error {
 		}
 
 		if d.IsDir() {
-			fmt.Fprintf(os.Stderr, "Going to create path %s\n", path)
-			CheckErr(os.MkdirAll(filepath.Join(targetRoot, path), 0755), "ERROR MkdirAll")
+			relPath, err := filepath.Rel(srcDirpath, path)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(os.Stderr, "Going to create path %s\n", relPath)
+			CheckErr(os.MkdirAll(filepath.Join(targetRoot, relPath), 0755), "ERROR MkdirAll")
 		}
 
 		return nil
