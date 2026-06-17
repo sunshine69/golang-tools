@@ -570,3 +570,7 @@ func TestCamelCaseToWords(t *testing.T) {
 		})
 	}
 }
+
+func TestMaskCredentialPattern(t *testing.T) {
+	println(MaskCredential(`-password somepassword`))
+}
