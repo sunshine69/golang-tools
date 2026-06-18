@@ -512,7 +512,7 @@ func (s *SshExec) downloadFile(sftpClient *sftp.Client, remoteFile, localFile st
 }
 
 // Exec a command on remote host hostname via ssh. Multiline command supported
-func (s *SshExec) Exec(commands string) (out string, err error) {
+func (s *SshExec) Exec(commands string, execOpts ...ExecOpts) (out string, err error) {
 	if s.SshClient == nil {
 		return "", fmt.Errorf("ssh client not initialized")
 	}
@@ -556,16 +556,42 @@ func (s *SshExec) Exec(commands string) (out string, err error) {
 	session.Stdout = outputBuffer
 	session.Stderr = os.Stderr // Or redirect to a buffer if you want to capture stderr specifically
 
-	// Run the command
-
 	shell_exec := Getenv("SHELL_EXEC", "")
-	if shell_exec != "" {
-		commandToRun = shell_exec + " -c '" + strings.ReplaceAll(commandToRun, "'", `'\''`) + "'"
+	newCommand := commandToRun
+	if len(execOpts) == 1 {
+		opt := execOpts[0]
+		newCommand = GoTemplateString(`
+{{ range $k, $v := .envs }}
+export {{$k}}='{{$v}}'
+{{ end }}
+if [ '{{ .optWorkdir }}' != '' ]; then
+	cd {{ .optWorkdir }} || exit 1
+fi
+if [ '{{ .shell_exec }}' != '' ]; then
+{{ .shell_exec }} -c {{ .commands }}
+else
+{{ .commands }}
+fi
+`, map[string]any{"envs": opt.Envs,
+			"optWorkdir": opt.Workdir,
+			"commands":   strings.ReplaceAll(newCommand, "'", `'\''`),
+			"commandOpt": strings.Join(opt.Args, " "),
+			"shell_exec": shell_exec,
+		})
+		if opt.Debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] ExecWithOpts\n%s\n", MaskCredential(newCommand))
+		}
+	} else {
+		if shell_exec != "" {
+			commandToRun = shell_exec + " -c '" + strings.ReplaceAll(commandToRun, "'", `'\''`) + "'"
+		}
 	}
-	err = session.Run(commandToRun)
+	// Run the command
+	err = session.Run(newCommand)
 	return outputBuffer.String(), err
 }
 
+// Exec a single command with Options (no multiline). If multi line required use Exec instead
 func (s *SshExec) ExecWithOpts(commands string, execOpts ...ExecOpts) (out string, err error) {
 	newCommand := commands
 	if len(execOpts) == 1 {
@@ -582,7 +608,7 @@ fi
 exec {{.commands}} {{.commandOpt}}
 			`, map[string]any{"envs": opt.Envs, "optWorkdir": opt.Workdir, "commands": commands, "commandOpt": strings.Join(opt.Args, " ")})
 		if opt.Debug {
-			fmt.Fprintf(os.Stderr, "[DEBUG] ExecWithOpts\n%s\n", newCommand)
+			fmt.Fprintf(os.Stderr, "[DEBUG] ExecWithOpts\n%s\n", MaskCredential(newCommand))
 		}
 	}
 	return s.Exec(newCommand)
