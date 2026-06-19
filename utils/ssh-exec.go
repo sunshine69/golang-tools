@@ -512,6 +512,12 @@ func (s *SshExec) downloadFile(sftpClient *sftp.Client, remoteFile, localFile st
 }
 
 // Exec a command on remote host hostname via ssh. Multiline command supported
+// If you give commands as multiline stirng it wil create temp dir as working dir to execute and clean up later.
+//
+// If you set workdir explicitly via execOpts this will override the default temp workdir and it wont clean up after run.
+//
+// if a single command then it will execute with default work dir when you ssh in unless you give the workdir in the execOpts. No cleanning up will
+// be run, you need to do it yourself
 func (s *SshExec) Exec(commands string, execOpts ...ExecOpts) (out string, err error) {
 	if s.SshClient == nil {
 		return "", fmt.Errorf("ssh client not initialized")

@@ -261,6 +261,8 @@ func TestGoTemplate(t *testing.T) {
 			]`, map[string]any{"packages": []string{"p1", "p2"}})
 
 	println(o)
+	o = GoTemplateString(`{{ .data }}`, map[string]any{"data": os.Getenv("TEST_PASSWORD")})
+	println("TEST_PASSWORD ", o)
 }
 
 func TestMigrateOldEncrypt(t *testing.T) {
