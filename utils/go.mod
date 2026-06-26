@@ -6,9 +6,9 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/pkg/sftp v1.13.10
 	github.com/ulikunitz/xz v0.5.15
-	golang.org/x/crypto v0.49.0
-	golang.org/x/net v0.52.0
-	golang.org/x/text v0.35.0
+	golang.org/x/crypto v0.53.0
+	golang.org/x/net v0.56.0
+	golang.org/x/text v0.38.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -20,6 +20,6 @@ require (
 )
 
 require (
-	github.com/klauspost/compress v1.18.5
-	golang.org/x/sys v0.43.0
+	github.com/klauspost/compress v1.18.6
+	golang.org/x/sys v0.46.0
 )
