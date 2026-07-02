@@ -313,6 +313,25 @@ func TestRunSystemCmd(t *testing.T) {
 	if e != nil {
 		println(e.Error())
 	}
+	o, e = RunSystemCommandV2(`echo $VAR1; ls -lha`, true, ExecOpts{
+		Envs:     map[string]string{"VAR1": "Value of var1"},
+		Workdir:  "/home",
+		UseShell: true,
+	})
+	if e != nil {
+		println(e.Error())
+	}
+	print(o)
+
+	o, e = RunSystemCommandV2(`ls`, true, ExecOpts{
+		Workdir:  "/home",
+		Args:     []string{"-x", "-e"},
+		UseShell: false,
+	})
+	if e != nil {
+		println(e.Error())
+	}
+	print(o)
 }
 
 func TestGrep(t *testing.T) {

@@ -1105,20 +1105,37 @@ func RunSystemCommand(cmd string, verbose bool) (output string) {
 // The only differrence with RunSystemCommand is that it returns an error if error happened and it wont panic
 // When no error, it return output as the command stdout.
 // When error happened, it return a json string with field { "Stdout": stdout, "Stderr": stderr, "Cmd": <the command u ran> },
-func RunSystemCommandV2(cmd string, verbose bool) (output string, err error) {
+//
+// The ExecOpts can be supplied to set work dir, envs vars and the shell argument (bash -e for example)
+func RunSystemCommandV2(cmd string, verbose bool, opts ...ExecOpts) (output string, err error) {
 	shellCmd := Getenv("SHELL", "bash")
-	command := exec.Command(shellCmd, "-c", cmd)
-	return RunSystemCommandV3(command, verbose)
+	var command = exec.Command(shellCmd, "-c", cmd)
+	return RunSystemCommandV3(command, verbose, opts...)
 }
 
 // RunSystemCommandV3. Unlike the other two, this one you craft the exec.Cmd object and pass it to this function
 // This allows you to customize the exec.Cmd object before calling this function, eg, passing more env vars into it
 // like command.Env = append(os.Environ(), "MYVAR=MYVAL"). You might not need bash to run for example but run directly
 // In case of error, the output is a json string with field Stdout and Stderr populated.
-func RunSystemCommandV3(command *exec.Cmd, verbose bool) (output string, err error) {
+func RunSystemCommandV3(command *exec.Cmd, verbose bool, opts ...ExecOpts) (output string, err error) {
 	var outBuf, errBuf bytes.Buffer
 	command.Stdout = &outBuf
 	command.Stderr = &errBuf
+	command.Env = os.Environ()
+	if len(opts) == 1 {
+		opt := opts[0]
+		if opt.Workdir != "" {
+			command.Dir = opt.Workdir
+		}
+		if len(opt.Args) > 0 {
+			command.Args = opt.Args
+		}
+		if len(opt.Envs) > 0 {
+			for k, v := range opt.Envs {
+				command.Env = append(command.Env, k+"="+v)
+			}
+		}
+	}
 
 	if verbose {
 		log.Printf("[INFO] command: %s\n", MaskCredential(command.String()))
