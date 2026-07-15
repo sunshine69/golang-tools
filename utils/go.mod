@@ -4,11 +4,11 @@ go 1.25.0
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/pkg/sftp v1.13.10
+	github.com/pkg/sftp v1.13.11
 	github.com/ulikunitz/xz v0.5.15
-	golang.org/x/crypto v0.53.0
-	golang.org/x/net v0.56.0
-	golang.org/x/text v0.38.0
+	golang.org/x/crypto v0.54.0
+	golang.org/x/net v0.57.0
+	golang.org/x/text v0.40.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -21,5 +21,5 @@ require (
 
 require (
 	github.com/klauspost/compress v1.19.0
-	golang.org/x/sys v0.46.0
+	golang.org/x/sys v0.47.0
 )
