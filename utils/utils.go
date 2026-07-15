@@ -1404,7 +1404,7 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 			// 2. Add text fields (the -F key=value parts)
 			for key, val := range curlOpts.FormFields {
 				// 3. Add file assets (the -F key=@file parts)
-				if strings.Contains(val, `@`) {
+				if strings.HasPrefix(val, `@`) {
 					if err := AddFilePart(writer, key, strings.TrimPrefix(val, "@")); err != nil {
 						return "", err
 					}
