@@ -1288,7 +1288,9 @@ type CurlOpt struct {
 // custom_client - if you want more option, create your own http/Client and then setup the way you want and pass
 // it here. Otherwise give it nil
 //
-// If the value has @ it will be interpreted as fileField - like -F "maven2.asset2=@/absolute/path/to/the/local/file/product-1.0.0.jar;type=application/java-archive"
+// curlOpt for special use case. Eg. Process multipart form, pass the opt.FormFields = map[string]string where key is field name,
+// value is field value. If the value started with @ it will be interpreted as fileField - similar to the curl command option -F
+// "maven2.asset2=@/absolute/path/to/the/local/file/product-1.0.0.jar;type=application/java-archive"
 //
 // Note the error return will not be nil if server returncode is not 2XX - it will have the first status code in it string so by checking err you can see the server response code.
 //
@@ -1393,6 +1395,9 @@ func Curl(method, url, data, savefilename string, headers []string, custom_clien
 		if len(curlOpts.FormFields) > 0 {
 			if CURL_DEBUG == "yes" {
 				log.Printf("[DEBUG] adding multipart form fields - formFields: %v\n", curlOpts.FormFields)
+			}
+			if method != "POST" {
+				return "", fmt.Errorf("[ERROR] you set FormFields but method is not POST")
 			}
 			body := &bytes.Buffer{}
 			writer := multipart.NewWriter(body)
