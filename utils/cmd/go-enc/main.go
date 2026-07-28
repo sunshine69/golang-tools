@@ -20,10 +20,10 @@ func main() {
 
 	var dataIn []byte
 	if *filePath == "-" {
-		fmt.Println("[INFO] Reading from stdin")
+		// fmt.Fprintln(os.Stderr, "[INFO] Reading from stdin")
 		dataIn = u.Must(io.ReadAll(os.Stdin))
 	} else {
-		fmt.Printf("Input file '%s'\n", *filePath)
+		// fmt.Fprintf(os.Stderr, "Input file '%s'\n", *filePath)
 		dataIn = u.Must(os.ReadFile(*filePath))
 	}
 	dataOut := ""
@@ -34,10 +34,10 @@ func main() {
 		dataOut = u.Must(u.Decrypt(string(dataIn), *key, nil))
 	}
 	if *outfile == "-" {
-		fmt.Println(dataOut)
+		fmt.Fprint(os.Stdout, dataOut)
 	} else {
 		if *outfile == "" {
-			fmt.Println("[WARN] Output file not set, will override input file")
+			fmt.Fprintf(os.Stderr, "[WARN] Output file not set, will override input file")
 			*outfile = *filePath
 		}
 		if err := os.WriteFile(*outfile, []byte(dataOut), 0644); err != nil {
