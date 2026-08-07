@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -651,11 +652,12 @@ func (s *SshExec) ExecUseCLI(commands string) (out string, err error) {
 
 // ExecOpts is used to pass advanced Exec Options
 type ExecOpts struct {
-	Args     []string
-	Envs     map[string]string
-	Debug    bool
-	Workdir  string
-	UseShell bool
+	Args          []string
+	Envs          map[string]string
+	Debug         bool
+	Workdir       string
+	UseShell      bool
+	MaskStringPtn *regexp.Regexp
 }
 
 // CopyAndExecWithOpts copies a local or a binary from a url to remoteWorkDir, and exec that bin in remoteWorkDir with execOpt

@@ -1122,6 +1122,7 @@ func RunSystemCommandV3(command *exec.Cmd, verbose bool, opts ...ExecOpts) (outp
 	command.Stdout = &outBuf
 	command.Stderr = &errBuf
 	command.Env = os.Environ()
+	var extraMaskPtn *regexp.Regexp = nil
 	if len(opts) == 1 {
 		opt := opts[0]
 		if opt.Workdir != "" {
@@ -1135,10 +1136,13 @@ func RunSystemCommandV3(command *exec.Cmd, verbose bool, opts ...ExecOpts) (outp
 				command.Env = append(command.Env, k+"="+v)
 			}
 		}
+		if opt.MaskStringPtn != nil {
+			extraMaskPtn = opt.MaskStringPtn
+		}
 	}
 
 	if verbose {
-		log.Printf("[INFO] command: %s\n", MaskCredential(command.String()))
+		log.Printf("[INFO] command: %s\n", MaskCredential(command.String(), extraMaskPtn))
 	}
 
 	err = command.Run()
@@ -1149,7 +1153,7 @@ func RunSystemCommandV3(command *exec.Cmd, verbose bool, opts ...ExecOpts) (outp
 		o := SystemCommandOuput{
 			Stdout: stdout,
 			Stderr: strings.TrimSuffix(errBuf.String(), "\n"),
-			Cmd:    MaskCredential(command.String()),
+			Cmd:    MaskCredential(command.String(), extraMaskPtn),
 		}
 		return JsonDump(o, ""), fmt.Errorf("command failed: %w", err)
 	}
