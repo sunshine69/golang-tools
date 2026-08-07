@@ -2795,9 +2795,14 @@ func CloneSliceOfMap(a []any) (output []any) {
 // MaskCredential RegexPattern
 var MaskCredentialPattern *regexp.Regexp = regexp.MustCompile(`(?i)(_auth|_TOKEN|VAULT| KEY|_KEY|password|Password|PASSWORD|token|SecretKey|SECRETKEY|SiteKey|SITEKEY|ClientSecret|CLIENTSECRET|TOKEN|pass|passkey|Secret|secret|access_key|PAT=| -k | -K | --key | -key |AUTHORIZATION: Basic |Authorization: Basic |Authorization: Bearer |AUTH=)["']*[:=]*[\s]*[^\s]+`)
 
-// Mask all credentials pattern
-func MaskCredential(inputstr string) string {
-	return MaskCredentialPattern.ReplaceAllString(inputstr, "$1$2 *****")
+// Mask all credentials pattern. Call with extra patter if requried. If you supply it, it should have at least two captured group
+// to display part first (?i)(part-is-display)part-to-be-masked
+func MaskCredential(inputstr string, extraPattern ...*regexp.Regexp) (output string) {
+	for _, ptn := range extraPattern {
+		output = ptn.ReplaceAllString(inputstr, "$1$2 *****")
+	}
+	output = MaskCredentialPattern.ReplaceAllString(output, "$1$2 *****")
+	return
 }
 
 func IsNamedPipe(path string) (bool, fs.FileInfo) {
