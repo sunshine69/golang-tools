@@ -2802,8 +2802,11 @@ var MaskCredentialPattern *regexp.Regexp = regexp.MustCompile(`(?i)(_auth|_TOKEN
 // Mask all credentials pattern. Call with extra patter if requried. If you supply it, it should have at least two captured group
 // to display part first (?i)(part-is-display)part-to-be-masked
 func MaskCredential(inputstr string, extraPattern ...*regexp.Regexp) (output string) {
+	output = inputstr
 	for _, ptn := range extraPattern {
-		output = ptn.ReplaceAllString(inputstr, "$1$2 *****")
+		if ptn != nil {
+			output = ptn.ReplaceAllString(output, "$1$2 *****")
+		}
 	}
 	output = MaskCredentialPattern.ReplaceAllString(output, "$1$2 *****")
 	return
