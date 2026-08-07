@@ -610,7 +610,7 @@ export {{$k}}='{{$v}}'
 if [ '{{ .optWorkdir }}' != '' ]; then
 	cd {{ .optWorkdir }} || exit 1
 else
-	cd $(dirname {{.command}})
+	cd $(dirname {{.commands}})
 fi
 exec {{.commands}} {{.commandOpt}}
 			`, map[string]any{"envs": opt.Envs, "optWorkdir": opt.Workdir, "commands": commands, "commandOpt": strings.Join(opt.Args, " ")})
