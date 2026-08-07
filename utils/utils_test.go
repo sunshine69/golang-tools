@@ -451,7 +451,12 @@ func TestSshExec(t *testing.T) {
 	o = Must(se.CopyAndExecWithOpts("gozip.exe", "", false, ExecOpts{
 		Args: []string{"-h"},
 	}))
-	println("[DEBUG] CopyAndExecWithOpts " + o)
+	println("[DEBUG] CopyAndExecWithOpts SUCCESS - Output: " + o)
+
+	o = Must(se.GoTemplateAndExec(`#!/bin/bash
+	bash -c '{{.bashcmd}}'`, nil, map[string]any{"bashcmd": "echo 'Hello this is bash CMD line'"}))
+	println("[DEBUG] GoTemplateAndExec multi line SUCCESS. Only multiline supported - Output: " + o)
+
 	se.Close()
 }
 
