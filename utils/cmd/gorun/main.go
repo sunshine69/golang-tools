@@ -12,7 +12,7 @@ var debug bool
 
 func run(dir, cmd string, args ...string) error {
 	if debug {
-		fmt.Printf("+ %s %v\n", cmd, args)
+		fmt.Fprintf(os.Stderr, "+ %s %v\n", cmd, args)
 	}
 
 	c := exec.Command(cmd, args...)
@@ -54,6 +54,7 @@ func main() {
 	}
 
 	if err := runScript(); err != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR] %s\n", err.Error())
 		os.Exit(1)
 	}
 }
@@ -75,6 +76,12 @@ func runScript() error {
 
 	args := os.Args[2:]
 
+	parentDir := filepath.Dir(src)
+	if gomod, err := os.Stat(filepath.Join(parentDir, "go.mod")); err == nil && !gomod.IsDir() {
+		// File inside a gomod dir. Just chdir into that and run the project
+		return buildAndRunBinary(parentDir, ".", args...)
+	}
+
 	tmp, err := os.MkdirTemp("", "go-run-*")
 	if err != nil {
 		return fmt.Errorf("creating temp directory: %w", err)
@@ -90,17 +97,10 @@ func runScript() error {
 	if err := copyFile(src, mainFile); err != nil {
 		return fmt.Errorf("copying source file: %w", err)
 	}
+	return buildAndRunBinary(tmp, mainFile, args...)
+}
 
-	// Initialize temporary module
-	if err := run(tmp,
-		"go",
-		"mod",
-		"init",
-		"temporary-script",
-	); err != nil {
-		return fmt.Errorf("initializing module: %w", err)
-	}
-
+func buildAndRunBinary(tmp, mainFile string, args ...string) error {
 	// Resolve dependencies
 	if err := run(tmp,
 		"go",
@@ -111,7 +111,7 @@ func runScript() error {
 	}
 
 	// Build executable
-	bin := filepath.Join(tmp, "app")
+	bin := filepath.Join(tmp, "gorun-app")
 
 	if err := run(tmp,
 		"go",
@@ -128,6 +128,9 @@ func runScript() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
+	if wd, err := os.Getwd(); err == nil {
+		cmd.Dir = wd
+	}
 
 	if err := cmd.Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
