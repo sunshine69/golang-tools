@@ -122,6 +122,7 @@ func buildAndRunBinary(tmp, mainFile string, args ...string) error {
 	); err != nil {
 		return fmt.Errorf("building executable: %w", err)
 	}
+	defer os.RemoveAll(mainFile)
 
 	// Execute
 	cmd := exec.Command(bin, args...)
