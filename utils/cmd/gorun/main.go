@@ -3,9 +3,12 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"golang.org/x/tools/go/packages"
 )
 
 var debug bool
@@ -77,9 +80,12 @@ func runScript() error {
 	args := os.Args[2:]
 
 	parentDir := filepath.Dir(src)
-	if gomod, err := os.Stat(filepath.Join(parentDir, "go.mod")); err == nil && !gomod.IsDir() {
-		// File inside a gomod dir. Just chdir into that and run the project
-		return buildAndRunBinary(parentDir, ".", args...)
+	if rootDir, isGoPkg, _ := findGoModuleRoot(parentDir); isGoPkg {
+		mainFile, err := filepath.Rel(rootDir, src)
+		if err != nil {
+			return err
+		}
+		return buildAndRunBinary(rootDir, mainFile, true, args...)
 	}
 
 	tmp, err := os.MkdirTemp("", "go-run-*")
@@ -97,10 +103,20 @@ func runScript() error {
 	if err := copyFile(src, mainFile); err != nil {
 		return fmt.Errorf("copying source file: %w", err)
 	}
-	return buildAndRunBinary(tmp, mainFile, args...)
+	return buildAndRunBinary(tmp, mainFile, false, args...)
 }
 
-func buildAndRunBinary(tmp, mainFile string, args ...string) error {
+func buildAndRunBinary(tmp, mainFile string, isGoMOd bool, args ...string) error {
+	if !isGoMOd {
+		if err := run(tmp,
+			"go",
+			"mod",
+			"init",
+			"gorun-temp-mod",
+		); err != nil {
+			return fmt.Errorf("go mod init: %w", err)
+		}
+	}
 	// Resolve dependencies
 	if err := run(tmp,
 		"go",
@@ -122,7 +138,11 @@ func buildAndRunBinary(tmp, mainFile string, args ...string) error {
 	); err != nil {
 		return fmt.Errorf("building executable: %w", err)
 	}
-	defer os.RemoveAll(mainFile)
+	defer func() {
+		if err := os.RemoveAll(bin); err != nil {
+			log.Printf("[ERROR] Unable to cleanup temp bin file - %s\n", err.Error())
+		}
+	}()
 
 	// Execute
 	cmd := exec.Command(bin, args...)
@@ -141,4 +161,31 @@ func buildAndRunBinary(tmp, mainFile string, args ...string) error {
 	}
 
 	return nil
+}
+
+// findGoModuleRoot checks if a directory belongs to a Go package and returns its module root.
+func findGoModuleRoot(dirPath string) (string, bool, error) {
+	absPath, err := filepath.Abs(dirPath)
+	if err != nil {
+		return "", false, err
+	}
+
+	cfg := &packages.Config{
+		// NeedModule tells Go to load details about the module hosting the package
+		Mode: packages.NeedName | packages.NeedModule,
+		Dir:  absPath,
+	}
+
+	pkgs, err := packages.Load(cfg, ".")
+	if err != nil {
+		return "", false, err
+	}
+
+	// Ensure we found a valid package and it belongs to a module
+	if len(pkgs) > 0 && pkgs[0].Module != nil {
+		// Module.Dir contains the absolute path to the directory containing the go.mod file
+		return pkgs[0].Module.Dir, true, nil
+	}
+
+	return "", false, nil
 }
