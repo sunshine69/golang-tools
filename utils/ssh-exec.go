@@ -1214,7 +1214,8 @@ func (s *SshExec) GoTemplate(src, dest string, data map[string]any, mode os.File
 //
 // If dest is nil, create a temp dir and template file into it and exec. the working dir will be unknown to you.
 //
-// Set dest to non nil, even empty string, the working directory will be return to dest so you can re-use the value.
+// Set dest to non nil, even empty string, the working directory will be return to dest so you can re-use the value. If it is not empty the
+// remote working directory will be a subdir of dest.
 func (s *SshExec) GoTemplateAndExec(src string, dest *string, data map[string]any, execOpt ...ExecOpts) (out string, err error) {
 	newdest := "" // Must be a file or empty
 	if dest != nil {
@@ -1226,6 +1227,8 @@ func (s *SshExec) GoTemplateAndExec(src string, dest *string, data map[string]an
 	}
 	if dest != nil {
 		*dest = filepath.Dir(remoteFilePath)
+	} else {
+		defer os.RemoveAll(filepath.Dir(remoteFilePath))
 	}
 	return s.ExecWithOpts(remoteFilePath, execOpt...)
 }
