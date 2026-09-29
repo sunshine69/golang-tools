@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1228,7 +1229,11 @@ func (s *SshExec) GoTemplateAndExec(src string, dest *string, data map[string]an
 	if dest != nil {
 		*dest = filepath.Dir(remoteFilePath)
 	} else {
-		defer os.RemoveAll(filepath.Dir(remoteFilePath))
+		defer func() {
+			if _, err := s.Exec("rm -rf " + filepath.Dir(remoteFilePath)); err != nil {
+				log.Fatalln("[ERROR] cleaning up " + err.Error())
+			}
+		}()
 	}
 	return s.ExecWithOpts(remoteFilePath, execOpt...)
 }
